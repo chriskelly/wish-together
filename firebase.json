@@ -1,0 +1,1 @@
+{"hosting":{"public":"build/web","ignore":["firebase.json","**/.*","**/node_modules/**"],"rewrites":[{"source":"**","destination":"/index.html"}]},"flutter":{"platforms":{"dart":{"lib/firebase_options.dart":{"projectId":"wish-together-project","configurations":{"web":"1:1063002805065:web:5d1f2d9e8b634967e08098"}}}}}}

@@ -1,9 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'auth/home_page.dart';
-import 'auth/login_page.dart';
-import 'auth/verification_page.dart';
+import 'package:myapp/auth/home_page.dart';
+import 'package:myapp/auth/login_page.dart';
+import 'package:myapp/auth/verification_page.dart';
+import 'package:myapp/wishlist/create_wishlist_page.dart';
 
 final GoRouter router = GoRouter(
   redirect: (BuildContext context, GoRouterState state) {
@@ -37,6 +38,12 @@ final GoRouter router = GoRouter(
       path: '/verify',
       builder: (BuildContext context, GoRouterState state) {
         return VerificationPage(verificationId: state.extra as String);
+      },
+    ),
+    GoRoute(
+      path: '/create-wishlist',
+      builder: (BuildContext context, GoRouterState state) {
+        return const CreateWishlistPage();
       },
     ),
   ],

@@ -6,84 +6,33 @@ import 'firebase_options.dart';
 import 'router.dart';
 import 'theme.dart';
 
-void main() {
+void main() async {
+  // Ensure Flutter bindings are initialized before any Firebase services.
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Use the standard Firebase initialization with the generated options.
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  await FirebaseAppCheck.instance.activate(
+    providerWeb: ReCaptchaEnterpriseProvider('6LfN0vUrAAAAAIBImzC6j6Cu2WypCi7Ke_Wx3Xl8'),
+  );
+
   runApp(const WishTogetherApp());
 }
 
-class WishTogetherApp extends StatefulWidget {
+class WishTogetherApp extends StatelessWidget {
   const WishTogetherApp({super.key});
 
   @override
-  State<WishTogetherApp> createState() => _WishTogetherAppState();
-}
-
-class _WishTogetherAppState extends State<WishTogetherApp> {
-  late final Future<void> _initialization;
-
-  @override
-  void initState() {
-    super.initState();
-    _initialization = _initializeFirebase();
-  }
-
-  Future<void> _initializeFirebase() async {
-    WidgetsFlutterBinding.ensureInitialized();
-
-    final defaultOptions = DefaultFirebaseOptions.currentPlatform;
-
-    await Firebase.initializeApp(
-      options: FirebaseOptions(
-        apiKey: defaultOptions.apiKey,
-        appId: defaultOptions.appId,
-        messagingSenderId: defaultOptions.messagingSenderId,
-        projectId: defaultOptions.projectId,
-        authDomain: 'wish-together-project.web.app',
-        storageBucket: defaultOptions.storageBucket,
-      ),
-    );
-
-    // Activate Firebase App Check with the CORRECT 'webProvider' parameter.
-    await FirebaseAppCheck.instance.activate(
-      providerWeb: ReCaptchaEnterpriseProvider('6LfN0vUrAAAAAIBImzC6j6Cu2WypCi7Ke_Wx3Xl8'),
-    );
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return FutureBuilder(
-      future: _initialization,
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return MaterialApp(
-            home: Scaffold(
-              body: Center(
-                child: Text(
-                  'Error initializing app: ${snapshot.error}',
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ),
-          );
-        }
-
-        if (snapshot.connectionState == ConnectionState.done) {
-          return MaterialApp.router(
-            routerConfig: router,
-            title: 'WishTogether',
-            theme: lightTheme,
-            darkTheme: darkTheme,
-            themeMode: ThemeMode.system,
-          );
-        }
-
-        return const MaterialApp(
-          home: Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(),
-            ),
-          ),
-        );
-      },
+    return MaterialApp.router(
+      routerConfig: router,
+      title: 'WishTogether',
+      theme: lightTheme,
+      darkTheme: darkTheme,
+      themeMode: ThemeMode.system,
     );
   }
 }

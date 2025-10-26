@@ -1,7 +1,8 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:myapp/models/group.dart';
+import 'package:myapp/models/user.dart';
 import 'package:myapp/models/wishlist.dart';
 import 'package:myapp/services/firestore_service.dart';
 
@@ -20,7 +21,7 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
+    return StreamBuilder<auth.User?>(
       stream: _authService.authStateChanges,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -68,13 +69,13 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _deleteWishlist(String wishlistId) async {
-    // Show a confirmation dialog before deleting
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Confirm Deletion'),
-          content: const Text('Are you sure you want to delete this wishlist? This action cannot be undone.'),
+          content: const Text(
+              'Are you sure you want to delete this wishlist? This action cannot be undone.'),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -107,89 +108,118 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Widget _buildLoggedInView(BuildContext context, User user) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Home'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Logout',
-            onPressed: () async {
-              await _authService.signOut();
-            },
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Welcome!',
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
-              const SizedBox(height: 24),
-              _buildDataSection<Wishlist>(
-                context: context,
-                title: 'My Wishlists',
-                onAdd: () => context.push('/create-wishlist'),
-                stream: _firestoreService.getUserWishlists(user.uid),
-                emptyListMessage: 'No wishlists yet. Create one!',
-                itemBuilder: (wishlist) {
-                  return Card(
-                    child: ListTile(
-                      title: Text(wishlist.name),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.edit_outlined),
-                            onPressed: () {
-                              context.push('/wishlist/${wishlist.id}/edit', extra: wishlist);
-                            },
-                            tooltip: 'Edit Wishlist',
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                            onPressed: () => _deleteWishlist(wishlist.id),
-                            tooltip: 'Delete Wishlist',
-                          ),
-                        ],
-                      ),
-                      onTap: () {
-                        context.go('/wishlist/${wishlist.id}');
-                      },
-                    ),
-                  );
+  Widget _buildLoggedInView(BuildContext context, auth.User user) {
+    return FutureBuilder<AppUser?>(
+      future: _firestoreService.getUser(user.uid),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        // This handles the case where the profile might be loading or missing briefly
+        if (!snapshot.hasData || snapshot.data == null) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Loading Profile...')),
+            body: const Center(child: Text('Could not load user profile.')),
+          );
+        }
+
+        final appUser = snapshot.data!;
+
+        return Scaffold(
+          appBar: AppBar(
+            title: Text('Welcome, ${appUser.displayName}!'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.person_outline),
+                tooltip: 'Profile',
+                onPressed: () {
+                  context.go('/profile');
                 },
               ),
-              const SizedBox(height: 24),
-              _buildDataSection<Group>(
-                context: context,
-                title: 'My Groups',
-                onAdd: () {
-                  // TODO: Navigate to a "Create Group" page
-                },
-                stream: _firestoreService.getUserGroups(user.uid),
-                emptyListMessage: 'No groups yet. Create or join one!',
-                itemBuilder: (group) {
-                  return Card(
-                    child: ListTile(
-                      title: Text(group.name),
-                      onTap: () {
-                        // TODO: Navigate to group details page
-                      },
-                    ),
-                  );
+              IconButton(
+                icon: const Icon(Icons.logout),
+                tooltip: 'Logout',
+                onPressed: () async {
+                  await _authService.signOut();
                 },
               ),
             ],
           ),
-        ),
-      ),
+          body: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Your Dashboard',
+                    style: Theme.of(context).textTheme.headlineMedium,
+                  ),
+                  const SizedBox(height: 24),
+                  _buildDataSection<Wishlist>(
+                    context: context,
+                    title: 'My Wishlists',
+                    onAdd: () => context.push('/create-wishlist'),
+                    stream: _firestoreService.getUserWishlists(user.uid),
+                    emptyListMessage: 'No wishlists yet. Create one!',
+                    itemBuilder: (wishlist) {
+                      return Card(
+                        child: ListTile(
+                          title: Text(wishlist.name),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.edit_outlined),
+                                onPressed: () {
+                                  context.push('/wishlist/${wishlist.id}/edit',
+                                      extra: wishlist);
+                                },
+                                tooltip: 'Edit Wishlist',
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline,
+                                    color: Colors.redAccent),
+                                onPressed: () => _deleteWishlist(wishlist.id),
+                                tooltip: 'Delete Wishlist',
+                              ),
+                            ],
+                          ),
+                          onTap: () {
+                            context.go('/wishlist/${wishlist.id}');
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  _buildDataSection<Group>(
+                    context: context,
+                    title: 'My Groups',
+                    onAdd: () {
+                      // TODO: Navigate to a "Create Group" page
+                    },
+                    stream: _firestoreService.getUserGroups(user.uid),
+                    emptyListMessage: 'No groups yet. Create or join one!',
+                    itemBuilder: (group) {
+                      return Card(
+                        child: ListTile(
+                          title: Text(group.name),
+                          onTap: () {
+                            // TODO: Navigate to group details page
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 

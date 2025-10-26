@@ -1,4 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' as auth;
+import '../models/user.dart';
 import '../models/wishlist.dart';
 import '../models/group.dart';
 
@@ -7,6 +9,52 @@ class FirestoreService {
 
   FirestoreService({FirebaseFirestore? db}) : _db = db ?? FirebaseFirestore.instance;
 
+  // User methods
+  Future<AppUser?> getUser(String userId) async {
+    final doc = await _db.collection('users').doc(userId).get();
+    if (doc.exists) {
+      return AppUser.fromFirestore(doc);
+    }
+    return null;
+  }
+
+  Future<void> createUser(auth.User user, String displayName) async {
+    final appUser = AppUser(
+      id: user.uid,
+      displayName: displayName,
+      phoneNumber: user.phoneNumber,
+    );
+
+    final defaultWishlist = Wishlist(
+      id: '',
+      name: "$displayName's Wishlist",
+      ownerId: user.uid,
+    );
+
+    final batch = _db.batch();
+
+    // Create the user document
+    batch.set(_db.collection('users').doc(user.uid), appUser.toJson());
+
+    // Create the default wishlist
+    final wishlistRef = _db.collection('wishlists').doc();
+    batch.set(wishlistRef, defaultWishlist.toFirestore());
+
+    await batch.commit();
+  }
+
+  Future<void> updateUser(String userId, {String? displayName}) async {
+    final Map<String, dynamic> data = {};
+    if (displayName != null) {
+      data['displayName'] = displayName;
+    }
+
+    if (data.isNotEmpty) {
+      return _db.collection('users').doc(userId).update(data);
+    }
+  }
+
+  // Wishlist methods
   Stream<List<Wishlist>> getUserWishlists(String userId) {
     return _db
         .collection('wishlists')
@@ -54,6 +102,7 @@ class FirestoreService {
     await wishlistRef.delete();
   }
 
+  // Group methods
   Stream<List<Group>> getUserGroups(String userId) {
     return _db
         .collection('groups')
@@ -63,6 +112,7 @@ class FirestoreService {
             snapshot.docs.map((doc) => Group.fromFirestore(doc)).toList());
   }
 
+  // Item methods
   Stream<List<Item>> getWishlistItems(String wishlistId) {
     return _db
         .collection('wishlists')

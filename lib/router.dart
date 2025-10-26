@@ -5,24 +5,43 @@ import 'package:myapp/auth/home_page.dart';
 import 'package:myapp/auth/login_page.dart';
 import 'package:myapp/auth/verification_page.dart';
 import 'package:myapp/models/wishlist.dart';
+import 'package:myapp/profile/profile_page.dart';
+import 'package:myapp/services/firestore_service.dart';
 import 'package:myapp/wishlist/wishlist_form_page.dart';
 import 'package:myapp/wishlist/wishlist_details_page.dart';
 import 'package:myapp/wishlist/item_form_page.dart';
 
-final GoRouter router = GoRouter(
-  redirect: (BuildContext context, GoRouterState state) {
-    final bool loggedIn = FirebaseAuth.instance.currentUser != null;
-    final bool loggingIn = state.matchedLocation == '/login' || state.matchedLocation == '/verify';
+final router = GoRouter(
+  redirect: (BuildContext context, GoRouterState state) async {
+    final auth = FirebaseAuth.instance;
+    final firestoreService = FirestoreService();
+
+    final bool loggedIn = auth.currentUser != null;
+    final bool isLoggingIn = state.matchedLocation == '/login' || state.matchedLocation == '/verify';
+    final bool isCreatingProfile = state.matchedLocation == '/profile';
 
     if (!loggedIn) {
-      return loggingIn ? null : '/login';
+      return isLoggingIn ? null : '/login';
     }
 
-    if (loggingIn) {
-      return '/';
+    // User is logged in, check for profile completion
+    final user = auth.currentUser!;
+    final appUser = await firestoreService.getUser(user.uid);
+
+    final bool hasProfile = appUser?.displayName != null && appUser!.displayName!.isNotEmpty;
+
+    if (loggedIn && isLoggingIn) {
+      return hasProfile ? '/' : '/profile';
     }
 
-    return null;
+    if (loggedIn && !hasProfile) {
+        // If the user is logged in but has no profile, 
+        // they must go to the profile page. They cannot navigate anywhere else.
+        return isCreatingProfile ? null : '/profile';
+    }
+    
+
+    return null; // No redirect needed
   },
   routes: <RouteBase>[
     GoRoute(
@@ -81,6 +100,12 @@ final GoRouter router = GoRouter(
       builder: (BuildContext context, GoRouterState state) {
         return const WishlistFormPage();
       },
+    ),
+    GoRoute(
+        path: '/profile',
+        builder: (BuildContext context, GoRouterState state) {
+            return const ProfilePage();
+        },
     ),
   ],
 );

@@ -4,18 +4,28 @@ import 'package:myapp/models/wishlist.dart';
 import 'package:myapp/services/firestore_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-class CreateWishlistPage extends StatefulWidget {
-  const CreateWishlistPage({super.key});
+class WishlistFormPage extends StatefulWidget {
+  final Wishlist? wishlist;
+
+  const WishlistFormPage({super.key, this.wishlist});
 
   @override
-  State<CreateWishlistPage> createState() => _CreateWishlistPageState();
+  State<WishlistFormPage> createState() => _WishlistFormPageState();
 }
 
-class _CreateWishlistPageState extends State<CreateWishlistPage> {
+class _WishlistFormPageState extends State<WishlistFormPage> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
+  late final TextEditingController _nameController;
   final _firestoreService = FirestoreService();
   bool _isLoading = false;
+
+  bool get _isEditing => widget.wishlist != null;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.wishlist?.name ?? '');
+  }
 
   @override
   void dispose() {
@@ -31,36 +41,41 @@ class _CreateWishlistPageState extends State<CreateWishlistPage> {
 
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
+        // This should not happen if the user is on this page,
+        // but it's good practice to check.
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('You must be logged in to create a wishlist.')),
+            const SnackBar(content: Text('You must be logged in.')),
           );
-          setState(() {
-            _isLoading = false;
-          });
         }
         return;
       }
 
-      final newWishlist = Wishlist(
-        id: '', // Firestore will generate the ID
-        name: _nameController.text,
-        ownerId: user.uid,
-      );
-
       try {
-        await _firestoreService.addWishlist(newWishlist);
+        if (_isEditing) {
+          final updatedWishlist = widget.wishlist!.copyWith(
+            name: _nameController.text,
+          );
+          await _firestoreService.updateWishlist(updatedWishlist);
+        } else {
+          final newWishlist = Wishlist(
+            id: '', // Firestore will generate
+            name: _nameController.text,
+            ownerId: user.uid,
+          );
+          await _firestoreService.addWishlist(newWishlist);
+        }
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Wishlist created!')),
+            SnackBar(content: Text('Wishlist ${_isEditing ? 'updated' : 'created'}!')),
           );
           context.pop();
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to create wishlist: $e')),
+            SnackBar(content: Text('Failed to save wishlist: $e')),
           );
         }
       } finally {
@@ -77,7 +92,7 @@ class _CreateWishlistPageState extends State<CreateWishlistPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Create a new Wishlist'),
+        title: Text(_isEditing ? 'Edit Wishlist' : 'Create a new Wishlist'),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -111,7 +126,7 @@ class _CreateWishlistPageState extends State<CreateWishlistPage> {
                         width: 20,
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
-                    : const Text('Save Wishlist'),
+                    : Text(_isEditing ? 'Update Wishlist' : 'Save Wishlist'),
               ),
             ],
           ),

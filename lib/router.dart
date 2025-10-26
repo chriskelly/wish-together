@@ -4,7 +4,10 @@ import 'package:go_router/go_router.dart';
 import 'package:myapp/auth/home_page.dart';
 import 'package:myapp/auth/login_page.dart';
 import 'package:myapp/auth/verification_page.dart';
-import 'package:myapp/wishlist/create_wishlist_page.dart';
+import 'package:myapp/models/wishlist.dart';
+import 'package:myapp/wishlist/wishlist_form_page.dart';
+import 'package:myapp/wishlist/wishlist_details_page.dart';
+import 'package:myapp/wishlist/item_form_page.dart';
 
 final GoRouter router = GoRouter(
   redirect: (BuildContext context, GoRouterState state) {
@@ -27,6 +30,39 @@ final GoRouter router = GoRouter(
       builder: (BuildContext context, GoRouterState state) {
         return const HomePage();
       },
+      routes: [
+        GoRoute(
+          path: 'wishlist/:id',
+          builder: (BuildContext context, GoRouterState state) {
+            final wishlistId = state.pathParameters['id']!;
+            return WishlistDetailsPage(wishlistId: wishlistId);
+          },
+          routes: [
+            GoRoute(
+              path: 'add-item',
+              builder: (BuildContext context, GoRouterState state) {
+                final wishlistId = state.pathParameters['id']!;
+                return ItemFormPage(wishlistId: wishlistId);
+              },
+            ),
+            GoRoute(
+              path: 'edit',
+              builder: (BuildContext context, GoRouterState state) {
+                final wishlist = state.extra as Wishlist;
+                return WishlistFormPage(wishlist: wishlist);
+              },
+            ),
+            GoRoute(
+              path: 'item/:itemId/edit',
+              builder: (BuildContext context, GoRouterState state) {
+                final wishlistId = state.pathParameters['id']!;
+                final item = state.extra as Item;
+                return ItemFormPage(wishlistId: wishlistId, item: item);
+              },
+            ),
+          ],
+        ),
+      ],
     ),
     GoRoute(
       path: '/login',
@@ -43,7 +79,7 @@ final GoRouter router = GoRouter(
     GoRoute(
       path: '/create-wishlist',
       builder: (BuildContext context, GoRouterState state) {
-        return const CreateWishlistPage();
+        return const WishlistFormPage();
       },
     ),
   ],

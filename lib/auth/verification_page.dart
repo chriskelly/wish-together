@@ -17,6 +17,25 @@ class _VerificationPageState extends State<VerificationPage> {
   final _codeController = TextEditingController();
   final _authService = AuthService();
 
+  Future<void> _verifyCode() async {
+    final credential = PhoneAuthProvider.credential(
+      verificationId: widget.verificationId,
+      smsCode: _codeController.text,
+    );
+    try {
+      await _authService.signInWithCredential(credential);
+      if (mounted) {
+        context.go('/');
+      }
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message ?? 'Sign-in failed')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -33,21 +52,7 @@ class _VerificationPageState extends State<VerificationPage> {
             ),
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: () async {
-                final credential = PhoneAuthProvider.credential(
-                  verificationId: widget.verificationId,
-                  smsCode: _codeController.text,
-                );
-                try {
-                  await _authService.signInWithCredential(credential);
-                  // ignore: use_build_context_synchronously
-                  context.go('/');
-                } on FirebaseAuthException catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(e.message ?? 'Sign-in failed')),
-                  );
-                }
-              },
+              onPressed: _verifyCode,
               child: const Text('Verify'),
             ),
           ],

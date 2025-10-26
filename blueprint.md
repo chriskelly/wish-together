@@ -4,72 +4,53 @@
 
 WishTogether is a Flutter web application designed to simplify gift-giving within families. It allows users to create and manage personal wishlists, form private family groups, and share wishlists with group members. A key feature is the ability to anonymously claim gifts from shared wishlists, with a spoiler-free option for users who want to be surprised.
 
-## Features
+## Current Status & Features
 
-*   **Authentication:** Simple and secure login using a phone number and a one-time code.
-*   **Wishlists:** Create multiple wishlists (e.g., "Birthday," "Christmas").
-*   **Wishlist Items:** Add detailed items to wishlists, including a title, description, and a URL.
-*   **Family Groups:** Create and join private family groups to share wishlists.
-*   **Wishlist Sharing:** Share specific wishlists with members of your family groups.
-*   **Anonymous Gift Claiming:** Anonymously mark items as "claimed" on shared wishlists.
-*   **Spoiler-Free Mode:** A toggle to hide the claimed status of items, so users don't see what has been purchased for them.
+*   **Authentication:** Users can securely log in with their phone number.
+*   **Wishlist & Item Management (CRD):** Users can create, read, and delete wishlists and the items within them.
+*   **Core Setup:** The project is set up with `go_router` for navigation and a Material 3 theme.
 
 ## Project Plan
 
-### Phase 1: Foundational Setup & Theming
+### Phase 1: Foundational Setup & Theming (Complete)
 
-1.  **Firebase Setup:**
-    *   Enable Firebase Authentication with phone number sign-in.
-    *   Set up Cloud Firestore for data storage (users, wishlists, groups).
-2.  **Project Structure:**
-    *   Organize the project into a feature-first structure (e.g., `auth`, `wishlists`, `groups`).
-3.  **Theming:**
-    *   Implement a modern, family-friendly theme using Material 3.
-    *   Use `google_fonts` for custom typography.
-    *   Set up a `ThemeProvider` to manage light/dark modes.
-4.  **Routing:**
-    *   Configure `go_router` for declarative navigation and authentication-based redirects.
+*   **[x] Firebase Setup:** Enabled Firebase Authentication and Firestore.
+*   **[x] Project Structure:** Organized by feature (`auth`, `wishlists`, `groups`).
+*   **[x] Theming:** Implemented a Material 3 theme with `google_fonts`.
+*   **[x] Routing:** Configured `go_router` for navigation and auth redirects.
 
-### Phase 2: Authentication
+### Phase 2: Authentication (Complete)
 
-1.  **Login Screen:**
-    *   Create a UI for users to enter their phone number.
-2.  **Verification Screen:**
-    *   Build a screen for users to enter the one-time code sent to their phone.
-3.  **Authentication Logic:**
-    *   Implement the Firebase phone authentication flow.
-    *   Create a `User` model and a service to manage user data in Firestore.
+*   **[x] Login & Verification Screens:** Created UIs for phone number input and OTP verification.
+*   **[x] Authentication Logic:** Implemented the full Firebase phone auth flow.
 
-### Phase 3: Wishlists
+### Phase 3: Wishlists & Item Management (In Progress)
 
-1.  **Wishlist Screen:**
-    *   Display a user's wishlists.
-    *   Provide an option to create a new wishlist.
-2.  **Wishlist Detail Screen:**
-    *   Show the items in a selected wishlist.
-    *   Allow users to add, edit, and delete items.
-3.  **Data Models:**
-    *   Create `Wishlist` and `Item` models.
-    *   Implement Firestore services for wishlist management.
+*   **[x] Wishlist & Item Creation:** Users can create wishlists and add items to them.
+*   **[x] Wishlist & Item Deletion:** Users can delete wishlists and the items within them.
+*   **[x] Wishlist Details Page:** A dedicated page to view and manage items within a wishlist.
 
-### Phase 4: Family Groups & Sharing
+*   **Next Steps (Editing & Refactoring):**
+    1.  **Refactor and Generalize Form Pages:**
+        *   Rename `create_wishlist_page.dart` to `wishlist_form_page.dart`.
+        *   Rename `add_item_page.dart` to `item_form_page.dart`.
+        *   Modify both pages to accept an optional existing object (a `Wishlist` or `Item`). When an object is passed, the page will operate in "edit mode" by pre-filling the form. Otherwise, it will be in "create mode."
+    2.  **Implement Update Logic in Firestore Service:**
+        *   Add an `updateWishlist(Wishlist wishlist)` method to `FirestoreService`.
+        *   Add an `updateItemInWishlist(String wishlistId, Item item)` method to `FirestoreService`.
+    3.  **Update UI and Navigation:**
+        *   Add an "edit" icon button to each wishlist card on the `HomePage`.
+        *   Modify the `onTap` action for each item in the `WishlistDetailsPage` to navigate to the `item_form_page.dart` in edit mode.
+        *   Update the `go_router` configuration to handle passing the objects to the form pages.
 
-1.  **Groups Screen:**
-    *   Display a user's family groups.
-    *   Allow users to create or join a group.
-2.  **Group Detail Screen:**
-    *   Show the members of a group.
-    *   Provide an interface to share wishlists with the group.
-3.  **Sharing Logic:**
-    *   Implement the logic to share and un-share wishlists.
-    *   Update Firestore rules to manage access control.
+### Phase 4: Family Groups & Sharing (Not Started)
 
-### Phase 5: Gift Claiming & Spoiler-Free Mode
+*   **Create/Join Group:** Allow users to create a new group or join an existing one with a code.
+*   **Group Details Page:** Display group members and the join code. Provide an interface for sharing/un-sharing wishlists with the group.
+*   **Sharing Logic:** Implement the backend logic to manage wishlist visibility within groups.
 
-1.  **Shared Wishlist View:**
-    *   Display a shared wishlist with the ability to claim items.
-2.  **Claiming Logic:**
-    *   Implement the anonymous gift claiming feature.
-3.  **Spoiler-Free Toggle:**
-    *   Add a UI element to enable/disable spoiler-free mode.
-    *   Implement the logic to hide the claimed status of items.
+### Phase 5: Gift Claiming & Spoiler-Free Mode (Not Started)
+
+*   **Shared Wishlist View:** Display a shared wishlist with the ability to claim items.
+*   **Claiming Logic:** Implement the anonymous gift claiming feature.
+*   **Spoiler-Free Toggle:** Add a UI element and logic to hide the claimed status of items.

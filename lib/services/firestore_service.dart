@@ -17,8 +17,41 @@ class FirestoreService {
             .toList());
   }
 
+  Future<Wishlist?> getWishlist(String wishlistId) async {
+    final doc = await _db.collection('wishlists').doc(wishlistId).get();
+    if (doc.exists) {
+      return Wishlist.fromFirestore(doc);
+    }
+    return null;
+  }
+
   Future<DocumentReference> addWishlist(Wishlist wishlist) {
     return _db.collection('wishlists').add(wishlist.toFirestore());
+  }
+
+  Future<void> updateWishlist(Wishlist wishlist) {
+    return _db
+        .collection('wishlists')
+        .doc(wishlist.id)
+        .update(wishlist.toFirestore());
+  }
+
+  Future<void> deleteWishlist(String wishlistId) async {
+    final wishlistRef = _db.collection('wishlists').doc(wishlistId);
+
+    // Get all items in the wishlist to delete them in a batch
+    final itemsSnapshot = await wishlistRef.collection('items').get();
+
+    if (itemsSnapshot.docs.isNotEmpty) {
+      final batch = _db.batch();
+      for (final doc in itemsSnapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+    }
+
+    // After deleting all items, delete the wishlist itself
+    await wishlistRef.delete();
   }
 
   Stream<List<Group>> getUserGroups(String userId) {
@@ -46,5 +79,23 @@ class FirestoreService {
         .doc(wishlistId)
         .collection('items')
         .add(item.toFirestore());
+  }
+
+  Future<void> updateItemInWishlist(String wishlistId, Item item) {
+    return _db
+        .collection('wishlists')
+        .doc(wishlistId)
+        .collection('items')
+        .doc(item.id)
+        .update(item.toFirestore());
+  }
+
+  Future<void> deleteItemFromWishlist(String wishlistId, String itemId) {
+    return _db
+        .collection('wishlists')
+        .doc(wishlistId)
+        .collection('items')
+        .doc(itemId)
+        .delete();
   }
 }

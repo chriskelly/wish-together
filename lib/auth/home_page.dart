@@ -67,6 +67,46 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Future<void> _deleteWishlist(String wishlistId) async {
+    // Show a confirmation dialog before deleting
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Confirm Deletion'),
+          content: const Text('Are you sure you want to delete this wishlist? This action cannot be undone.'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      try {
+        await _firestoreService.deleteWishlist(wishlistId);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Wishlist deleted.')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error deleting wishlist: $e')),
+          );
+        }
+      }
+    }
+  }
+
   Widget _buildLoggedInView(BuildContext context, User user) {
     return Scaffold(
       appBar: AppBar(
@@ -102,8 +142,25 @@ class _HomePageState extends State<HomePage> {
                   return Card(
                     child: ListTile(
                       title: Text(wishlist.name),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined),
+                            onPressed: () {
+                              context.push('/wishlist/${wishlist.id}/edit', extra: wishlist);
+                            },
+                            tooltip: 'Edit Wishlist',
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                            onPressed: () => _deleteWishlist(wishlist.id),
+                            tooltip: 'Delete Wishlist',
+                          ),
+                        ],
+                      ),
                       onTap: () {
-                        // TODO: Navigate to wishlist details page
+                        context.go('/wishlist/${wishlist.id}');
                       },
                     ),
                   );
@@ -170,6 +227,8 @@ class _HomePageState extends State<HomePage> {
             }
             if (!snapshot.hasData || snapshot.data!.isEmpty) {
               return Container(
+                height: 100,
+                width: double.infinity,
                 decoration: BoxDecoration(
                   border: Border.all(color: Theme.of(context).dividerColor),
                   borderRadius: BorderRadius.circular(8),

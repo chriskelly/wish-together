@@ -11,6 +11,18 @@ class Wishlist {
     required this.ownerId,
   });
 
+  Wishlist copyWith({
+    String? id,
+    String? name,
+    String? ownerId,
+  }) {
+    return Wishlist(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      ownerId: ownerId ?? this.ownerId,
+    );
+  }
+
   // Factory constructor to create a Wishlist from a Firestore document
   factory Wishlist.fromFirestore(DocumentSnapshot doc) {
     Map data = doc.data() as Map<String, dynamic>;
@@ -44,6 +56,22 @@ class Item {
     this.link = '',
     this.isPurchased = false,
   });
+
+  Item copyWith({
+    String? id,
+    String? name,
+    String? description,
+    String? link,
+    bool? isPurchased,
+  }) {
+    return Item(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      link: link ?? this.link,
+      isPurchased: isPurchased ?? this.isPurchased,
+    );
+  }
 
   // Factory constructor to create an Item from a Firestore document
   factory Item.fromFirestore(DocumentSnapshot doc) {

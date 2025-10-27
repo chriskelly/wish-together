@@ -233,4 +233,28 @@ class FirestoreService {
         .doc(itemId)
         .delete();
   }
+
+  Future<void> claimItem(String wishlistId, String itemId, String userId) {
+    return _db
+        .collection('wishlists')
+        .doc(wishlistId)
+        .collection('items')
+        .doc(itemId)
+        .update({
+      'claimedBy': userId,
+      'claimedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> unclaimItem(String wishlistId, String itemId) {
+    return _db
+        .collection('wishlists')
+        .doc(wishlistId)
+        .collection('items')
+        .doc(itemId)
+        .update({
+      'claimedBy': null,
+      'claimedAt': null,
+    });
+  }
 }

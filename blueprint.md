@@ -12,8 +12,8 @@ WishTogether is a collaborative wish-listing application designed to make gift-g
     *   Users get an initial, default wishlist created automatically at sign-up.
     *   Users can create, edit, and delete their own wishlists.
 *   **Items:** Users can add, edit, and delete items in their wishlists.
-*   **Groups & Sharing:** (Not Started)
-*   **Gift Claiming:** (Not Started)
+*   **Groups & Sharing:** Users can create groups, invite others, and share their wishlists with groups. They can also un-share wishlists.
+*   **Gift Claiming & Spoilers:** Users viewing a shared wishlist can claim and unclaim items. Wishlist owners have a "spoiler-free" mode enabled by default to prevent them from seeing what has been claimed.
 
 ## Project Structure & Plan
 
@@ -36,33 +36,32 @@ WishTogether is a collaborative wish-listing application designed to make gift-g
 *   **Improved Navigation:** Updated `go_router` to support editing routes.
 *   **Code Quality:** Resolved all analysis issues and removed obsolete test files.
 
-### Phase 4: User Profiles & Onboarding (In Progress)
+### Phase 4: User Profiles & Onboarding (Complete)
 
-*   **Goal:** Create a guided onboarding flow. Users must have a `displayName`, which is then used to personalize the app and create their first wishlist.
-*   **Plan:**
-    1.  **Data Model:** Create an `AppUser` data model (`user.dart`) with `uid`, `displayName`, and `phoneNumber`.
-    2.  **Firestore Service:**
-        *   Add `createUser`, `getUser`, and `updateUser` methods to `FirestoreService`.
-        *   When `createUser` is called, it will also create a default wishlist for the user named "[displayName]'s Wishlist".
-    3.  **Auth Integration:** After a user signs up for the first time, automatically call `createUser` to create their user document and initial wishlist in Firestore.
-    4.  **UI - Profile Page:** Create a `ProfilePage` where a user is prompted to set or update their `displayName`.
-    5.  **Forced Profile Navigation:** Update the `go_router` redirect logic:
-        *   After login, check if the user's `displayName` exists in their Firestore document.
-        *   If it does not exist, force a redirect to `/profile`.
-        *   Allow navigation away from `/profile` only after the `displayName` has been set.
-    6.  **Homepage Personalization:** Update the `HomePage` to fetch and display the user's `displayName` and their new default wishlist.
+*   **Goal:** Create a guided onboarding flow. Users must have a `displayName`.
+*   **Implementation:**
+    *   `AppUser` data model.
+    *   `FirestoreService` methods for user management and default wishlist creation.
+    *   `go_router` redirect logic to enforce profile creation for new users.
 
-### Phase 5: Family Groups & Sharing (Not Started)
+### Phase 5: Family Groups & Sharing (Complete)
 
-*   **Goal:** Allow users to create groups and invite others to join via a simple, shareable web link.
-*   **Plan:**
-    *   Create a `Group` data model.
-    *   Build `GroupFormPage` and `GroupDetailsPage`.
-    *   Implement sharing via a standard web URL with query parameters, handled by `go_router`.
+*   **Goal:** Allow users to create groups, invite others, and share/unshare wishlists.
+*   **Implementation:**
+    *   `Group` data model.
+    *   `GroupFormPage` and `GroupDetailsPage`.
+    *   Sharing via a standard web URL handled by `go_router`.
+    *   UI for sharing and un-sharing wishlists from a group.
 
-### Phase 6: Gift Claiming & Spoiler-Free Mode (Not Started)
+### Phase 6: Gift Claiming & Spoiler-Free Mode (In Progress)
 
 *   **Goal:** Implement the core "spoiler-free" gift claiming functionality.
 *   **Plan:**
-    *   Display shared wishlists with the ability to "claim" items.
-    *   Implement the anonymous gift claiming logic in `FirestoreService`.
+    1.  **Claiming Logic (Done):** Implemented `claimItem` and `unclaimItem` in `FirestoreService`. UI exists for non-owners to claim items.
+    2.  **Spoiler-Free State:** Add a `_isSpoilerFree` boolean state variable to `WishlistDetailsPage`, defaulting to `true` for the wishlist owner.
+    3.  **Spoiler Toggle:** Add an `IconButton` (e.g., an eye icon) to the `AppBar` of the `WishlistDetailsPage`. This toggle will only be visible to the owner and will update the `_isSpoilerFree` state.
+    4.  **Conditional UI:**
+        *   When `_isSpoilerFree` is `true`, the owner will not see any "claimed" status. The item will look "Available".
+        *   When `_isSpoilerFree` is `false`, the owner will see the true status of the item (e.g., "Claimed on...").
+        *   Non-owners will always see the true claim status and have the ability to claim/unclaim.
+

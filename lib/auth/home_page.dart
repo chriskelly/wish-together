@@ -208,25 +208,12 @@ class _HomePageState extends State<HomePage> {
                       return Card(
                         child: ListTile(
                           title: Text(wishlist.name),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.edit_outlined),
-                                onPressed: () {
-                                  context.push('/wishlist/${wishlist.id}/edit',
-                                      extra: wishlist);
-                                },
-                                tooltip: 'Edit Wishlist',
-                              ),
-                              IconButton(
+                          trailing: IconButton(
                                 icon: const Icon(Icons.delete_outline,
                                     color: Colors.redAccent),
                                 onPressed: () => _deleteWishlist(wishlist.id!),
                                 tooltip: 'Delete Wishlist',
                               ),
-                            ],
-                          ),
                           onTap: () {
                             context.go('/wishlist/${wishlist.id}');
                           },
@@ -249,23 +236,11 @@ class _HomePageState extends State<HomePage> {
                         child: ListTile(
                           title: Text(group.name),
                            trailing: isOwner 
-                            ? Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.edit_outlined),
-                                    onPressed: () {
-                                      context.push('/group/${group.id}/edit', extra: group);
-                                    },
-                                    tooltip: 'Edit Group',
-                                  ),
-                                  IconButton(
+                            ? IconButton(
                                     icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
                                     onPressed: () => _deleteGroup(group.id),
                                     tooltip: 'Delete Group',
-                                  ),
-                                ],
-                              )
+                                  )
                             : null,
                           onTap: () {
                             context.go('/group/${group.id}');

@@ -37,16 +37,30 @@ class GroupDetailsPage extends StatelessWidget {
               }
               final group = snapshot.data!;
               if (group.ownerId == currentUser?.uid) {
-                return IconButton(
-                  icon: const Icon(Icons.copy_outlined),
-                  onPressed: () {
-                    final invitationLink = '${Uri.base.origin}/#/join?group=$groupId';
-                    Clipboard.setData(ClipboardData(text: invitationLink));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Invitation link copied!')),
-                    );
-                  },
-                  tooltip: 'Copy Invitation Link',
+                return Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.copy_outlined),
+                      onPressed: () {
+                        final invitationLink =
+                            '${Uri.base.origin}/#/join?group=$groupId';
+                        Clipboard.setData(ClipboardData(text: invitationLink));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Invitation link copied!'),
+                          ),
+                        );
+                      },
+                      tooltip: 'Copy Invitation Link',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.edit),
+                      onPressed: () {
+                        context.push('/group/${group.id}/edit', extra: group);
+                      },
+                      tooltip: 'Edit Group',
+                    ),
+                  ],
                 );
               }
               return const SizedBox.shrink();
@@ -72,10 +86,15 @@ class GroupDetailsPage extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Shared Wishlists Section
-                  Text('Shared Wishlists', style: Theme.of(context).textTheme.titleLarge),
+                  Text(
+                    'Shared Wishlists',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
                   const SizedBox(height: 10),
                   StreamBuilder<List<Wishlist>>(
-                    stream: firestoreService.getSharedWishlistsForGroup(groupId),
+                    stream: firestoreService.getSharedWishlistsForGroup(
+                      groupId,
+                    ),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Center(child: CircularProgressIndicator());
@@ -98,11 +117,28 @@ class GroupDetailsPage extends StatelessWidget {
                         itemCount: wishlists.length,
                         itemBuilder: (context, index) {
                           final wishlist = wishlists[index];
+                          final isOwner = wishlist.ownerId == currentUser?.uid;
                           return Card(
                             margin: const EdgeInsets.symmetric(vertical: 4.0),
                             child: ListTile(
                               title: Text(wishlist.name),
-                              onTap: () => context.go('/wishlist/${wishlist.id}'),
+                              onTap: () =>
+                                  context.go('/wishlist/${wishlist.id}'),
+                              trailing: isOwner
+                                  ? IconButton(
+                                      icon: const Icon(
+                                        Icons.remove_circle_outline,
+                                        color: Colors.red,
+                                      ),
+                                      onPressed: () => _confirmRemoveWishlist(
+                                        context,
+                                        firestoreService,
+                                        group.id,
+                                        wishlist,
+                                      ),
+                                      tooltip: 'Remove from group',
+                                    )
+                                  : null,
                             ),
                           );
                         },
@@ -111,12 +147,16 @@ class GroupDetailsPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 20),
                   // Members Section
-                  Text('Members', style: Theme.of(context).textTheme.titleLarge),
+                  Text(
+                    'Members',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
                   const SizedBox(height: 10),
                   StreamBuilder<List<AppUser>>(
                     stream: firestoreService.getGroupMembers(groupId),
                     builder: (context, snapshot) {
-                      if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                      if (!snapshot.hasData)
+                        return const Center(child: CircularProgressIndicator());
                       final members = snapshot.data!;
                       return ListView.builder(
                         shrinkWrap: true,
@@ -128,7 +168,9 @@ class GroupDetailsPage extends StatelessWidget {
                             margin: const EdgeInsets.symmetric(vertical: 4.0),
                             child: ListTile(
                               title: Text(member.displayName ?? 'No Name'),
-                              subtitle: Text(member.id == group.ownerId ? 'Owner' : 'Member'),
+                              subtitle: Text(
+                                member.id == group.ownerId ? 'Owner' : 'Member',
+                              ),
                             ),
                           );
                         },
@@ -141,9 +183,20 @@ class GroupDetailsPage extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(vertical: 20.0),
                       child: Center(
                         child: TextButton.icon(
-                          icon: const Icon(Icons.exit_to_app, color: Colors.red),
-                          label: const Text('Leave Group', style: TextStyle(color: Colors.red)),
-                          onPressed: () => _confirmLeaveGroup(context, firestoreService, groupId, currentUser!.uid)
+                          icon: const Icon(
+                            Icons.exit_to_app,
+                            color: Colors.red,
+                          ),
+                          label: const Text(
+                            'Leave Group',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                          onPressed: () => _confirmLeaveGroup(
+                            context,
+                            firestoreService,
+                            group.id,
+                            currentUser!.uid,
+                          ),
                         ),
                       ),
                     ),
@@ -153,10 +206,174 @@ class GroupDetailsPage extends StatelessWidget {
           );
         },
       ),
+      floatingActionButton: StreamBuilder<Group?>(
+        stream: firestoreService.getGroup(groupId),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData ||
+              snapshot.data == null ||
+              currentUser == null) {
+            return const SizedBox.shrink();
+          }
+          final group = snapshot.data!;
+          if (group.members.contains(currentUser.uid)) {
+            return FloatingActionButton.extended(
+              onPressed: () => _showShareWishlistDialog(
+                context,
+                firestoreService,
+                currentUser.uid,
+                groupId,
+              ),
+              label: const Text('Share Wishlist'),
+              icon: const Icon(Icons.add),
+            );
+          }
+          return const SizedBox.shrink();
+        },
+      ),
     );
   }
 
-  Future<void> _confirmLeaveGroup(BuildContext context, FirestoreService firestoreService, String groupId, String userId) async {
+  Future<void> _confirmRemoveWishlist(
+    BuildContext context,
+    FirestoreService firestoreService,
+    String groupId,
+    Wishlist wishlist,
+  ) async {
+    return showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Remove Wishlist?'),
+          content: Text(
+            'Are you sure you want to remove "${wishlist.name}" from this group?',
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: const Text('Remove', style: TextStyle(color: Colors.red)),
+              onPressed: () async {
+                Navigator.of(context).pop(); // Close the dialog
+                try {
+                  await firestoreService.unshareWishlistFromGroup(
+                    wishlist.id!,
+                    groupId,
+                  );
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Wishlist removed from group.'),
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed to remove wishlist: $e')),
+                    );
+                  }
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _showShareWishlistDialog(
+    BuildContext context,
+    FirestoreService firestoreService,
+    String userId,
+    String groupId,
+  ) async {
+    return showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Share a Wishlist'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: StreamBuilder<List<Wishlist>>(
+              stream: firestoreService.getUserWishlists(userId),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return const Text('You have no wishlists to share.');
+                }
+                final allWishlists = snapshot.data!;
+                final shareableWishlists = allWishlists
+                    .where((w) => !w.sharedWithGroups.contains(groupId))
+                    .toList();
+
+                if (shareableWishlists.isEmpty) {
+                  return const Text(
+                    'All of your wishlists are shared with this group.',
+                  );
+                }
+
+                return ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: shareableWishlists.length,
+                  itemBuilder: (context, index) {
+                    final wishlist = shareableWishlists[index];
+                    return ListTile(
+                      title: Text(wishlist.name),
+                      onTap: () async {
+                        try {
+                          await firestoreService.shareWishlistWithGroup(
+                            wishlist.id!,
+                            groupId,
+                          );
+                          if (context.mounted) {
+                            Navigator.of(context).pop();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  '"${wishlist.name}" shared with the group.',
+                                ),
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Failed to share wishlist: $e'),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _confirmLeaveGroup(
+    BuildContext context,
+    FirestoreService firestoreService,
+    String groupId,
+    String userId,
+  ) async {
     return showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -177,7 +394,7 @@ class GroupDetailsPage extends StatelessWidget {
                 try {
                   await firestoreService.leaveGroup(groupId, userId);
                   if (context.mounted) {
-                    context.go('/'); // Navigate to home page after leaving
+                    context.go('/');
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('You have left the group.')),
                     );

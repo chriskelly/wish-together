@@ -29,7 +29,7 @@ class _ItemFormPageState extends State<ItemFormPage> {
     _nameController = TextEditingController(text: widget.item?.name ?? '');
     _descriptionController =
         TextEditingController(text: widget.item?.description ?? '');
-    _linkController = TextEditingController(text: widget.item?.link ?? '');
+    _linkController = TextEditingController(text: widget.item?.url ?? '');
   }
 
   @override
@@ -51,7 +51,7 @@ class _ItemFormPageState extends State<ItemFormPage> {
           final updatedItem = widget.item!.copyWith(
             name: _nameController.text,
             description: _descriptionController.text,
-            link: _linkController.text,
+            url: _linkController.text,
           );
           await _firestoreService.updateItemInWishlist(
               widget.wishlistId, updatedItem);
@@ -59,7 +59,7 @@ class _ItemFormPageState extends State<ItemFormPage> {
           final newItem = Item(
             name: _nameController.text,
             description: _descriptionController.text,
-            link: _linkController.text,
+            url: _linkController.text,
           );
           await _firestoreService.addItemToWishlist(widget.wishlistId, newItem);
         }

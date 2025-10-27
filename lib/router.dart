@@ -4,6 +4,10 @@ import 'package:go_router/go_router.dart';
 import 'package:myapp/auth/home_page.dart';
 import 'package:myapp/auth/login_page.dart';
 import 'package:myapp/auth/verification_page.dart';
+import 'package:myapp/groups/group_details_page.dart';
+import 'package:myapp/groups/group_form_page.dart';
+import 'package:myapp/models/group.dart';
+import 'package:myapp/models/item.dart';
 import 'package:myapp/models/wishlist.dart';
 import 'package:myapp/profile/profile_page.dart';
 import 'package:myapp/services/firestore_service.dart';
@@ -81,6 +85,22 @@ final router = GoRouter(
             ),
           ],
         ),
+        GoRoute(
+          path: 'group/:id',
+          builder: (BuildContext context, GoRouterState state) {
+            final groupId = state.pathParameters['id']!;
+            return GroupDetailsPage(groupId: groupId);
+          },
+          routes: [
+            GoRoute(
+              path: 'edit',
+              builder: (BuildContext context, GoRouterState state) {
+                final group = state.extra as Group;
+                return GroupFormPage(group: group);
+              },
+            ),
+          ]
+        ),
       ],
     ),
     GoRoute(
@@ -99,6 +119,12 @@ final router = GoRouter(
       path: '/create-wishlist',
       builder: (BuildContext context, GoRouterState state) {
         return const WishlistFormPage();
+      },
+    ),
+     GoRoute(
+      path: '/create-group',
+      builder: (BuildContext context, GoRouterState state) {
+        return const GroupFormPage();
       },
     ),
     GoRoute(

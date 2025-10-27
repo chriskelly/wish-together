@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:myapp/models/wishlist.dart';
+import 'package:myapp/models/item.dart';
 import 'package:myapp/services/firestore_service.dart';
 
 class ItemFormPage extends StatefulWidget {
@@ -57,7 +57,6 @@ class _ItemFormPageState extends State<ItemFormPage> {
               widget.wishlistId, updatedItem);
         } else {
           final newItem = Item(
-            id: '', // Firestore will generate
             name: _nameController.text,
             description: _descriptionController.text,
             link: _linkController.text,

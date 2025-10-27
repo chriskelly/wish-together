@@ -13,24 +13,38 @@ class Group {
     required this.members,
   });
 
-  // Factory constructor to create a Group from a Firestore document
-  factory Group.fromFirestore(DocumentSnapshot doc) {
-    Map data = doc.data() as Map<String, dynamic>;
+  // A factory constructor to create a Group from a Firestore document.
+  factory Group.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data()!;
     return Group(
       id: doc.id,
       name: data['name'] ?? '',
       ownerId: data['ownerId'] ?? '',
-      // Ensure members is a list of strings
+      // Ensure members is always a list of strings
       members: List<String>.from(data['members'] ?? []),
     );
   }
 
-  // Method to convert a Group instance to a map for Firestore
+  // A method to convert a Group instance to a map for Firestore.
   Map<String, dynamic> toFirestore() {
     return {
       'name': name,
       'ownerId': ownerId,
       'members': members,
     };
+  }
+
+  Group copyWith({
+    String? id,
+    String? name,
+    String? ownerId,
+    List<String>? members,
+  }) {
+    return Group(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      ownerId: ownerId ?? this.ownerId,
+      members: members ?? this.members,
+    );
   }
 }

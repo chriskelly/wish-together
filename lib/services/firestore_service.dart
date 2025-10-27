@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart' as auth;
 import '../models/user.dart';
 import '../models/wishlist.dart';
 import '../models/group.dart';
+import '../models/item.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db;
@@ -26,7 +27,6 @@ class FirestoreService {
     );
 
     final defaultWishlist = Wishlist(
-      id: '',
       name: "$displayName's Wishlist",
       ownerId: user.uid,
     );
@@ -78,6 +78,9 @@ class FirestoreService {
   }
 
   Future<void> updateWishlist(Wishlist wishlist) {
+    if (wishlist.id == null) {
+      throw ArgumentError("Wishlist ID cannot be null when updating.");
+    }
     return _db
         .collection('wishlists')
         .doc(wishlist.id)
@@ -87,7 +90,6 @@ class FirestoreService {
   Future<void> deleteWishlist(String wishlistId) async {
     final wishlistRef = _db.collection('wishlists').doc(wishlistId);
 
-    // Get all items in the wishlist to delete them in a batch
     final itemsSnapshot = await wishlistRef.collection('items').get();
 
     if (itemsSnapshot.docs.isNotEmpty) {
@@ -98,7 +100,6 @@ class FirestoreService {
       await batch.commit();
     }
 
-    // After deleting all items, delete the wishlist itself
     await wishlistRef.delete();
   }
 
@@ -111,6 +112,76 @@ class FirestoreService {
         .map((snapshot) =>
             snapshot.docs.map((doc) => Group.fromFirestore(doc)).toList());
   }
+
+  Future<DocumentReference> createGroup(String name, String ownerId) {
+    return _db.collection('groups').add({
+      'name': name,
+      'ownerId': ownerId,
+      'members': [ownerId], // The owner is the first member.
+    });
+  }
+
+   Future<void> updateGroup(Group group) {
+    return _db
+        .collection('groups')
+        .doc(group.id)
+        .update(group.toFirestore());
+  }
+
+  Future<void> deleteGroup(String groupId) {
+    return _db.collection('groups').doc(groupId).delete();
+  }
+
+
+  Stream<Group?> getGroup(String groupId) {
+    return _db
+        .collection('groups')
+        .doc(groupId)
+        .snapshots()
+        .map((doc) => doc.exists ? Group.fromFirestore(doc) : null);
+  }
+
+  Future<void> joinGroup(String groupId, String userId) {
+    return _db.collection('groups').doc(groupId).update({
+      'members': FieldValue.arrayUnion([userId])
+    });
+  }
+
+  Stream<List<AppUser>> getGroupMembers(String groupId) {
+    return getGroup(groupId).asyncMap((group) async {
+      if (group == null || group.members.isEmpty) {
+        return [];
+      }
+      final usersSnapshot = await _db
+          .collection('users')
+          .where(FieldPath.documentId, whereIn: group.members)
+          .get();
+      return usersSnapshot.docs.map((doc) => AppUser.fromFirestore(doc)).toList();
+    });
+  }
+
+    Future<void> shareWishlistWithGroup(String wishlistId, String groupId) {
+    return _db.collection('wishlists').doc(wishlistId).update({
+      'sharedWithGroups': FieldValue.arrayUnion([groupId])
+    });
+  }
+
+  Future<void> unshareWishlistFromGroup(String wishlistId, String groupId) {
+    return _db.collection('wishlists').doc(wishlistId).update({
+      'sharedWithGroups': FieldValue.arrayRemove([groupId])
+    });
+  }
+
+  Stream<List<Wishlist>> getSharedWishlistsForGroup(String groupId) {
+    return _db
+        .collection('wishlists')
+        .where('sharedWithGroups', arrayContains: groupId)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => Wishlist.fromFirestore(doc))
+            .toList());
+  }
+
 
   // Item methods
   Stream<List<Item>> getWishlistItems(String wishlistId) {
@@ -132,6 +203,9 @@ class FirestoreService {
   }
 
   Future<void> updateItemInWishlist(String wishlistId, Item item) {
+    if (item.id == null) {
+      throw ArgumentError("Item ID cannot be null when updating.");
+    }
     return _db
         .collection('wishlists')
         .doc(wishlistId)

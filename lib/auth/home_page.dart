@@ -108,6 +108,47 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+   Future<void> _deleteGroup(String groupId) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Confirm Deletion'),
+          content: const Text(
+              'Are you sure you want to delete this group? This action cannot be undone.'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      try {
+        await _firestoreService.deleteGroup(groupId);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Group deleted.')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error deleting group: $e')),
+          );
+        }
+      }
+    }
+  }
+
+
   Widget _buildLoggedInView(BuildContext context, auth.User user) {
     return FutureBuilder<AppUser?>(
       future: _firestoreService.getUser(user.uid),
@@ -117,7 +158,7 @@ class _HomePageState extends State<HomePage> {
             body: Center(child: CircularProgressIndicator()),
           );
         }
-        // This handles the case where the profile might be loading or missing briefly
+
         if (!snapshot.hasData || snapshot.data == null) {
           return Scaffold(
             appBar: AppBar(title: const Text('Loading Profile...')),
@@ -129,7 +170,10 @@ class _HomePageState extends State<HomePage> {
 
         return Scaffold(
           appBar: AppBar(
-            title: Text('Welcome, ${appUser.displayName}!'),
+            title: Text(
+              'Welcome, ${appUser.displayName}!',
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
             actions: [
               IconButton(
                 icon: const Icon(Icons.person_outline),
@@ -153,10 +197,6 @@ class _HomePageState extends State<HomePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Your Dashboard',
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
                   const SizedBox(height: 24),
                   _buildDataSection<Wishlist>(
                     context: context,
@@ -174,7 +214,7 @@ class _HomePageState extends State<HomePage> {
                               IconButton(
                                 icon: const Icon(Icons.edit_outlined),
                                 onPressed: () {
-                                  context.push('/wishlist/${wishlist.id}/edit',
+                                  context.push('/wishlist/${wishlist.id!}/edit',
                                       extra: wishlist);
                                 },
                                 tooltip: 'Edit Wishlist',
@@ -182,13 +222,13 @@ class _HomePageState extends State<HomePage> {
                               IconButton(
                                 icon: const Icon(Icons.delete_outline,
                                     color: Colors.redAccent),
-                                onPressed: () => _deleteWishlist(wishlist.id),
+                                onPressed: () => _deleteWishlist(wishlist.id!),
                                 tooltip: 'Delete Wishlist',
                               ),
                             ],
                           ),
                           onTap: () {
-                            context.go('/wishlist/${wishlist.id}');
+                            context.go('/wishlist/${wishlist.id!}');
                           },
                         ),
                       );
@@ -199,7 +239,7 @@ class _HomePageState extends State<HomePage> {
                     context: context,
                     title: 'My Groups',
                     onAdd: () {
-                      // TODO: Navigate to a "Create Group" page
+                       context.push('/create-group');
                     },
                     stream: _firestoreService.getUserGroups(user.uid),
                     emptyListMessage: 'No groups yet. Create or join one!',
@@ -207,8 +247,27 @@ class _HomePageState extends State<HomePage> {
                       return Card(
                         child: ListTile(
                           title: Text(group.name),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.edit_outlined),
+                                onPressed: () {
+                                  context.push('/group/${group.id!}/edit',
+                                      extra: group);
+                                },
+                                tooltip: 'Edit Group',
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline,
+                                    color: Colors.redAccent),
+                                onPressed: () => _deleteGroup(group.id!),
+                                tooltip: 'Delete Group',
+                              ),
+                            ],
+                          ),
                           onTap: () {
-                            // TODO: Navigate to group details page
+                            context.go('/group/${group.id!}');
                           },
                         ),
                       );

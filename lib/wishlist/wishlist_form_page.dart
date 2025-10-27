@@ -59,7 +59,6 @@ class _WishlistFormPageState extends State<WishlistFormPage> {
           await _firestoreService.updateWishlist(updatedWishlist);
         } else {
           final newWishlist = Wishlist(
-            id: '', // Firestore will generate
             name: _nameController.text,
             ownerId: user.uid,
           );

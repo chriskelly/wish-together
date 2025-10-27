@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:myapp/models/item.dart';
 import 'package:myapp/models/wishlist.dart';
 import 'package:myapp/services/firestore_service.dart';
 import 'package:go_router/go_router.dart';
@@ -99,20 +100,20 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: ListTile(
                   title: Text(item.name),
-                  subtitle: item.description.isNotEmpty ? Text(item.description) : null,
+                  subtitle: item.description?.isNotEmpty == true ? Text(item.description!) : null,
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
                         icon: const Icon(Icons.edit_outlined),
                         onPressed: () {
-                          context.push('/wishlist/${widget.wishlistId}/item/${item.id}/edit', extra: item);
+                          context.push('/wishlist/${widget.wishlistId}/item/${item.id!}/edit', extra: item);
                         },
                         tooltip: 'Edit Item',
                       ),
                       IconButton(
                         icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                        onPressed: () => _deleteItem(item.id),
+                        onPressed: () => _deleteItem(item.id!),
                         tooltip: 'Delete Item',
                       ),
                     ],

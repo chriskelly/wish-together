@@ -1,97 +1,47 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Wishlist {
-  final String id;
+  final String? id;
   final String name;
   final String ownerId;
+  final List<String> sharedWithGroups;
 
   Wishlist({
-    required this.id,
+    this.id,
     required this.name,
     required this.ownerId,
+    this.sharedWithGroups = const [],
   });
 
   Wishlist copyWith({
     String? id,
     String? name,
     String? ownerId,
+    List<String>? sharedWithGroups,
   }) {
     return Wishlist(
       id: id ?? this.id,
       name: name ?? this.name,
       ownerId: ownerId ?? this.ownerId,
+      sharedWithGroups: sharedWithGroups ?? this.sharedWithGroups,
     );
   }
 
-  // Factory constructor to create a Wishlist from a Firestore document
-  factory Wishlist.fromFirestore(DocumentSnapshot doc) {
-    Map data = doc.data() as Map<String, dynamic>;
+  factory Wishlist.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data()!;
     return Wishlist(
       id: doc.id,
       name: data['name'] ?? '',
       ownerId: data['ownerId'] ?? '',
+      sharedWithGroups: List<String>.from(data['sharedWithGroups'] ?? []),
     );
   }
 
-  // Method to convert a Wishlist instance to a map for Firestore
   Map<String, dynamic> toFirestore() {
     return {
       'name': name,
       'ownerId': ownerId,
-    };
-  }
-}
-
-class Item {
-  final String id;
-  final String name;
-  final String description;
-  final String link;
-  final bool isPurchased;
-
-  Item({
-    required this.id,
-    required this.name,
-    this.description = '',
-    this.link = '',
-    this.isPurchased = false,
-  });
-
-  Item copyWith({
-    String? id,
-    String? name,
-    String? description,
-    String? link,
-    bool? isPurchased,
-  }) {
-    return Item(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      description: description ?? this.description,
-      link: link ?? this.link,
-      isPurchased: isPurchased ?? this.isPurchased,
-    );
-  }
-
-  // Factory constructor to create an Item from a Firestore document
-  factory Item.fromFirestore(DocumentSnapshot doc) {
-    Map data = doc.data() as Map<String, dynamic>;
-    return Item(
-      id: doc.id,
-      name: data['name'] ?? '',
-      description: data['description'] ?? '',
-      link: data['link'] ?? '',
-      isPurchased: data['isPurchased'] ?? false,
-    );
-  }
-
-  // Method to convert an Item instance to a map for Firestore
-  Map<String, dynamic> toFirestore() {
-    return {
-      'name': name,
-      'description': description,
-      'link': link,
-      'isPurchased': isPurchased,
+      'sharedWithGroups': sharedWithGroups,
     };
   }
 }

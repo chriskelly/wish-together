@@ -170,25 +170,34 @@ class GroupDetailsPage extends StatelessWidget {
                   StreamBuilder<List<AppUser>>(
                     stream: firestoreService.getGroupMembers(groupId),
                     builder: (context, snapshot) {
-                      if (!snapshot.hasData)
+                      if (!snapshot.hasData) {
                         return const Center(child: CircularProgressIndicator());
+                      }
                       final members = snapshot.data!;
-                      return ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: members.length,
-                        itemBuilder: (context, index) {
-                          final member = members[index];
-                          return Card(
-                            margin: const EdgeInsets.symmetric(vertical: 4.0),
-                            child: ListTile(
-                              title: Text(member.displayName ?? 'No Name'),
-                              subtitle: Text(
-                                member.id == group.ownerId ? 'Owner' : 'Member',
-                              ),
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: members.map((member) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 6.0, horizontal: 8.0),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  member.displayName ?? 'No Name',
+                                  style: Theme.of(context).textTheme.bodyLarge,
+                                ),
+                                Text(
+                                  member.id == group.ownerId ? 'Owner' : 'Member',
+                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    fontStyle: FontStyle.italic,
+                                    color: Colors.grey[600]
+                                  ),
+                                ),
+                              ],
                             ),
                           );
-                        },
+                        }).toList(),
                       );
                     },
                   ),

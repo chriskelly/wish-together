@@ -84,6 +84,7 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
           final items = snapshot.data!;
           return ListView.builder(
             itemCount: items.length,
+            padding: const EdgeInsets.only(bottom: 48),
             itemBuilder: (context, index) {
               final item = items[index];
               return _buildItemCard(item, context);

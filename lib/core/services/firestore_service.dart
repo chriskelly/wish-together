@@ -1,9 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as auth;
 import '../models/user.dart';
-import '../models/wishlist.dart';
-import '../models/group.dart';
-import '../models/item.dart';
+import '../../features/wishlist/domain/wishlist.dart';
+import '../../features/group/domain/group.dart';
+import '../../features/wishlist/domain/item.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db;

@@ -3,8 +3,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'firebase_options.dart';
 
-import 'router.dart';
-import 'theme.dart';
+import 'core/router.dart';
+import 'core/theme.dart';
 
 void main() async {
   // Ensure Flutter bindings are initialized before any Firebase services.

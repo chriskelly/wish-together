@@ -1,20 +1,20 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:myapp/auth/home_page.dart';
-import 'package:myapp/auth/login_page.dart';
-import 'package:myapp/auth/verification_page.dart';
-import 'package:myapp/groups/group_details_page.dart';
-import 'package:myapp/groups/group_form_page.dart';
-import 'package:myapp/groups/join_group_page.dart';
-import 'package:myapp/models/group.dart';
-import 'package:myapp/models/item.dart';
-import 'package:myapp/models/wishlist.dart';
-import 'package:myapp/profile/profile_page.dart';
-import 'package:myapp/services/firestore_service.dart';
-import 'package:myapp/wishlist/wishlist_form_page.dart';
-import 'package:myapp/wishlist/wishlist_details_page.dart';
-import 'package:myapp/wishlist/item_form_page.dart';
+import 'package:myapp/features/auth/presentation/home_page.dart';
+import 'package:myapp/features/auth/presentation/login_page.dart';
+import 'package:myapp/features/auth/presentation/verification_page.dart';
+import 'package:myapp/features/group/presentation/group_details_page.dart';
+import 'package:myapp/features/group/presentation/group_form_page.dart';
+import 'package:myapp/features/group/presentation/join_group_page.dart';
+import 'package:myapp/features/group/domain/group.dart';
+import 'package:myapp/features/wishlist/domain/item.dart';
+import 'package:myapp/features/wishlist/domain/wishlist.dart';
+import 'package:myapp/features/auth/presentation/profile_page.dart';
+import 'package:myapp/core/services/firestore_service.dart';
+import 'package:myapp/features/wishlist/presentation/wishlist_form_page.dart';
+import 'package:myapp/features/wishlist/presentation/wishlist_details_page.dart';
+import 'package:myapp/features/wishlist/presentation/item_form_page.dart';
 
 final router = GoRouter(
   redirect: (BuildContext context, GoRouterState state) async {

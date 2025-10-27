@@ -2,10 +2,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-import 'package:myapp/models/group.dart';
-import 'package:myapp/models/wishlist.dart';
-import 'package:myapp/services/firestore_service.dart';
-import 'package:myapp/models/user.dart';
+import 'package:myapp/features/group/domain/group.dart';
+import 'package:myapp/features/wishlist/domain/wishlist.dart';
+import 'package:myapp/core/services/firestore_service.dart';
+import 'package:myapp/core/models/user.dart';
 
 class GroupDetailsPage extends StatelessWidget {
   final String groupId;

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
-import '../services/firestore_service.dart';
-import '../models/user.dart';
+import '../../../core/services/firestore_service.dart';
+import '../../../core/models/user.dart';
 
 class ProfilePage extends StatefulWidget {
   final String? redirectTo;

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'dart:developer' as developer;
 
-import 'auth_service.dart';
+import '../data/auth_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});

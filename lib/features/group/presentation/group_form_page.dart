@@ -1,8 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:myapp/models/group.dart';
-import 'package:myapp/services/firestore_service.dart';
+import 'package:myapp/features/group/domain/group.dart';
+import 'package:myapp/core/services/firestore_service.dart';
 
 class GroupFormPage extends StatefulWidget {
   final Group? group;

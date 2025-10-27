@@ -141,9 +141,20 @@ class FirestoreService {
         .map((doc) => doc.exists ? Group.fromFirestore(doc) : null);
   }
 
+  Future<Group?> getGroupFuture(String groupId) async {
+    final doc = await _db.collection('groups').doc(groupId).get();
+    return doc.exists ? Group.fromFirestore(doc) : null;
+  }
+
   Future<void> joinGroup(String groupId, String userId) {
     return _db.collection('groups').doc(groupId).update({
       'members': FieldValue.arrayUnion([userId])
+    });
+  }
+
+  Future<void> leaveGroup(String groupId, String userId) {
+    return _db.collection('groups').doc(groupId).update({
+      'members': FieldValue.arrayRemove([userId])
     });
   }
 

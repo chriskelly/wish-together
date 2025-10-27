@@ -5,7 +5,8 @@ import '../services/firestore_service.dart';
 import '../models/user.dart';
 
 class ProfilePage extends StatefulWidget {
-  const ProfilePage({super.key});
+  final String? redirectTo;
+  const ProfilePage({super.key, this.redirectTo});
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -19,7 +20,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   AppUser? _currentUser;
   bool _isLoading = true;
-  bool get _isNewUser => _currentUser?.displayName == null;
+  bool get _isNewUser => _currentUser?.displayName == null || _currentUser!.displayName!.isEmpty;
 
   @override
   void initState() {
@@ -31,11 +32,13 @@ class _ProfilePageState extends State<ProfilePage> {
     final user = _auth.currentUser;
     if (user != null) {
       final appUser = await _firestoreService.getUser(user.uid);
-      setState(() {
-        _currentUser = appUser;
-        _displayNameController.text = appUser?.displayName ?? '';
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _currentUser = appUser;
+          _displayNameController.text = appUser?.displayName ?? '';
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -60,7 +63,8 @@ class _ProfilePageState extends State<ProfilePage> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Profile saved successfully!')),
           );
-          context.go('/'); // Navigate to home after saving
+           // Redirect to the originally intended page, or home otherwise.
+          context.go(widget.redirectTo ?? '/');
         }
       } catch (e) {
         if (mounted) {
@@ -70,6 +74,12 @@ class _ProfilePageState extends State<ProfilePage> {
         }
       }
     }
+  }
+
+  @override
+  void dispose() {
+    _displayNameController.dispose();
+    super.dispose();
   }
 
   @override

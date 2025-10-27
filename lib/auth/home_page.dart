@@ -214,7 +214,7 @@ class _HomePageState extends State<HomePage> {
                               IconButton(
                                 icon: const Icon(Icons.edit_outlined),
                                 onPressed: () {
-                                  context.push('/wishlist/${wishlist.id!}/edit',
+                                  context.push('/wishlist/${wishlist.id}/edit',
                                       extra: wishlist);
                                 },
                                 tooltip: 'Edit Wishlist',
@@ -228,7 +228,7 @@ class _HomePageState extends State<HomePage> {
                             ],
                           ),
                           onTap: () {
-                            context.go('/wishlist/${wishlist.id!}');
+                            context.go('/wishlist/${wishlist.id}');
                           },
                         ),
                       );
@@ -244,30 +244,31 @@ class _HomePageState extends State<HomePage> {
                     stream: _firestoreService.getUserGroups(user.uid),
                     emptyListMessage: 'No groups yet. Create or join one!',
                     itemBuilder: (group) {
+                      final isOwner = group.ownerId == user.uid;
                       return Card(
                         child: ListTile(
                           title: Text(group.name),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.edit_outlined),
-                                onPressed: () {
-                                  context.push('/group/${group.id!}/edit',
-                                      extra: group);
-                                },
-                                tooltip: 'Edit Group',
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.delete_outline,
-                                    color: Colors.redAccent),
-                                onPressed: () => _deleteGroup(group.id!),
-                                tooltip: 'Delete Group',
-                              ),
-                            ],
-                          ),
+                           trailing: isOwner 
+                            ? Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.edit_outlined),
+                                    onPressed: () {
+                                      context.push('/group/${group.id}/edit', extra: group);
+                                    },
+                                    tooltip: 'Edit Group',
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                                    onPressed: () => _deleteGroup(group.id),
+                                    tooltip: 'Delete Group',
+                                  ),
+                                ],
+                              )
+                            : null,
                           onTap: () {
-                            context.go('/group/${group.id!}');
+                            context.go('/group/${group.id}');
                           },
                         ),
                       );

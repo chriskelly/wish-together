@@ -120,25 +120,40 @@ class GroupDetailsPage extends StatelessWidget {
                           final isOwner = wishlist.ownerId == currentUser?.uid;
                           return Card(
                             margin: const EdgeInsets.symmetric(vertical: 4.0),
-                            child: ListTile(
-                              title: Text(wishlist.name),
-                              onTap: () =>
-                                  context.go('/wishlist/${wishlist.id}'),
-                              trailing: isOwner
-                                  ? IconButton(
-                                      icon: const Icon(
-                                        Icons.remove_circle_outline,
-                                        color: Colors.red,
-                                      ),
-                                      onPressed: () => _confirmRemoveWishlist(
-                                        context,
-                                        firestoreService,
-                                        group.id,
-                                        wishlist,
-                                      ),
-                                      tooltip: 'Remove from group',
-                                    )
-                                  : null,
+                            child: FutureBuilder<AppUser?>(
+                              future: firestoreService.getUser(wishlist.ownerId),
+                              builder: (context, userSnapshot) {
+                                String subtitle = 'Loading...';
+                                if (userSnapshot.connectionState == ConnectionState.done) {
+                                  if (userSnapshot.hasData && userSnapshot.data != null) {
+                                    subtitle = isOwner ? 'Owned by you' : 'Owned by ${userSnapshot.data!.displayName}';
+                                  } else {
+                                    subtitle = 'by an unknown user';
+                                  }
+                                }
+
+                                return ListTile(
+                                  title: Text(wishlist.name),
+                                  subtitle: Text(subtitle),
+                                  onTap: () =>
+                                      context.go('/wishlist/${wishlist.id}'),
+                                  trailing: isOwner
+                                      ? IconButton(
+                                          icon: const Icon(
+                                            Icons.remove_circle_outline,
+                                            color: Colors.red,
+                                          ),
+                                          onPressed: () => _confirmRemoveWishlist(
+                                            context,
+                                            firestoreService,
+                                            group.id,
+                                            wishlist,
+                                          ),
+                                          tooltip: 'Remove from group',
+                                        )
+                                      : null,
+                                );
+                              },
                             ),
                           );
                         },

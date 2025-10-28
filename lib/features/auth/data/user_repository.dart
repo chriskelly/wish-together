@@ -16,4 +16,16 @@ class UserRepository extends FirebaseRepository<User> {
   Map<String, dynamic> toFirestore(User user) {
     return user.toMap();
   }
+
+  Stream<List<User>> streamUsersFromIds(List<String> userIds) {
+    if (userIds.isEmpty) {
+      return Stream.value([]);
+    }
+    return instance
+        .collection(collectionPath)
+        .where(FieldPath.documentId, whereIn: userIds)
+        .snapshots()
+        .map((snapshot) =>
+            snapshot.docs.map((doc) => fromFirestore(doc)).toList());
+  }
 }

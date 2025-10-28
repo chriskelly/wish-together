@@ -155,10 +155,7 @@ class GroupDetailsPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   StreamListBuilder<User>(
-                    stream: userRepository.streamWhere(
-                      'id',
-                      whereIn: group.members,
-                    ),
+                    stream: userRepository.streamUsersFromIds(group.members),
                     isScrollable: false,
                     emptyMessage: 'This group has no members.',
                     itemBuilder: (context, member) {

@@ -84,5 +84,31 @@ void main() {
         reason: 'A null claimedAt in Firestore should result in a null value in the Item model.',
       );
     });
+
+    test('unclaim should set claimedBy and claimedAt to null', () async {
+      // ARRANGE: Create a claimed item and add it to the database with a specific ID.
+      final claimedItem = Item(
+        id: 'claimed_item',
+        name: 'Claimed Item',
+        claimedBy: 'user123',
+        claimedAt: DateTime.now(),
+      );
+      // Use the fake firestore instance directly to set up the test data.
+      await fakeFirestore
+          .collection(itemsCollectionPath)
+          .doc(claimedItem.id)
+          .set(itemRepository.toFirestore(claimedItem));
+
+      // ACT: Call the unclaim method.
+      await itemRepository.unclaim(claimedItem.id!);
+
+      // ASSERT: Retrieve the item and verify it's unclaimed.
+      final updatedItemDoc = await fakeFirestore.collection(itemsCollectionPath).doc(claimedItem.id).get();
+      final updatedItem = itemRepository.fromFirestore(updatedItemDoc);
+
+      expect(updatedItem.claimedBy, isNull, reason: 'claimedBy should be null after unclaiming.');
+      expect(updatedItem.claimedAt, isNull, reason: 'claimedAt should be null after unclaiming.');
+      expect(updatedItem.name, claimedItem.name, reason: 'Other fields should not be changed.');
+    });
   });
 }

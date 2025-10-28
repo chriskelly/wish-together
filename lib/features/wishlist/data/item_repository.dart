@@ -28,4 +28,8 @@ class ItemRepository extends FirebaseRepository<Item> {
     }
     return map;
   }
+
+  Future<void> unclaim(String itemId) {
+    return updateData(itemId, {'claimedBy': null, 'claimedAt': null});
+  }
 }

@@ -278,8 +278,7 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
 
   void _unclaimItem(Item item) async {
     try {
-      final updatedItem = item.copyWith(claimedBy: null, claimedAt: null);
-      await _itemRepository.update(updatedItem.id!, updatedItem);
+      await _itemRepository.unclaim(item.id!);
       if (mounted) {
         ScaffoldMessenger.of(
           context,

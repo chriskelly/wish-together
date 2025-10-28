@@ -3,7 +3,8 @@ import 'package:myapp/core/data/firebase_repository.dart';
 import 'package:myapp/features/auth/domain/user.dart';
 
 class UserRepository extends FirebaseRepository<User> {
-  UserRepository() : super('users');
+  UserRepository({FirebaseFirestore? firestore})
+      : super('users', firestore: firestore);
 
   @override
   User fromFirestore(DocumentSnapshot doc) {

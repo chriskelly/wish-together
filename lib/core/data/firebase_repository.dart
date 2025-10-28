@@ -1,13 +1,15 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 abstract class FirebaseRepository<T> {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  late final FirebaseFirestore instance;
   final String collectionPath;
 
-  FirebaseRepository(this.collectionPath);
+  FirebaseRepository(this.collectionPath, {FirebaseFirestore? firestore}) {
+    instance = firestore ?? FirebaseFirestore.instance;
+  }
 
   Stream<List<T>> streamAll() {
-    return _db.collection(collectionPath).snapshots().map(
+    return instance.collection(collectionPath).snapshots().map(
         (snapshot) => snapshot.docs.map((doc) => fromFirestore(doc)).toList());
   }
 
@@ -24,7 +26,7 @@ abstract class FirebaseRepository<T> {
     List<Object?>? whereNotIn,
     bool? isNull,
   }) {
-    return _db
+    return instance
         .collection(collectionPath)
         .where(field,
             isEqualTo: isEqualTo,
@@ -44,7 +46,7 @@ abstract class FirebaseRepository<T> {
   }
 
   Stream<T> streamOne(String id) {
-    return _db
+    return instance
         .collection(collectionPath)
         .doc(id)
         .snapshots()
@@ -52,24 +54,24 @@ abstract class FirebaseRepository<T> {
   }
 
   Future<T> get(String id) async {
-    final doc = await _db.collection(collectionPath).doc(id).get();
+    final doc = await instance.collection(collectionPath).doc(id).get();
     return fromFirestore(doc);
   }
 
   Future<DocumentReference> add(T data) {
-    return _db.collection(collectionPath).add(toFirestore(data));
+    return instance.collection(collectionPath).add(toFirestore(data));
   }
 
   Future<void> update(String id, T data) {
-    return _db.collection(collectionPath).doc(id).update(toFirestore(data));
+    return instance.collection(collectionPath).doc(id).update(toFirestore(data));
   }
 
   Future<void> updateData(String id, Map<String, dynamic> data) {
-    return _db.collection(collectionPath).doc(id).update(data);
+    return instance.collection(collectionPath).doc(id).update(data);
   }
 
   Future<void> delete(String id) {
-    return _db.collection(collectionPath).doc(id).delete();
+    return instance.collection(collectionPath).doc(id).delete();
   }
 
   T fromFirestore(DocumentSnapshot doc);

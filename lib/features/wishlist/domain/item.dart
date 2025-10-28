@@ -40,7 +40,9 @@ class Item {
       description: map['description'] as String?,
       url: map['url'] as String?,
       claimedBy: map['claimedBy'] as String?,
-      claimedAt: map['claimedAt'] as DateTime?,
+      claimedAt: map['claimedAt'] == null
+          ? null
+          : DateTime.parse(map['claimedAt'] as String),
     );
   }
 
@@ -50,7 +52,7 @@ class Item {
       'description': description,
       'url': url,
       'claimedBy': claimedBy,
-      'claimedAt': claimedAt,
+      'claimedAt': claimedAt?.toIso8601String(),
     };
   }
 }

@@ -5,7 +5,8 @@ import 'package:myapp/features/wishlist/domain/item.dart';
 import 'package:myapp/features/wishlist/domain/wishlist.dart';
 
 class WishlistRepository extends FirebaseRepository<Wishlist> {
-  WishlistRepository() : super('wishlists');
+  WishlistRepository({FirebaseFirestore? firestore})
+      : super('wishlists', firestore: firestore);
 
   @override
   Wishlist fromFirestore(DocumentSnapshot doc) {
@@ -19,7 +20,7 @@ class WishlistRepository extends FirebaseRepository<Wishlist> {
   }
 
   ItemRepository items(String wishlistId) {
-    return ItemRepository(wishlistId);
+    return ItemRepository(wishlistId, firestore: instance);
   }
 
   Future<void> addItemToWishlist(String wishlistId, Item item) {

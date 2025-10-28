@@ -3,7 +3,8 @@ import 'package:myapp/core/data/firebase_repository.dart';
 import 'package:myapp/features/group/domain/group.dart';
 
 class GroupRepository extends FirebaseRepository<Group> {
-  GroupRepository() : super('groups');
+  GroupRepository({FirebaseFirestore? firestore})
+      : super('groups', firestore: firestore);
 
   @override
   Group fromFirestore(DocumentSnapshot doc) {

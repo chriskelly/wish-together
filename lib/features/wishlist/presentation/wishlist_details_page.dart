@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:myapp/common/widgets/list_item_actions.dart';
 import 'package:myapp/common/widgets/stream_list_builder.dart';
 import 'package:myapp/features/wishlist/data/item_repository.dart';
 import 'package:myapp/features/wishlist/data/wishlist_repository.dart';
@@ -190,28 +191,15 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-          Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.edit_outlined, color: Colors.blue),
-                onPressed: () {
-                  context.go(
-                    '/wishlist/${widget.wishlistId}/item/${item.id}/edit',
-                    extra: item,
-                  );
-                },
-                tooltip: 'Edit Item',
-              ),
-              IconButton(
-                icon: const Icon(
-                  Icons.delete_outlined,
-                  color: Colors.redAccent,
-                ),
-                onPressed: () => _deleteItem(item.id!),
-                tooltip: 'Delete Item',
-              ),
-            ],
-          ),
+          ListItemActions(
+            onEdit: () {
+              context.go(
+                '/wishlist/${widget.wishlistId}/item/${item.id}/edit',
+                extra: item,
+              );
+            },
+            onDelete: () => _deleteItem(item.id!),
+          )
         ],
       );
     }

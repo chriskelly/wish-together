@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:myapp/common/widgets/list_item_actions.dart';
 import 'package:myapp/common/widgets/stream_list_builder.dart';
 import 'package:myapp/features/group/data/group_repository.dart';
 import 'package:myapp/features/group/domain/group.dart';
@@ -30,10 +31,7 @@ class GroupDetailsPage extends StatelessWidget {
             if (!snapshot.hasData) {
               return const Text('Group Details');
             }
-            return Text(
-              snapshot.data!.name,
-              style: Theme.of(context).textTheme.headlineSmall,
-            );
+            return Text(snapshot.data!.name, style: Theme.of(context).textTheme.headlineSmall);
           },
         ),
         actions: [
@@ -132,18 +130,15 @@ class GroupDetailsPage extends StatelessWidget {
                               onTap: () =>
                                   context.go('/wishlist/${wishlist.id}'),
                               trailing: isOwner
-                                  ? IconButton(
-                                      icon: const Icon(
-                                        Icons.remove_circle_outline,
-                                        color: Colors.red,
-                                      ),
-                                      onPressed: () => _confirmRemoveWishlist(
+                                  ? ListItemActions(
+                                      onDelete: () => _confirmRemoveWishlist(
                                         context,
                                         wishlistRepository,
                                         group.id!,
                                         wishlist,
                                       ),
-                                      tooltip: 'Remove from group',
+                                      deleteIcon: Icons.remove_circle_outline,
+                                      deleteTooltip: 'Remove from group',
                                     )
                                   : null,
                             );

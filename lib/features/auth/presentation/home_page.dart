@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:myapp/common/widgets/list_item_actions.dart';
 import 'package:myapp/common/widgets/stream_list_builder.dart';
 import 'package:myapp/features/auth/data/user_repository.dart';
 import 'package:myapp/features/group/data/group_repository.dart';
@@ -215,13 +216,9 @@ class _HomePageState extends State<HomePage> {
                       return Card(
                         child: ListTile(
                           title: Text(wishlist.name),
-                          trailing: IconButton(
-                            icon: const Icon(
-                              Icons.delete_outline,
-                              color: Colors.redAccent,
-                            ),
-                            onPressed: () => _deleteWishlist(wishlist.id!),
-                            tooltip: 'Delete Wishlist',
+                          trailing: ListItemActions(
+                            onDelete: () => _deleteWishlist(wishlist.id!),
+                            deleteTooltip: 'Delete Wishlist',
                           ),
                           onTap: () {
                             context.go('/wishlist/${wishlist.id}');
@@ -248,13 +245,9 @@ class _HomePageState extends State<HomePage> {
                         child: ListTile(
                           title: Text(group.name),
                           trailing: isOwner
-                              ? IconButton(
-                                  icon: const Icon(
-                                    Icons.delete_outline,
-                                    color: Colors.redAccent,
-                                  ),
-                                  onPressed: () => _deleteGroup(group.id!),
-                                  tooltip: 'Delete Group',
+                              ? ListItemActions(
+                                  onDelete: () => _deleteGroup(group.id!),
+                                  deleteTooltip: 'Delete Group',
                                 )
                               : null,
                           onTap: () {

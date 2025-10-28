@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:myapp/common/widgets/primary_app_bar.dart';
 import 'package:myapp/features/group/data/group_repository.dart';
 import 'package:myapp/features/group/domain/group.dart';
 
@@ -83,9 +84,8 @@ class _GroupFormPageState extends State<GroupFormPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_isEditing ? 'Edit Group' : 'Create a New Group',
-                style: Theme.of(context).textTheme.headlineSmall),
+      appBar: PrimaryAppBar(
+        title: _isEditing ? 'Edit Group' : 'Create a New Group',
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),

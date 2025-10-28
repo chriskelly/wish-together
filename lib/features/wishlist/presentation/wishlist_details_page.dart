@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:myapp/common/widgets/stream_list_builder.dart';
 import 'package:myapp/features/wishlist/data/item_repository.dart';
 import 'package:myapp/features/wishlist/data/wishlist_repository.dart';
 import 'package:myapp/features/wishlist/domain/item.dart';
@@ -42,14 +43,19 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
             if (!snapshot.hasData || snapshot.data == null) {
               return const Text('Wishlist Not Found');
             }
-            return Text(snapshot.data!.name, style: Theme.of(context).textTheme.headlineSmall);
+            return Text(
+              snapshot.data!.name,
+              style: Theme.of(context).textTheme.headlineSmall,
+            );
           },
         ),
         actions: [
           FutureBuilder<Wishlist?>(
             future: _wishlistRepository.get(widget.wishlistId),
             builder: (context, snapshot) {
-              if (!snapshot.hasData || currentUser == null || snapshot.data == null) {
+              if (!snapshot.hasData ||
+                  currentUser == null ||
+                  snapshot.data == null) {
                 return const SizedBox.shrink();
               }
               final wishlist = snapshot.data!;
@@ -57,20 +63,29 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
                 return Row(
                   children: [
                     IconButton(
-                      icon: Icon(_isSpoilerFree ? Icons.visibility_off : Icons.visibility),
+                      icon: Icon(
+                        _isSpoilerFree
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                      ),
                       onPressed: () {
                         setState(() {
                           _isSpoilerFree = !_isSpoilerFree;
                         });
                       },
-                      tooltip: _isSpoilerFree ? 'Show claimed status' : 'Hide claimed status',
+                      tooltip: _isSpoilerFree
+                          ? 'Show claimed status'
+                          : 'Hide claimed status',
                     ),
                     IconButton(
                       icon: const Icon(Icons.edit),
                       onPressed: () {
-                        context.go('/wishlist/${wishlist.id}/edit', extra: wishlist);
+                        context.go(
+                          '/wishlist/${wishlist.id}/edit',
+                          extra: wishlist,
+                        );
                       },
-                       tooltip: 'Edit Wishlist',
+                      tooltip: 'Edit Wishlist',
                     ),
                   ],
                 );
@@ -80,25 +95,11 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
           ),
         ],
       ),
-      body: StreamBuilder<List<Item>>(
+      body: StreamListBuilder<Item>(
         stream: _itemRepository.streamAll(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('This wishlist has no items yet.'));
-          }
-          final items = snapshot.data!;
-          return ListView.builder(
-            itemCount: items.length,
-            padding: const EdgeInsets.only(bottom: 48),
-            itemBuilder: (context, index) {
-              final item = items[index];
-              return _buildItemCard(item, context);
-            },
-          );
-        },
+        itemBuilder: (context, item) => _buildItemCard(item, context),
+        emptyMessage: 'This wishlist has no items yet.',
+        listPadding: const EdgeInsets.only(bottom: 48),
       ),
       floatingActionButton: FutureBuilder<Wishlist?>(
         future: _wishlistRepository.get(widget.wishlistId),
@@ -108,7 +109,8 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
           }
           if (snapshot.data!.ownerId == currentUser!.uid) {
             return FloatingActionButton(
-              onPressed: () => context.go('/wishlist/${widget.wishlistId}/add-item'),
+              onPressed: () =>
+                  context.go('/wishlist/${widget.wishlistId}/add-item'),
               child: const Icon(Icons.add),
             );
           }
@@ -145,7 +147,10 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
                       padding: const EdgeInsets.symmetric(vertical: 8.0),
                       child: Text(
                         item.url!,
-                        style: const TextStyle(color: Colors.blue, decoration: TextDecoration.underline),
+                        style: const TextStyle(
+                          color: Colors.blue,
+                          decoration: TextDecoration.underline,
+                        ),
                       ),
                     ),
                   ),
@@ -172,21 +177,36 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
           else if (isClaimed)
             Text(
               'Claimed on ${DateFormat.yMMMd().format(item.claimedAt!)}',
-              style: TextStyle(color: Colors.grey[600], fontStyle: FontStyle.italic),
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontStyle: FontStyle.italic,
+              ),
             )
           else
-            const Text('Available', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+            const Text(
+              'Available',
+              style: TextStyle(
+                color: Colors.green,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           Row(
             children: [
               IconButton(
                 icon: const Icon(Icons.edit_outlined, color: Colors.blue),
                 onPressed: () {
-                  context.go('/wishlist/${widget.wishlistId}/item/${item.id}/edit', extra: item);
+                  context.go(
+                    '/wishlist/${widget.wishlistId}/item/${item.id}/edit',
+                    extra: item,
+                  );
                 },
                 tooltip: 'Edit Item',
               ),
               IconButton(
-                icon: const Icon(Icons.delete_outlined, color: Colors.redAccent),
+                icon: const Icon(
+                  Icons.delete_outlined,
+                  color: Colors.redAccent,
+                ),
                 onPressed: () => _deleteItem(item.id!),
                 tooltip: 'Delete Item',
               ),
@@ -202,7 +222,13 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
         return Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            const Text('You claimed this!', style: TextStyle(color: Colors.purple, fontWeight: FontWeight.bold)),
+            const Text(
+              'You claimed this!',
+              style: TextStyle(
+                color: Colors.purple,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             const SizedBox(width: 8),
             TextButton(
               onPressed: () => _unclaimItem(item),
@@ -233,9 +259,9 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
       await launchUrl(uri);
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not launch $url')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not launch $url')));
       }
     }
   }
@@ -243,18 +269,21 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
   void _claimItem(Item item) async {
     if (currentUser == null) return;
     try {
-      final updatedItem = item.copyWith(claimedBy: currentUser!.uid, claimedAt: DateTime.now());
+      final updatedItem = item.copyWith(
+        claimedBy: currentUser!.uid,
+        claimedAt: DateTime.now(),
+      );
       await _itemRepository.update(updatedItem.id!, updatedItem);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Item claimed!')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Item claimed!')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to claim item: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to claim item: $e')));
       }
     }
   }
@@ -264,15 +293,15 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
       final updatedItem = item.copyWith(claimedBy: null, claimedAt: null);
       await _itemRepository.update(updatedItem.id!, updatedItem);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Item unclaimed.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Item unclaimed.')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to unclaim item: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to unclaim item: $e')));
       }
     }
   }
@@ -282,7 +311,9 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Item?'),
-        content: const Text('Are you sure you want to delete this item? This action cannot be undone.'),
+        content: const Text(
+          'Are you sure you want to delete this item? This action cannot be undone.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -300,15 +331,15 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
       try {
         await _itemRepository.delete(itemId);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Item deleted.')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Item deleted.')));
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to delete item: $e')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Failed to delete item: $e')));
         }
       }
     }

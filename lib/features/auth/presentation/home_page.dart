@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:myapp/common/widgets/stream_list_builder.dart';
 import 'package:myapp/features/auth/data/user_repository.dart';
 import 'package:myapp/features/group/data/group_repository.dart';
 import 'package:myapp/features/group/domain/group.dart';
@@ -205,9 +206,12 @@ class _HomePageState extends State<HomePage> {
                     context: context,
                     title: 'My Wishlists',
                     onAdd: () => context.push('/create-wishlist'),
-                    stream: _wishlistRepository.streamWhere('ownerId', isEqualTo: authUser.uid),
+                    stream: _wishlistRepository.streamWhere(
+                      'ownerId',
+                      isEqualTo: authUser.uid,
+                    ),
                     emptyListMessage: 'No wishlists yet. Create one!',
-                    itemBuilder: (wishlist) {
+                    itemBuilder: (context, wishlist) {
                       return Card(
                         child: ListTile(
                           title: Text(wishlist.name),
@@ -233,9 +237,12 @@ class _HomePageState extends State<HomePage> {
                     onAdd: () {
                       context.push('/create-group');
                     },
-                    stream: _groupRepository.streamWhere('members', arrayContains: authUser.uid),
+                    stream: _groupRepository.streamWhere(
+                      'members',
+                      arrayContains: authUser.uid,
+                    ),
                     emptyListMessage: 'No groups yet. Create or join one!',
-                    itemBuilder: (group) {
+                    itemBuilder: (context, group) {
                       final isOwner = group.ownerId == authUser.uid;
                       return Card(
                         child: ListTile(
@@ -272,7 +279,7 @@ class _HomePageState extends State<HomePage> {
     required VoidCallback onAdd,
     required Stream<List<T>> stream,
     required String emptyListMessage,
-    required Widget Function(T item) itemBuilder,
+    required ItemWidgetBuilder<T> itemBuilder,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -289,38 +296,24 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
         const SizedBox(height: 8),
-        StreamBuilder<List<T>>(
+        StreamListBuilder<T>(
           stream: stream,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return Container(
-                height: 100,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Theme.of(context).dividerColor),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Center(
-                  child: Text(
-                    emptyListMessage,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                ),
-              );
-            }
-            final items = snapshot.data!;
-            return ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: items.length,
-              itemBuilder: (context, index) {
-                return itemBuilder(items[index]);
-              },
-            );
-          },
+          itemBuilder: itemBuilder,
+          isScrollable: false,
+          emptyWidget: Container(
+            height: 100,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              border: Border.all(color: Theme.of(context).dividerColor),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(
+              child: Text(
+                emptyListMessage,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ),
+          ),
         ),
       ],
     );

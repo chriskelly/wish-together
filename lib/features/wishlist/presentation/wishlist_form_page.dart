@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:myapp/common/widgets/primary_app_bar.dart';
 import 'package:myapp/features/wishlist/data/wishlist_repository.dart';
 import 'package:myapp/features/wishlist/domain/wishlist.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -90,9 +91,8 @@ class _WishlistFormPageState extends State<WishlistFormPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_isEditing ? 'Edit Wishlist' : 'Create a new Wishlist', 
-                style: Theme.of(context).textTheme.headlineSmall),
+      appBar: PrimaryAppBar(
+        title: _isEditing ? 'Edit Wishlist' : 'Create a new Wishlist',
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),

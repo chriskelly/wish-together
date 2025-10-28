@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:myapp/common/widgets/stream_list_builder.dart';
 import 'package:myapp/features/group/data/group_repository.dart';
 import 'package:myapp/features/group/domain/group.dart';
 import 'package:myapp/features/wishlist/data/wishlist_repository.dart';
@@ -29,7 +30,10 @@ class GroupDetailsPage extends StatelessWidget {
             if (!snapshot.hasData) {
               return const Text('Group Details');
             }
-            return Text(snapshot.data!.name, style: Theme.of(context).textTheme.headlineSmall);
+            return Text(
+              snapshot.data!.name,
+              style: Theme.of(context).textTheme.headlineSmall,
+            );
           },
         ),
         actions: [
@@ -95,78 +99,56 @@ class GroupDetailsPage extends StatelessWidget {
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 10),
-                  StreamBuilder<List<Wishlist>>(
+                  StreamListBuilder<Wishlist>(
                     stream: wishlistRepository.streamWhere(
                       'sharedWithGroups',
                       arrayContains: groupId,
                     ),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                        return const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(8.0),
-                            child: Text(
-                              'No wishlists have been shared with this group yet.',
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        );
-                      }
-                      final wishlists = snapshot.data!;
-                      return ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: wishlists.length,
-                        itemBuilder: (context, index) {
-                          final wishlist = wishlists[index];
-                          final isOwner = wishlist.ownerId == authUser?.uid;
-                          return Card(
-                            margin: const EdgeInsets.symmetric(vertical: 4.0),
-                            child: FutureBuilder<User?>(
-                              future: userRepository.get(wishlist.ownerId),
-                              builder: (context, userSnapshot) {
-                                String subtitle = 'Loading...';
-                                if (userSnapshot.connectionState ==
-                                    ConnectionState.done) {
-                                  if (userSnapshot.hasData &&
-                                      userSnapshot.data != null) {
-                                    subtitle = isOwner
-                                        ? 'Owned by you'
-                                        : 'Owned by ${userSnapshot.data!.displayName}';
-                                  } else {
-                                    subtitle = 'by an unknown user';
-                                  }
-                                }
+                    isScrollable: false,
+                    emptyMessage: 'No wishlists have been shared with this group yet.',
+                    itemBuilder: (context, wishlist) {
+                      final isOwner = wishlist.ownerId == authUser?.uid;
+                      return Card(
+                        margin: const EdgeInsets.symmetric(vertical: 4.0),
+                        child: FutureBuilder<User?>(
+                          future: userRepository.get(wishlist.ownerId),
+                          builder: (context, userSnapshot) {
+                            String subtitle = 'Loading...';
+                            if (userSnapshot.connectionState ==
+                                ConnectionState.done) {
+                              if (userSnapshot.hasData &&
+                                  userSnapshot.data != null) {
+                                subtitle = isOwner
+                                    ? 'Owned by you'
+                                    : 'Owned by ${userSnapshot.data!.displayName}';
+                              } else {
+                                subtitle = 'by an unknown user';
+                              }
+                            }
 
-                                return ListTile(
-                                  title: Text(wishlist.name),
-                                  subtitle: Text(subtitle),
-                                  onTap: () =>
-                                      context.go('/wishlist/${wishlist.id}'),
-                                  trailing: isOwner
-                                      ? IconButton(
-                                          icon: const Icon(
-                                            Icons.remove_circle_outline,
-                                            color: Colors.red,
-                                          ),
-                                          onPressed: () =>
-                                              _confirmRemoveWishlist(
-                                                context,
-                                                wishlistRepository,
-                                                group.id!,
-                                                wishlist,
-                                              ),
-                                          tooltip: 'Remove from group',
-                                        )
-                                      : null,
-                                );
-                              },
-                            ),
-                          );
-                        },
+                            return ListTile(
+                              title: Text(wishlist.name),
+                              subtitle: Text(subtitle),
+                              onTap: () =>
+                                  context.go('/wishlist/${wishlist.id}'),
+                              trailing: isOwner
+                                  ? IconButton(
+                                      icon: const Icon(
+                                        Icons.remove_circle_outline,
+                                        color: Colors.red,
+                                      ),
+                                      onPressed: () => _confirmRemoveWishlist(
+                                        context,
+                                        wishlistRepository,
+                                        group.id!,
+                                        wishlist,
+                                      ),
+                                      tooltip: 'Remove from group',
+                                    )
+                                  : null,
+                            );
+                          },
+                        ),
                       );
                     },
                   ),
@@ -177,45 +159,36 @@ class GroupDetailsPage extends StatelessWidget {
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 10),
-                  StreamBuilder<List<User>>(
+                  StreamListBuilder<User>(
                     stream: userRepository.streamWhere(
                       'id',
                       whereIn: group.members,
                     ),
-                    builder: (context, snapshot) {
-                      if (!snapshot.hasData) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      final members = snapshot.data!;
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: members.map((member) {
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 6.0,
-                              horizontal: 8.0,
+                    isScrollable: false,
+                    emptyMessage: 'This group has no members.',
+                    itemBuilder: (context, member) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 6.0,
+                          horizontal: 8.0,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              member.displayName ?? 'No Name',
+                              style: Theme.of(context).textTheme.bodyLarge,
                             ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  member.displayName ?? 'No Name',
-                                  style: Theme.of(context).textTheme.bodyLarge,
-                                ),
-                                Text(
-                                  member.id == group.ownerId
-                                      ? 'Owner'
-                                      : 'Member',
-                                  style: Theme.of(context).textTheme.bodyMedium
-                                      ?.copyWith(
-                                        fontStyle: FontStyle.italic,
-                                        color: Colors.grey[600],
-                                      ),
-                                ),
-                              ],
+                            Text(
+                              member.id == group.ownerId ? 'Owner' : 'Member',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    fontStyle: FontStyle.italic,
+                                    color: Colors.grey[600],
+                                  ),
                             ),
-                          );
-                        }).toList(),
+                          ],
+                        ),
                       );
                     },
                   ),

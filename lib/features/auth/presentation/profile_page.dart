@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:go_router/go_router.dart';
-import '../../../core/services/firestore_service.dart';
-import '../../../core/models/user.dart';
+import 'package:myapp/features/auth/data/user_repository.dart';
+import '../domain/user.dart';
 
 class ProfilePage extends StatefulWidget {
   final String? redirectTo;
@@ -15,12 +15,13 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   final _formKey = GlobalKey<FormState>();
   final _displayNameController = TextEditingController();
-  final _firestoreService = FirestoreService();
-  final _auth = FirebaseAuth.instance;
+  final _userRepository = UserRepository();
+  final _auth = auth.FirebaseAuth.instance;
 
-  AppUser? _currentUser;
+  User? _currentUser;
   bool _isLoading = true;
-  bool get _isNewUser => _currentUser?.displayName == null || _currentUser!.displayName!.isEmpty;
+  bool get _isNewUser =>
+      _currentUser?.displayName == null || _currentUser!.displayName!.isEmpty;
 
   @override
   void initState() {
@@ -29,13 +30,13 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _loadUserData() async {
-    final user = _auth.currentUser;
-    if (user != null) {
-      final appUser = await _firestoreService.getUser(user.uid);
+    final authUser = _auth.currentUser;
+    if (authUser != null) {
+      final user = await _userRepository.get(authUser.uid);
       if (mounted) {
         setState(() {
-          _currentUser = appUser;
-          _displayNameController.text = appUser?.displayName ?? '';
+          _currentUser = user;
+          _displayNameController.text = user.displayName ?? '';
           _isLoading = false;
         });
       }
@@ -44,18 +45,22 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _saveProfile() async {
     if (_formKey.currentState!.validate()) {
-      final user = _auth.currentUser;
-      if (user == null) return;
+      final authUser = _auth.currentUser;
+      if (authUser == null) return;
 
       final displayName = _displayNameController.text.trim();
 
       try {
         if (_isNewUser) {
-          await _firestoreService.createUser(user, displayName);
+          await _userRepository.add(User(
+            id: authUser.uid, 
+            displayName: displayName, 
+            phoneNumber: authUser.phoneNumber
+            ));
         } else {
-          await _firestoreService.updateUser(
-            user.uid,
-            displayName: displayName,
+          await _userRepository.updateData(
+            authUser.uid,
+            {'displayName': displayName},
           );
         }
 
@@ -63,7 +68,7 @@ class _ProfilePageState extends State<ProfilePage> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Profile saved successfully!')),
           );
-           // Redirect to the originally intended page, or home otherwise.
+          // Redirect to the originally intended page, or home otherwise.
           context.go(widget.redirectTo ?? '/');
         }
       } catch (e) {
@@ -86,7 +91,8 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isNewUser ? 'Create Your Profile' : 'Edit Profile'),
+        title: Text(_isNewUser ? 'Create Your Profile' : 'Edit Profile', 
+        style: Theme.of(context).textTheme.headlineSmall),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())

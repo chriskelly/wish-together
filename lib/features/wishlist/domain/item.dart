@@ -1,12 +1,10 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class Item {
   final String? id;
   final String name;
   final String? description;
   final String? url;
   final String? claimedBy; // User ID of the person who claimed the item
-  final Timestamp? claimedAt;
+  final DateTime? claimedAt;
 
   Item({
     this.id,
@@ -23,7 +21,7 @@ class Item {
     String? description,
     String? url,
     String? claimedBy,
-    Timestamp? claimedAt,
+    DateTime? claimedAt,
   }) {
     return Item(
       id: id ?? this.id,
@@ -35,19 +33,18 @@ class Item {
     );
   }
 
-  factory Item.fromFirestore(DocumentSnapshot doc) {
-    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+  factory Item.fromMap(Map<String, dynamic> map, String id) {
     return Item(
-      id: doc.id,
-      name: data['name'] ?? '',
-      description: data['description'] as String?,
-      url: data['url'] as String?,
-      claimedBy: data['claimedBy'] as String?,
-      claimedAt: data['claimedAt'] as Timestamp?,
+      id: id,
+      name: map['name'] ?? '',
+      description: map['description'] as String?,
+      url: map['url'] as String?,
+      claimedBy: map['claimedBy'] as String?,
+      claimedAt: map['claimedAt'] as DateTime?,
     );
   }
 
-  Map<String, dynamic> toFirestore() {
+  Map<String, dynamic> toMap() {
     return {
       'name': name,
       'description': description,

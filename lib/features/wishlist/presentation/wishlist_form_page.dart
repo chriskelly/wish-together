@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:myapp/features/wishlist/data/wishlist_repository.dart';
 import 'package:myapp/features/wishlist/domain/wishlist.dart';
-import 'package:myapp/core/services/firestore_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class WishlistFormPage extends StatefulWidget {
@@ -16,7 +16,7 @@ class WishlistFormPage extends StatefulWidget {
 class _WishlistFormPageState extends State<WishlistFormPage> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
-  final _firestoreService = FirestoreService();
+  final _wishlistRepository = WishlistRepository();
   bool _isLoading = false;
 
   bool get _isEditing => widget.wishlist != null;
@@ -56,13 +56,13 @@ class _WishlistFormPageState extends State<WishlistFormPage> {
           final updatedWishlist = widget.wishlist!.copyWith(
             name: _nameController.text,
           );
-          await _firestoreService.updateWishlist(updatedWishlist);
+          await _wishlistRepository.update(updatedWishlist.id!, updatedWishlist);
         } else {
           final newWishlist = Wishlist(
             name: _nameController.text,
             ownerId: user.uid,
           );
-          await _firestoreService.addWishlist(newWishlist);
+          await _wishlistRepository.add(newWishlist);
         }
 
         if (mounted) {
@@ -91,7 +91,8 @@ class _WishlistFormPageState extends State<WishlistFormPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isEditing ? 'Edit Wishlist' : 'Create a new Wishlist'),
+        title: Text(_isEditing ? 'Edit Wishlist' : 'Create a new Wishlist', 
+                style: Theme.of(context).textTheme.headlineSmall),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),

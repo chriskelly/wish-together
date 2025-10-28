@@ -1,6 +1,7 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:myapp/features/auth/data/user_repository.dart';
 import 'package:myapp/features/auth/presentation/home_page.dart';
 import 'package:myapp/features/auth/presentation/login_page.dart';
 import 'package:myapp/features/auth/presentation/verification_page.dart';
@@ -11,19 +12,19 @@ import 'package:myapp/features/group/domain/group.dart';
 import 'package:myapp/features/wishlist/domain/item.dart';
 import 'package:myapp/features/wishlist/domain/wishlist.dart';
 import 'package:myapp/features/auth/presentation/profile_page.dart';
-import 'package:myapp/core/services/firestore_service.dart';
 import 'package:myapp/features/wishlist/presentation/wishlist_form_page.dart';
 import 'package:myapp/features/wishlist/presentation/wishlist_details_page.dart';
 import 'package:myapp/features/wishlist/presentation/item_form_page.dart';
 
 final router = GoRouter(
   redirect: (BuildContext context, GoRouterState state) async {
-    final auth = FirebaseAuth.instance;
-    final firestoreService = FirestoreService();
+    final auth = firebase_auth.FirebaseAuth.instance;
+    final userRepository = UserRepository();
 
     final bool loggedIn = auth.currentUser != null;
     final String location = state.uri.toString();
-    final isAuthFlow = location.startsWith('/login') || location.startsWith('/verify');
+    final isAuthFlow =
+        location.startsWith('/login') || location.startsWith('/verify');
 
     // 1. Handle user not logged in
     if (!loggedIn) {
@@ -33,12 +34,12 @@ final router = GoRouter(
     // --- User is logged in ---
 
     // 2. Handle profile creation for new users
-    final user = auth.currentUser!;
-    final appUser = await firestoreService.getUser(user.uid);
-    final bool hasProfile = appUser?.displayName != null && appUser!.displayName!.isNotEmpty;
+    final authUser = auth.currentUser!;
+    final user = await userRepository.get(authUser.uid);
+    final bool hasProfile = user.displayName != null && user.displayName!.isNotEmpty;
 
     if (isAuthFlow) {
-        return '/'; // Logged-in users shouldn't be in the auth flow.
+      return '/'; // Logged-in users shouldn't be in the auth flow.
     }
 
     if (!hasProfile) {
@@ -105,7 +106,7 @@ final router = GoRouter(
                 return GroupFormPage(group: group);
               },
             ),
-          ]
+          ],
         ),
       ],
     ),
@@ -127,28 +128,30 @@ final router = GoRouter(
         return const WishlistFormPage();
       },
     ),
-     GoRoute(
+    GoRoute(
       path: '/create-group',
       builder: (BuildContext context, GoRouterState state) {
         return const GroupFormPage();
       },
     ),
     GoRoute(
-        path: '/profile',
-        builder: (BuildContext context, GoRouterState state) {
-          final redirectTo = state.uri.queryParameters['redirect_to'];
-          return ProfilePage(redirectTo: redirectTo);
-        },
+      path: '/profile',
+      builder: (BuildContext context, GoRouterState state) {
+        final redirectTo = state.uri.queryParameters['redirect_to'];
+        return ProfilePage(redirectTo: redirectTo);
+      },
     ),
     GoRoute(
-        path: '/join',
-        builder: (BuildContext context, GoRouterState state) {
-            final groupId = state.uri.queryParameters['group'];
-            if (groupId == null) {
-                return const Scaffold(body: Center(child: Text('Invalid invitation link.')));
-            }
-            return JoinGroupPage(groupId: groupId);
-        },
+      path: '/join',
+      builder: (BuildContext context, GoRouterState state) {
+        final groupId = state.uri.queryParameters['group'];
+        if (groupId == null) {
+          return const Scaffold(
+            body: Center(child: Text('Invalid invitation link.')),
+          );
+        }
+        return JoinGroupPage(groupId: groupId);
+      },
     ),
   ],
 );

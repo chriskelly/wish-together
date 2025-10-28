@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:myapp/features/group/data/group_repository.dart';
 import 'package:myapp/features/group/domain/group.dart';
-import 'package:myapp/core/services/firestore_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 
@@ -14,7 +14,7 @@ class JoinGroupPage extends StatefulWidget {
 }
 
 class _JoinGroupPageState extends State<JoinGroupPage> {
-  final _firestoreService = FirestoreService();
+  final _groupRepository = GroupRepository();
   final _currentUser = FirebaseAuth.instance.currentUser;
   bool _isJoining = false;
 
@@ -26,7 +26,7 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
     });
 
     try {
-      await _firestoreService.joinGroup(widget.groupId, _currentUser.uid);
+      await _groupRepository.joinGroup(widget.groupId, _currentUser.uid);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Successfully joined the group!')),
@@ -55,10 +55,10 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Group Invitation'),
+        title: Text('Group Invitation', style: Theme.of(context).textTheme.headlineSmall),
       ),
       body: FutureBuilder<Group?>(
-        future: _firestoreService.getGroupFuture(widget.groupId),
+        future: _groupRepository.get(widget.groupId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());

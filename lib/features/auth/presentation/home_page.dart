@@ -1,10 +1,12 @@
 import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:myapp/features/auth/data/user_repository.dart';
+import 'package:myapp/features/group/data/group_repository.dart';
 import 'package:myapp/features/group/domain/group.dart';
-import 'package:myapp/core/models/user.dart';
+import 'package:myapp/features/auth/domain/user.dart';
+import 'package:myapp/features/wishlist/data/wishlist_repository.dart';
 import 'package:myapp/features/wishlist/domain/wishlist.dart';
-import 'package:myapp/core/services/firestore_service.dart';
 
 import '../data/auth_service.dart';
 
@@ -17,7 +19,9 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final _authService = AuthService();
-  final _firestoreService = FirestoreService();
+  final _userRepository = UserRepository();
+  final _wishlistRepository = WishlistRepository();
+  final _groupRepository = GroupRepository();
 
   @override
   Widget build(BuildContext context) {
@@ -30,11 +34,11 @@ class _HomePageState extends State<HomePage> {
           );
         }
 
-        final user = snapshot.data;
-        if (user == null) {
+        final authUser = snapshot.data;
+        if (authUser == null) {
           return _buildLoggedOutView(context);
         } else {
-          return _buildLoggedInView(context, user);
+          return _buildLoggedInView(context, authUser);
         }
       },
     );
@@ -42,9 +46,7 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildLoggedOutView(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('WishTogether'),
-      ),
+      appBar: AppBar(title: const Text('WishTogether')),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
@@ -75,7 +77,8 @@ class _HomePageState extends State<HomePage> {
         return AlertDialog(
           title: const Text('Confirm Deletion'),
           content: const Text(
-              'Are you sure you want to delete this wishlist? This action cannot be undone.'),
+            'Are you sure you want to delete this wishlist? This action cannot be undone.',
+          ),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -92,11 +95,11 @@ class _HomePageState extends State<HomePage> {
 
     if (confirmed == true) {
       try {
-        await _firestoreService.deleteWishlist(wishlistId);
+        await _wishlistRepository.delete(wishlistId);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Wishlist deleted.')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Wishlist deleted.')));
         }
       } catch (e) {
         if (mounted) {
@@ -108,14 +111,15 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-   Future<void> _deleteGroup(String groupId) async {
+  Future<void> _deleteGroup(String groupId) async {
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Confirm Deletion'),
           content: const Text(
-              'Are you sure you want to delete this group? This action cannot be undone.'),
+            'Are you sure you want to delete this group? This action cannot be undone.',
+          ),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -132,26 +136,25 @@ class _HomePageState extends State<HomePage> {
 
     if (confirmed == true) {
       try {
-        await _firestoreService.deleteGroup(groupId);
+        await _groupRepository.delete(groupId);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Group deleted.')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Group deleted.')));
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error deleting group: $e')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Error deleting group: $e')));
         }
       }
     }
   }
 
-
-  Widget _buildLoggedInView(BuildContext context, auth.User user) {
-    return FutureBuilder<AppUser?>(
-      future: _firestoreService.getUser(user.uid),
+  Widget _buildLoggedInView(BuildContext context, auth.User authUser) {
+    return FutureBuilder<User?>(
+      future: _userRepository.get(authUser.uid),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
@@ -166,12 +169,12 @@ class _HomePageState extends State<HomePage> {
           );
         }
 
-        final appUser = snapshot.data!;
+        final user = snapshot.data!;
 
         return Scaffold(
           appBar: AppBar(
             title: Text(
-              'Welcome, ${appUser.displayName}!',
+              'Welcome, ${user.displayName}!',
               style: Theme.of(context).textTheme.headlineMedium,
             ),
             actions: [
@@ -202,18 +205,20 @@ class _HomePageState extends State<HomePage> {
                     context: context,
                     title: 'My Wishlists',
                     onAdd: () => context.push('/create-wishlist'),
-                    stream: _firestoreService.getUserWishlists(user.uid),
+                    stream: _wishlistRepository.streamWhere('ownerId', isEqualTo: authUser.uid),
                     emptyListMessage: 'No wishlists yet. Create one!',
                     itemBuilder: (wishlist) {
                       return Card(
                         child: ListTile(
                           title: Text(wishlist.name),
                           trailing: IconButton(
-                                icon: const Icon(Icons.delete_outline,
-                                    color: Colors.redAccent),
-                                onPressed: () => _deleteWishlist(wishlist.id!),
-                                tooltip: 'Delete Wishlist',
-                              ),
+                            icon: const Icon(
+                              Icons.delete_outline,
+                              color: Colors.redAccent,
+                            ),
+                            onPressed: () => _deleteWishlist(wishlist.id!),
+                            tooltip: 'Delete Wishlist',
+                          ),
                           onTap: () {
                             context.go('/wishlist/${wishlist.id}');
                           },
@@ -226,22 +231,25 @@ class _HomePageState extends State<HomePage> {
                     context: context,
                     title: 'My Groups',
                     onAdd: () {
-                       context.push('/create-group');
+                      context.push('/create-group');
                     },
-                    stream: _firestoreService.getUserGroups(user.uid),
+                    stream: _groupRepository.streamWhere('members', arrayContains: authUser.uid),
                     emptyListMessage: 'No groups yet. Create or join one!',
                     itemBuilder: (group) {
-                      final isOwner = group.ownerId == user.uid;
+                      final isOwner = group.ownerId == authUser.uid;
                       return Card(
                         child: ListTile(
                           title: Text(group.name),
-                           trailing: isOwner 
-                            ? IconButton(
-                                    icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                                    onPressed: () => _deleteGroup(group.id),
-                                    tooltip: 'Delete Group',
-                                  )
-                            : null,
+                          trailing: isOwner
+                              ? IconButton(
+                                  icon: const Icon(
+                                    Icons.delete_outline,
+                                    color: Colors.redAccent,
+                                  ),
+                                  onPressed: () => _deleteGroup(group.id!),
+                                  tooltip: 'Delete Group',
+                                )
+                              : null,
                           onTap: () {
                             context.go('/group/${group.id}');
                           },
@@ -272,10 +280,7 @@ class _HomePageState extends State<HomePage> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
+            Text(title, style: Theme.of(context).textTheme.titleLarge),
             IconButton(
               icon: const Icon(Icons.add_circle_outline),
               onPressed: onAdd,

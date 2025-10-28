@@ -40,7 +40,7 @@ WishTogether is a collaborative wish-listing application designed to make gift-g
 
 *   **Goal:** Create a guided onboarding flow. Users must have a `displayName`.
 *   **Implementation:**
-    *   `AppUser` data model.
+    *   `User` data model.
     *   `FirestoreService` methods for user management and default wishlist creation.
     *   `go_router` redirect logic to enforce profile creation for new users.
 

@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class Wishlist {
   final String? id;
   final String name;
@@ -27,17 +25,16 @@ class Wishlist {
     );
   }
 
-  factory Wishlist.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data()!;
+  factory Wishlist.fromMap(Map<String, dynamic> map, String id) {
     return Wishlist(
-      id: doc.id,
-      name: data['name'] ?? '',
-      ownerId: data['ownerId'] ?? '',
-      sharedWithGroups: List<String>.from(data['sharedWithGroups'] ?? []),
+      id: id,
+      name: map['name'] ?? '',
+      ownerId: map['ownerId'] ?? '',
+      sharedWithGroups: List<String>.from(map['sharedWithGroups'] ?? []),
     );
   }
 
-  Map<String, dynamic> toFirestore() {
+  Map<String, dynamic> toMap() {
     return {
       'name': name,
       'ownerId': ownerId,

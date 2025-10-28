@@ -1,8 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:myapp/features/group/data/group_repository.dart';
 import 'package:myapp/features/group/domain/group.dart';
-import 'package:myapp/core/services/firestore_service.dart';
 
 class GroupFormPage extends StatefulWidget {
   final Group? group;
@@ -16,7 +16,7 @@ class GroupFormPage extends StatefulWidget {
 class _GroupFormPageState extends State<GroupFormPage> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
-  final _firestoreService = FirestoreService();
+  final _groupRepository = GroupRepository();
   bool _isLoading = false;
 
   bool get _isEditing => widget.group != null;
@@ -50,9 +50,13 @@ class _GroupFormPageState extends State<GroupFormPage> {
 
       if (_isEditing) {
         final updatedGroup = widget.group!.copyWith(name: _nameController.text.trim());
-        await _firestoreService.updateGroup(updatedGroup);
+        await _groupRepository.update(updatedGroup.id!, updatedGroup);
       } else {
-        await _firestoreService.createGroup(_nameController.text.trim(), user.uid);
+        await _groupRepository.add(Group(
+          name: _nameController.text.trim(),
+          ownerId: user.uid,
+          members: [user.uid],
+        ));
       }
 
       if (mounted) {
@@ -80,7 +84,8 @@ class _GroupFormPageState extends State<GroupFormPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isEditing ? 'Edit Group' : 'Create a New Group'),
+        title: Text(_isEditing ? 'Edit Group' : 'Create a New Group',
+                style: Theme.of(context).textTheme.headlineSmall),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),

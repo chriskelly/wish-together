@@ -2,9 +2,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:myapp/features/wishlist/data/item_repository.dart';
+import 'package:myapp/features/wishlist/data/wishlist_repository.dart';
 import 'package:myapp/features/wishlist/domain/item.dart';
 import 'package:myapp/features/wishlist/domain/wishlist.dart';
-import 'package:myapp/core/services/firestore_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class WishlistDetailsPage extends StatefulWidget {
@@ -17,16 +18,23 @@ class WishlistDetailsPage extends StatefulWidget {
 }
 
 class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
-  final FirestoreService _firestoreService = FirestoreService();
+  final WishlistRepository _wishlistRepository = WishlistRepository();
+  late final ItemRepository _itemRepository;
   final currentUser = FirebaseAuth.instance.currentUser;
   bool _isSpoilerFree = true; // Default to spoiler-free for the owner
+
+  @override
+  void initState() {
+    super.initState();
+    _itemRepository = _wishlistRepository.items(widget.wishlistId);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: FutureBuilder<Wishlist?>(
-          future: _firestoreService.getWishlist(widget.wishlistId),
+          future: _wishlistRepository.get(widget.wishlistId),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Text('Loading...');
@@ -34,12 +42,12 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
             if (!snapshot.hasData || snapshot.data == null) {
               return const Text('Wishlist Not Found');
             }
-            return Text(snapshot.data!.name);
+            return Text(snapshot.data!.name, style: Theme.of(context).textTheme.headlineSmall);
           },
         ),
         actions: [
           FutureBuilder<Wishlist?>(
-            future: _firestoreService.getWishlist(widget.wishlistId),
+            future: _wishlistRepository.get(widget.wishlistId),
             builder: (context, snapshot) {
               if (!snapshot.hasData || currentUser == null || snapshot.data == null) {
                 return const SizedBox.shrink();
@@ -73,7 +81,7 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
         ],
       ),
       body: StreamBuilder<List<Item>>(
-        stream: _firestoreService.getWishlistItems(widget.wishlistId),
+        stream: _itemRepository.streamAll(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -93,7 +101,7 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
         },
       ),
       floatingActionButton: FutureBuilder<Wishlist?>(
-        future: _firestoreService.getWishlist(widget.wishlistId),
+        future: _wishlistRepository.get(widget.wishlistId),
         builder: (context, snapshot) {
           if (!snapshot.hasData || currentUser == null) {
             return const SizedBox.shrink();
@@ -112,7 +120,7 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
 
   Widget _buildItemCard(Item item, BuildContext context) {
     return FutureBuilder<Wishlist?>(
-      future: _firestoreService.getWishlist(widget.wishlistId),
+      future: _wishlistRepository.get(widget.wishlistId),
       builder: (context, wishlistSnapshot) {
         if (!wishlistSnapshot.hasData) return const SizedBox.shrink();
         final isOwner = wishlistSnapshot.data!.ownerId == currentUser?.uid;
@@ -163,7 +171,7 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
             const Spacer()
           else if (isClaimed)
             Text(
-              'Claimed on ${DateFormat.yMMMd().format(item.claimedAt!.toDate())}',
+              'Claimed on ${DateFormat.yMMMd().format(item.claimedAt!)}',
               style: TextStyle(color: Colors.grey[600], fontStyle: FontStyle.italic),
             )
           else
@@ -197,7 +205,7 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
             const Text('You claimed this!', style: TextStyle(color: Colors.purple, fontWeight: FontWeight.bold)),
             const SizedBox(width: 8),
             TextButton(
-              onPressed: () => _unclaimItem(item.id!),
+              onPressed: () => _unclaimItem(item),
               child: const Text('Unclaim'),
             ),
           ],
@@ -213,7 +221,7 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
     return Align(
       alignment: Alignment.centerRight,
       child: ElevatedButton(
-        onPressed: () => _claimItem(item.id!),
+        onPressed: () => _claimItem(item),
         child: const Text('Claim'),
       ),
     );
@@ -232,9 +240,11 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
     }
   }
 
-  void _claimItem(String itemId) async {
+  void _claimItem(Item item) async {
+    if (currentUser == null) return;
     try {
-      await _firestoreService.claimItem(widget.wishlistId, itemId, currentUser!.uid);
+      final updatedItem = item.copyWith(claimedBy: currentUser!.uid, claimedAt: DateTime.now());
+      await _itemRepository.update(updatedItem.id!, updatedItem);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Item claimed!')),
@@ -249,9 +259,10 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
     }
   }
 
-  void _unclaimItem(String itemId) async {
+  void _unclaimItem(Item item) async {
     try {
-      await _firestoreService.unclaimItem(widget.wishlistId, itemId);
+      final updatedItem = item.copyWith(claimedBy: null, claimedAt: null);
+      await _itemRepository.update(updatedItem.id!, updatedItem);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Item unclaimed.')),
@@ -287,7 +298,7 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
 
     if (confirm == true) {
       try {
-        await _firestoreService.deleteItemFromWishlist(widget.wishlistId, itemId);
+        await _itemRepository.delete(itemId);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Item deleted.')),

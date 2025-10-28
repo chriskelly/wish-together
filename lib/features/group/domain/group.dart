@@ -1,32 +1,26 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class Group {
-  final String id;
+  final String? id;
   final String name;
   final String ownerId;
   final List<String> members;
 
   Group({
-    required this.id,
+    this.id,
     required this.name,
     required this.ownerId,
     required this.members,
   });
 
-  // A factory constructor to create a Group from a Firestore document.
-  factory Group.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data()!;
+  factory Group.fromMap(Map<String, dynamic> map, String id) {
     return Group(
-      id: doc.id,
-      name: data['name'] ?? '',
-      ownerId: data['ownerId'] ?? '',
-      // Ensure members is always a list of strings
-      members: List<String>.from(data['members'] ?? []),
+      id: id,
+      name: map['name'] ?? '',
+      ownerId: map['ownerId'] ?? '',
+      members: List<String>.from(map['members'] ?? []),
     );
   }
 
-  // A method to convert a Group instance to a map for Firestore.
-  Map<String, dynamic> toFirestore() {
+  Map<String, dynamic> toMap() {
     return {
       'name': name,
       'ownerId': ownerId,

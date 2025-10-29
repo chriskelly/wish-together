@@ -1,12 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:myapp/core/data/firebase_repository.dart';
-import 'package:myapp/features/wishlist/data/item_repository.dart';
-import 'package:myapp/features/wishlist/domain/item.dart';
-import 'package:myapp/features/wishlist/domain/wishlist.dart';
+import 'package:wishtogether/core/data/firebase_repository.dart';
+import 'package:wishtogether/features/wishlist/data/item_repository.dart';
+import 'package:wishtogether/features/wishlist/domain/item.dart';
+import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
 
 class WishlistRepository extends FirebaseRepository<Wishlist> {
   WishlistRepository({FirebaseFirestore? firestore})
-      : super('wishlists', firestore: firestore);
+    : super('wishlists', firestore: firestore);
 
   @override
   Wishlist fromFirestore(DocumentSnapshot doc) {

@@ -1,9 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:myapp/common/widgets/primary_app_bar.dart';
-import 'package:myapp/features/group/data/group_repository.dart';
-import 'package:myapp/features/group/domain/group.dart';
+import 'package:wishtogether/common/widgets/primary_app_bar.dart';
+import 'package:wishtogether/features/group/data/group_repository.dart';
+import 'package:wishtogether/features/group/domain/group.dart';
 
 class GroupFormPage extends StatefulWidget {
   final Group? group;
@@ -50,27 +50,33 @@ class _GroupFormPageState extends State<GroupFormPage> {
       }
 
       if (_isEditing) {
-        final updatedGroup = widget.group!.copyWith(name: _nameController.text.trim());
+        final updatedGroup = widget.group!.copyWith(
+          name: _nameController.text.trim(),
+        );
         await _groupRepository.update(updatedGroup.id!, updatedGroup);
       } else {
-        await _groupRepository.add(Group(
-          name: _nameController.text.trim(),
-          ownerId: user.uid,
-          members: [user.uid],
-        ));
+        await _groupRepository.add(
+          Group(
+            name: _nameController.text.trim(),
+            ownerId: user.uid,
+            members: [user.uid],
+          ),
+        );
       }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Group ${_isEditing ? 'updated' : 'created'}!')),
+          SnackBar(
+            content: Text('Group ${_isEditing ? 'updated' : 'created'}!'),
+          ),
         );
         context.pop();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error saving group: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error saving group: $e')));
       }
     } finally {
       if (mounted) {

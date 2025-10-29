@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:myapp/features/wishlist/data/wishlist_repository.dart';
-import 'package:myapp/features/wishlist/domain/item.dart';
+import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
+import 'package:wishtogether/features/wishlist/domain/item.dart';
 
 class ItemFormPage extends StatefulWidget {
   final String wishlistId;
@@ -27,8 +27,9 @@ class _ItemFormPageState extends State<ItemFormPage> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.item?.name ?? '');
-    _descriptionController =
-        TextEditingController(text: widget.item?.description ?? '');
+    _descriptionController = TextEditingController(
+      text: widget.item?.description ?? '',
+    );
     _linkController = TextEditingController(text: widget.item?.url ?? '');
   }
 
@@ -54,27 +55,34 @@ class _ItemFormPageState extends State<ItemFormPage> {
             url: _linkController.text,
           );
           await _wishlistRepository.updateItemInWishlist(
-              widget.wishlistId, updatedItem);
+            widget.wishlistId,
+            updatedItem,
+          );
         } else {
           final newItem = Item(
             name: _nameController.text,
             description: _descriptionController.text,
             url: _linkController.text,
           );
-          await _wishlistRepository.addItemToWishlist(widget.wishlistId, newItem);
+          await _wishlistRepository.addItemToWishlist(
+            widget.wishlistId,
+            newItem,
+          );
         }
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Item ${_isEditing ? 'updated' : 'added'}!')),
+            SnackBar(
+              content: Text('Item ${_isEditing ? 'updated' : 'added'}!'),
+            ),
           );
           context.pop();
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to save item: $e')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Failed to save item: $e')));
         }
       } finally {
         if (mounted) {
@@ -90,8 +98,10 @@ class _ItemFormPageState extends State<ItemFormPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isEditing ? 'Edit Item' : 'Add a new Item', 
-                style: Theme.of(context).textTheme.headlineSmall),
+        title: Text(
+          _isEditing ? 'Edit Item' : 'Add a new Item',
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -137,12 +147,17 @@ class _ItemFormPageState extends State<ItemFormPage> {
               const SizedBox(height: 24),
               ElevatedButton(
                 onPressed: _isLoading ? null : _saveItem,
-                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
                 child: _isLoading
                     ? const SizedBox(
                         height: 20,
                         width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
                       )
                     : Text(_isEditing ? 'Update Item' : 'Save Item'),
               ),

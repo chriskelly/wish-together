@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:myapp/features/group/data/group_repository.dart';
-import 'package:myapp/features/group/domain/group.dart';
+import 'package:wishtogether/features/group/data/group_repository.dart';
+import 'package:wishtogether/features/group/domain/group.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 
@@ -36,9 +36,9 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error joining group: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error joining group: $e')));
         setState(() {
           _isJoining = false;
         });
@@ -55,7 +55,10 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Group Invitation', style: Theme.of(context).textTheme.headlineSmall),
+        title: Text(
+          'Group Invitation',
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
       ),
       body: FutureBuilder<Group?>(
         future: _groupRepository.get(widget.groupId),
@@ -64,13 +67,16 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
             return const Center(child: CircularProgressIndicator());
           }
           if (!snapshot.hasData || snapshot.data == null) {
-            return const Center(child: Text('This invitation is no longer valid.'));
+            return const Center(
+              child: Text('This invitation is no longer valid.'),
+            );
           }
 
           final group = snapshot.data!;
 
           // Check if user is already a member
-          if (_currentUser != null && group.members.contains(_currentUser.uid)) {
+          if (_currentUser != null &&
+              group.members.contains(_currentUser.uid)) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -98,13 +104,15 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
                   ),
                   const SizedBox(height: 20),
                   Text(
-                    'You\'ve been invited to join', 
+                    'You\'ve been invited to join',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 4),
                   Text(
                     group.name,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 40),
                   _isJoining
@@ -122,7 +130,10 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
                               onPressed: _joinGroup,
                               label: const Text('Join Group'),
                               style: ElevatedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24,
+                                  vertical: 12,
+                                ),
                               ),
                             ),
                           ],

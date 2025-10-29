@@ -1,20 +1,20 @@
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:myapp/features/auth/data/user_repository.dart';
-import 'package:myapp/features/auth/presentation/home_page.dart';
-import 'package:myapp/features/auth/presentation/login_page.dart';
-import 'package:myapp/features/auth/presentation/verification_page.dart';
-import 'package:myapp/features/group/presentation/group_details_page.dart';
-import 'package:myapp/features/group/presentation/group_form_page.dart';
-import 'package:myapp/features/group/presentation/join_group_page.dart';
-import 'package:myapp/features/group/domain/group.dart';
-import 'package:myapp/features/wishlist/domain/item.dart';
-import 'package:myapp/features/wishlist/domain/wishlist.dart';
-import 'package:myapp/features/auth/presentation/profile_page.dart';
-import 'package:myapp/features/wishlist/presentation/wishlist_form_page.dart';
-import 'package:myapp/features/wishlist/presentation/wishlist_details_page.dart';
-import 'package:myapp/features/wishlist/presentation/item_form_page.dart';
+import 'package:wishtogether/features/auth/data/user_repository.dart';
+import 'package:wishtogether/features/auth/presentation/home_page.dart';
+import 'package:wishtogether/features/auth/presentation/login_page.dart';
+import 'package:wishtogether/features/auth/presentation/verification_page.dart';
+import 'package:wishtogether/features/group/presentation/group_details_page.dart';
+import 'package:wishtogether/features/group/presentation/group_form_page.dart';
+import 'package:wishtogether/features/group/presentation/join_group_page.dart';
+import 'package:wishtogether/features/group/domain/group.dart';
+import 'package:wishtogether/features/wishlist/domain/item.dart';
+import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
+import 'package:wishtogether/features/auth/presentation/profile_page.dart';
+import 'package:wishtogether/features/wishlist/presentation/wishlist_form_page.dart';
+import 'package:wishtogether/features/wishlist/presentation/wishlist_details_page.dart';
+import 'package:wishtogether/features/wishlist/presentation/item_form_page.dart';
 
 final router = GoRouter(
   redirect: (BuildContext context, GoRouterState state) async {
@@ -36,7 +36,8 @@ final router = GoRouter(
     // 2. Handle profile creation for new users
     final authUser = auth.currentUser!;
     final user = await userRepository.get(authUser.uid);
-    final bool hasProfile = user.displayName != null && user.displayName!.isNotEmpty;
+    final bool hasProfile =
+        user.displayName != null && user.displayName!.isNotEmpty;
 
     if (isAuthFlow) {
       return '/'; // Logged-in users shouldn't be in the auth flow.

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:go_router/go_router.dart';
-import 'package:myapp/features/auth/data/user_repository.dart';
+import 'package:wishtogether/features/auth/data/user_repository.dart';
 import '../domain/user.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -52,16 +52,17 @@ class _ProfilePageState extends State<ProfilePage> {
 
       try {
         if (_isNewUser) {
-          await _userRepository.add(User(
-            id: authUser.uid, 
-            displayName: displayName, 
-            phoneNumber: authUser.phoneNumber
-            ));
-        } else {
-          await _userRepository.updateData(
-            authUser.uid,
-            {'displayName': displayName},
+          await _userRepository.add(
+            User(
+              id: authUser.uid,
+              displayName: displayName,
+              phoneNumber: authUser.phoneNumber,
+            ),
           );
+        } else {
+          await _userRepository.updateData(authUser.uid, {
+            'displayName': displayName,
+          });
         }
 
         if (mounted) {
@@ -91,8 +92,10 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isNewUser ? 'Create Your Profile' : 'Edit Profile', 
-        style: Theme.of(context).textTheme.headlineSmall),
+        title: Text(
+          _isNewUser ? 'Create Your Profile' : 'Edit Profile',
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())

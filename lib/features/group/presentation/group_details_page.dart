@@ -2,14 +2,14 @@ import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-import 'package:myapp/common/widgets/list_item_actions.dart';
-import 'package:myapp/common/widgets/stream_list_builder.dart';
-import 'package:myapp/features/group/data/group_repository.dart';
-import 'package:myapp/features/group/domain/group.dart';
-import 'package:myapp/features/wishlist/data/wishlist_repository.dart';
-import 'package:myapp/features/wishlist/domain/wishlist.dart';
-import 'package:myapp/features/auth/data/user_repository.dart';
-import 'package:myapp/features/auth/domain/user.dart';
+import 'package:wishtogether/common/widgets/list_item_actions.dart';
+import 'package:wishtogether/common/widgets/stream_list_builder.dart';
+import 'package:wishtogether/features/group/data/group_repository.dart';
+import 'package:wishtogether/features/group/domain/group.dart';
+import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
+import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
+import 'package:wishtogether/features/auth/data/user_repository.dart';
+import 'package:wishtogether/features/auth/domain/user.dart';
 
 class GroupDetailsPage extends StatelessWidget {
   final String groupId;
@@ -31,7 +31,10 @@ class GroupDetailsPage extends StatelessWidget {
             if (!snapshot.hasData) {
               return const Text('Group Details');
             }
-            return Text(snapshot.data!.name, style: Theme.of(context).textTheme.headlineSmall);
+            return Text(
+              snapshot.data!.name,
+              style: Theme.of(context).textTheme.headlineSmall,
+            );
           },
         ),
         actions: [
@@ -103,7 +106,8 @@ class GroupDetailsPage extends StatelessWidget {
                       arrayContains: groupId,
                     ),
                     isScrollable: false,
-                    emptyMessage: 'No wishlists have been shared with this group yet.',
+                    emptyMessage:
+                        'No wishlists have been shared with this group yet.',
                     itemBuilder: (context, wishlist) {
                       final isOwner = wishlist.ownerId == authUser?.uid;
                       return Card(

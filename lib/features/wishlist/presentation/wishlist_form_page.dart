@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:myapp/common/widgets/primary_app_bar.dart';
-import 'package:myapp/features/wishlist/data/wishlist_repository.dart';
-import 'package:myapp/features/wishlist/domain/wishlist.dart';
+import 'package:wishtogether/common/widgets/primary_app_bar.dart';
+import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
+import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class WishlistFormPage extends StatefulWidget {
@@ -57,7 +57,10 @@ class _WishlistFormPageState extends State<WishlistFormPage> {
           final updatedWishlist = widget.wishlist!.copyWith(
             name: _nameController.text,
           );
-          await _wishlistRepository.update(updatedWishlist.id!, updatedWishlist);
+          await _wishlistRepository.update(
+            updatedWishlist.id!,
+            updatedWishlist,
+          );
         } else {
           final newWishlist = Wishlist(
             name: _nameController.text,
@@ -68,7 +71,9 @@ class _WishlistFormPageState extends State<WishlistFormPage> {
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Wishlist ${_isEditing ? 'updated' : 'created'}!')),
+            SnackBar(
+              content: Text('Wishlist ${_isEditing ? 'updated' : 'created'}!'),
+            ),
           );
           context.pop();
         }
@@ -119,12 +124,17 @@ class _WishlistFormPageState extends State<WishlistFormPage> {
               const SizedBox(height: 24),
               ElevatedButton(
                 onPressed: _isLoading ? null : _saveWishlist,
-                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
                 child: _isLoading
                     ? const SizedBox(
                         height: 20,
                         width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
                       )
                     : Text(_isEditing ? 'Update Wishlist' : 'Save Wishlist'),
               ),

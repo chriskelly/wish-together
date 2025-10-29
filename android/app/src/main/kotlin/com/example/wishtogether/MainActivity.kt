@@ -1,4 +1,4 @@
-package com.example.myapp
+package com.example.wishtogether
 
 import io.flutter.embedding.android.FlutterActivity
 

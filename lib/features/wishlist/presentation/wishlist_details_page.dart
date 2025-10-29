@@ -2,12 +2,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:myapp/common/widgets/list_item_actions.dart';
-import 'package:myapp/common/widgets/stream_list_builder.dart';
-import 'package:myapp/features/wishlist/data/item_repository.dart';
-import 'package:myapp/features/wishlist/data/wishlist_repository.dart';
-import 'package:myapp/features/wishlist/domain/item.dart';
-import 'package:myapp/features/wishlist/domain/wishlist.dart';
+import 'package:wishtogether/common/widgets/list_item_actions.dart';
+import 'package:wishtogether/common/widgets/stream_list_builder.dart';
+import 'package:wishtogether/features/wishlist/data/item_repository.dart';
+import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
+import 'package:wishtogether/features/wishlist/domain/item.dart';
+import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class WishlistDetailsPage extends StatefulWidget {
@@ -199,7 +199,7 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
               );
             },
             onDelete: () => _deleteItem(item.id!),
-          )
+          ),
         ],
       );
     }

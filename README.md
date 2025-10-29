@@ -1,4 +1,4 @@
-# myapp
+# WishTogether
 
 A new Flutter project.
 

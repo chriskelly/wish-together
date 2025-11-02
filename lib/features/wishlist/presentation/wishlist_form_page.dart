@@ -6,6 +6,10 @@ import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class WishlistFormPage extends StatefulWidget {
+  static const String createRoute = '/create-wishlist';
+  static const String editRoute = 'edit';
+  static const String editRouteName = 'editWishlist';
+
   final Wishlist? wishlist;
 
   const WishlistFormPage({super.key, this.wishlist});

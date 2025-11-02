@@ -4,6 +4,11 @@ import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 import 'package:wishtogether/features/wishlist/domain/item.dart';
 
 class ItemFormPage extends StatefulWidget {
+  static const String createRouteName = 'createItem';
+  static const String createRoute = 'add-item';
+  static const String editRouteName = 'editItem';
+  static const String editRoute = 'item/:itemId/edit';
+
   final String wishlistId;
   final Item? item;
 

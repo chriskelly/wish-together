@@ -9,8 +9,13 @@ import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 import 'package:wishtogether/features/wishlist/domain/item.dart';
 import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:wishtogether/features/wishlist/presentation/item_form_page.dart';
+import 'package:wishtogether/features/wishlist/presentation/wishlist_form_page.dart';
 
 class WishlistDetailsPage extends StatefulWidget {
+  static const String routeName = 'wishlistDetails';
+  static const String route = '/wishlist/:id';
+
   final String wishlistId;
 
   const WishlistDetailsPage({super.key, required this.wishlistId});
@@ -81,8 +86,9 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
                     IconButton(
                       icon: const Icon(Icons.edit),
                       onPressed: () {
-                        context.go(
-                          '/wishlist/${wishlist.id}/edit',
+                        context.pushNamed(
+                          WishlistFormPage.editRouteName,
+                          pathParameters: {'id': wishlist.id!},
                           extra: wishlist,
                         );
                       },
@@ -110,8 +116,10 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
           }
           if (snapshot.data!.ownerId == currentUser!.uid) {
             return FloatingActionButton(
-              onPressed: () =>
-                  context.go('/wishlist/${widget.wishlistId}/add-item'),
+              onPressed: () => context.pushNamed(
+                ItemFormPage.createRouteName,
+                pathParameters: {'id': widget.wishlistId},
+              ),
               child: const Icon(Icons.add),
             );
           }
@@ -193,8 +201,12 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
             ),
           ListItemActions(
             onEdit: () {
-              context.go(
-                '/wishlist/${widget.wishlistId}/item/${item.id}/edit',
+              context.pushNamed(
+                ItemFormPage.editRouteName,
+                pathParameters: {
+                  'id': widget.wishlistId,
+                  'itemId': item.id!,
+                },
                 extra: item,
               );
             },

@@ -3,8 +3,12 @@ import 'package:wishtogether/features/group/data/group_repository.dart';
 import 'package:wishtogether/features/group/domain/group.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
+import 'package:wishtogether/features/auth/presentation/home_page.dart';
+import 'package:wishtogether/features/group/presentation/group_details_page.dart';
 
 class JoinGroupPage extends StatefulWidget {
+  static const String routeName = 'joinGroup';
+  static const String route = '/join';
   final String groupId;
 
   const JoinGroupPage({super.key, required this.groupId});
@@ -32,7 +36,10 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
           const SnackBar(content: Text('Successfully joined the group!')),
         );
         // Go to the group details page after joining
-        context.go('/group/${widget.groupId}');
+        context.goNamed(
+          GroupDetailsPage.routeName,
+          pathParameters: {'id': widget.groupId},
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -48,7 +55,7 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
 
   void _declineInvitation() {
     // Simply navigate back to the home page
-    context.go('/');
+    context.go(HomePage.route);
   }
 
   @override
@@ -84,7 +91,10 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
                   Text('You are already a member of ${group.name}.'),
                   const SizedBox(height: 20),
                   ElevatedButton(
-                    onPressed: () => context.go('/group/${widget.groupId}'),
+                    onPressed: () => context.goNamed(
+                      GroupDetailsPage.routeName,
+                      pathParameters: {'id': widget.groupId},
+                    ),
                     child: const Text('View Group'),
                   ),
                 ],
@@ -111,8 +121,8 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
                   Text(
                     group.name,
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                          fontWeight: FontWeight.bold,
+                        ),
                   ),
                   const SizedBox(height: 40),
                   _isJoining

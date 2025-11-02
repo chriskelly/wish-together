@@ -4,14 +4,19 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wishtogether/common/widgets/list_item_actions.dart';
 import 'package:wishtogether/common/widgets/stream_list_builder.dart';
+import 'package:wishtogether/features/auth/presentation/home_page.dart';
 import 'package:wishtogether/features/group/data/group_repository.dart';
 import 'package:wishtogether/features/group/domain/group.dart';
+import 'package:wishtogether/features/group/presentation/group_form_page.dart';
 import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
 import 'package:wishtogether/features/auth/domain/user.dart';
+import 'package:wishtogether/features/wishlist/presentation/wishlist_details_page.dart';
 
 class GroupDetailsPage extends StatelessWidget {
+  static const String routeName = 'groupDetails';
+  static const String route = '/group/:id';
   final String groupId;
 
   const GroupDetailsPage({super.key, required this.groupId});
@@ -65,7 +70,11 @@ class GroupDetailsPage extends StatelessWidget {
                     IconButton(
                       icon: const Icon(Icons.edit),
                       onPressed: () {
-                        context.push('/group/${group.id}/edit', extra: group);
+                        context.pushNamed(
+                          GroupFormPage.editRouteName,
+                          pathParameters: {'id': group.id!},
+                          extra: group,
+                        );
                       },
                       tooltip: 'Edit Group',
                     ),
@@ -131,8 +140,10 @@ class GroupDetailsPage extends StatelessWidget {
                             return ListTile(
                               title: Text(wishlist.name),
                               subtitle: Text(subtitle),
-                              onTap: () =>
-                                  context.go('/wishlist/${wishlist.id}'),
+                              onTap: () => context.pushNamed(
+                                WishlistDetailsPage.routeName,
+                                pathParameters: {'id': wishlist.id!},
+                              ),
                               trailing: isOwner
                                   ? ListItemActions(
                                       onDelete: () => _confirmRemoveWishlist(
@@ -415,7 +426,7 @@ class GroupDetailsPage extends StatelessWidget {
                 try {
                   await groupRepository.leaveGroup(groupId, userId);
                   if (context.mounted) {
-                    context.go('/');
+                    context.go(HomePage.route);
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('You have left the group.')),
                     );

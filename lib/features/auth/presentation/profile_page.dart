@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:go_router/go_router.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
+import 'package:wishtogether/features/auth/presentation/home_page.dart';
 import '../domain/user.dart';
 
 class ProfilePage extends StatefulWidget {
+  static const String route = '/profile';
   final String? redirectTo;
   const ProfilePage({super.key, this.redirectTo});
 
@@ -67,7 +69,7 @@ class _ProfilePageState extends State<ProfilePage> {
             const SnackBar(content: Text('Profile saved successfully!')),
           );
           // Redirect to the originally intended page, or home otherwise.
-          context.go(widget.redirectTo ?? '/');
+          context.go(widget.redirectTo ?? HomePage.route);
         }
       } catch (e) {
         if (mounted) {

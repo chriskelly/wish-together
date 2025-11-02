@@ -53,15 +53,22 @@ WishTogether is a collaborative wish-listing application designed to make gift-g
     *   Sharing via a standard web URL handled by `go_router`.
     *   UI for sharing and un-sharing wishlists from a group.
 
-### Phase 6: Gift Claiming & Spoiler-Free Mode (In Progress)
+### Phase 6: Gift Claiming & Spoiler-Free Mode (Complete)
 
 *   **Goal:** Implement the core "spoiler-free" gift claiming functionality.
-*   **Plan:**
-    1.  **Claiming Logic (Done):** Implemented `claimItem` and `unclaimItem` in `FirestoreService`. UI exists for non-owners to claim items.
-    2.  **Spoiler-Free State:** Add a `_isSpoilerFree` boolean state variable to `WishlistDetailsPage`, defaulting to `true` for the wishlist owner.
-    3.  **Spoiler Toggle:** Add an `IconButton` (e.g., an eye icon) to the `AppBar` of the `WishlistDetailsPage`. This toggle will only be visible to the owner and will update the `_isSpoilerFree` state.
-    4.  **Conditional UI:**
+*   **Implementation:**
+    *   **Claiming Logic (Done):** Implemented `claimItem` and `unclaimItem` in `FirestoreService`. UI exists for non-owners to claim items.
+    *   **Spoiler-Free State (Done):** Added a `_isSpoilerFree` boolean state variable to `WishlistDetailsPage`, defaulting to `true` for the wishlist owner.
+    *   **Spoiler Toggle (Done):** Added an `IconButton` (e.g., an eye icon) to the `AppBar` of the `WishlistDetailsPage`. This toggle will only be visible to the owner and will update the `_isSpoilerFree` state.
+    *   **Conditional UI (Done):**
         *   When `_isSpoilerFree` is `true`, the owner will not see any "claimed" status. The item will look "Available".
         *   When `_isSpoilerFree` is `false`, the owner will see the true status of the item (e.g., "Claimed on...").
         *   Non-owners will always see the true claim status and have the ability to claim/unclaim.
+
+### Phase 7: Repository Refactoring & Route Naming (Complete)
+
+*   **Goal:** Improve code organization and maintainability.
+*   **Implementation:**
+    *   **Repository Separation:** Refactored the monolithic `FirestoreService` into separate, feature-specific repositories (`AuthService`, `UserRepository`, `WishlistRepository`, `ItemRepository`, `GroupRepository`).
+    *   **Named Routes:** Replaced all `go_router` path strings with static `routeName` and `route` constants in their respective page classes for better type safety and maintainability.
 

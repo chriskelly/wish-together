@@ -9,10 +9,17 @@ import 'package:wishtogether/features/group/domain/group.dart';
 import 'package:wishtogether/features/auth/domain/user.dart';
 import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
+import 'package:wishtogether/features/auth/presentation/login_page.dart';
+import 'package:wishtogether/features/auth/presentation/profile_page.dart';
+import 'package:wishtogether/features/group/presentation/group_details_page.dart';
+import 'package:wishtogether/features/group/presentation/group_form_page.dart';
+import 'package:wishtogether/features/wishlist/presentation/wishlist_details_page.dart';
+import 'package:wishtogether/features/wishlist/presentation/wishlist_form_page.dart';
 
 import '../data/auth_service.dart';
 
 class HomePage extends StatefulWidget {
+  static const String route = '/';
   const HomePage({super.key});
 
   @override
@@ -62,7 +69,7 @@ class _HomePageState extends State<HomePage> {
               ),
               const SizedBox(height: 20),
               ElevatedButton(
-                onPressed: () => context.go('/login'),
+                onPressed: () => context.go(LoginPage.route),
                 child: const Text('Login'),
               ),
             ],
@@ -184,7 +191,7 @@ class _HomePageState extends State<HomePage> {
                 icon: const Icon(Icons.person_outline),
                 tooltip: 'Profile',
                 onPressed: () {
-                  context.go('/profile');
+                  context.go(ProfilePage.route);
                 },
               ),
               IconButton(
@@ -206,7 +213,7 @@ class _HomePageState extends State<HomePage> {
                   _buildDataSection<Wishlist>(
                     context: context,
                     title: 'My Wishlists',
-                    onAdd: () => context.push('/create-wishlist'),
+                    onAdd: () => context.push(WishlistFormPage.createRoute),
                     stream: _wishlistRepository.streamWhere(
                       'ownerId',
                       isEqualTo: authUser.uid,
@@ -221,7 +228,10 @@ class _HomePageState extends State<HomePage> {
                             deleteTooltip: 'Delete Wishlist',
                           ),
                           onTap: () {
-                            context.go('/wishlist/${wishlist.id}');
+                            context.goNamed(
+                              WishlistDetailsPage.routeName,
+                              pathParameters: {'id': wishlist.id!},
+                            );
                           },
                         ),
                       );
@@ -232,7 +242,7 @@ class _HomePageState extends State<HomePage> {
                     context: context,
                     title: 'My Groups',
                     onAdd: () {
-                      context.push('/create-group');
+                      context.push(GroupFormPage.createRoute);
                     },
                     stream: _groupRepository.streamWhere(
                       'members',
@@ -251,7 +261,10 @@ class _HomePageState extends State<HomePage> {
                                 )
                               : null,
                           onTap: () {
-                            context.go('/group/${group.id}');
+                            context.goNamed(
+                              GroupDetailsPage.routeName,
+                              pathParameters: {'id': group.id!},
+                            );
                           },
                         ),
                       );

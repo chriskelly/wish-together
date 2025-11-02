@@ -6,6 +6,10 @@ import 'package:wishtogether/features/group/data/group_repository.dart';
 import 'package:wishtogether/features/group/domain/group.dart';
 
 class GroupFormPage extends StatefulWidget {
+  static const String createRoute = '/create-group';
+  static const String editRoute = 'edit';
+  static const String editRouteName = 'editGroup';
+
   final Group? group;
 
   const GroupFormPage({super.key, this.group});

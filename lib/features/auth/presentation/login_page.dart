@@ -4,6 +4,9 @@ import 'package:google_sign_in_web/web_only.dart' as web_only;
 // import 'package:wishtogether/features/auth/data/auth_service.dart';
 
 class LoginPage extends StatelessWidget {
+
+  static const String route = '/login';
+
   const LoginPage({super.key});
 
   @override

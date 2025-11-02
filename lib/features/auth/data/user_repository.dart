@@ -17,6 +17,21 @@ class UserRepository extends FirebaseRepository<User> {
     return user.toMap();
   }
 
+  Future<User> getOrCreateUser(String uid, {String? email, String? displayName}) async {
+    final doc = await instance.collection(collectionPath).doc(uid).get();
+    if (doc.exists) {
+      return fromFirestore(doc);
+    } else {
+      final newUser = User(
+        email: email, 
+        displayName: displayName
+        );
+      await instance.collection(collectionPath).doc(uid).set(toFirestore(newUser));
+      final confirmedUser = await get(uid);
+      return confirmedUser;
+    }
+  }
+
   Stream<List<User>> streamUsersFromIds(List<String> userIds) {
     if (userIds.isEmpty) {
       return Stream.value([]);

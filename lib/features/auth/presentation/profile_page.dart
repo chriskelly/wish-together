@@ -20,6 +20,8 @@ class _ProfilePageState extends State<ProfilePage> {
 
   User? _currentUser;
   bool _isLoading = true;
+
+  // Check if the user is new based on whether a display name is set.
   bool get _isNewUser =>
       _currentUser?.displayName == null || _currentUser!.displayName!.isEmpty;
 
@@ -29,9 +31,12 @@ class _ProfilePageState extends State<ProfilePage> {
     _loadUserData();
   }
 
+  // Load user data; the router ensures the user document exists.
   Future<void> _loadUserData() async {
     final authUser = _auth.currentUser;
     if (authUser != null) {
+      // The get call is now safe because the router's redirect logic
+      // using getOrCreateUser guarantees the document exists.
       final user = await _userRepository.get(authUser.uid);
       if (mounted) {
         setState(() {
@@ -43,6 +48,7 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  // Save the user's profile.
   Future<void> _saveProfile() async {
     if (_formKey.currentState!.validate()) {
       final authUser = _auth.currentUser;
@@ -51,19 +57,10 @@ class _ProfilePageState extends State<ProfilePage> {
       final displayName = _displayNameController.text.trim();
 
       try {
-        if (_isNewUser) {
-          await _userRepository.add(
-            User(
-              id: authUser.uid,
-              displayName: displayName,
-              phoneNumber: authUser.phoneNumber,
-            ),
-          );
-        } else {
-          await _userRepository.updateData(authUser.uid, {
-            'displayName': displayName,
-          });
-        }
+        // The user document is guaranteed to exist, so we always update.
+        await _userRepository.updateData(authUser.uid, {
+          'displayName': displayName,
+        });
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

@@ -1,38 +1,54 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_app_check/firebase_app_check.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import 'package:wishtogether/features/auth/data/auth_service.dart';
 import 'firebase_options.dart';
 
 import 'core/router.dart';
 import 'core/theme.dart';
 
 void main() async {
-  // Ensure Flutter bindings are initialized before any Firebase services.
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Use the standard Firebase initialization with the generated options.
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  await FirebaseAppCheck.instance.activate(
-    providerWeb: ReCaptchaEnterpriseProvider('6LfN0vUrAAAAAIBImzC6j6Cu2WypCi7Ke_Wx3Xl8'),
-  );
+  final authService = AuthService();
+  final router = createRouter(authService);
 
-  runApp(const WishTogetherApp());
+  runApp(WishTogetherApp(authService: authService, router: router));
 }
 
 class WishTogetherApp extends StatelessWidget {
-  const WishTogetherApp({super.key});
+  final AuthService authService;
+  final GoRouter router;
+
+  const WishTogetherApp({
+    super.key,
+    required this.authService,
+    required this.router,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      routerConfig: router,
-      title: 'WishTogether',
-      theme: lightTheme,
-      darkTheme: darkTheme,
-      themeMode: ThemeMode.system,
+    return MultiProvider(
+      providers: [
+        Provider<AuthService>.value(value: authService),
+        StreamProvider<User?>(
+          create: (context) => authService.authStateChanges,
+          initialData: null,
+        ),
+      ],
+      child: MaterialApp.router(
+        routerConfig: router,
+        title: 'WishTogether',
+        theme: lightTheme,
+        darkTheme: darkTheme,
+        themeMode: ThemeMode.system,
+      ),
     );
   }
 }

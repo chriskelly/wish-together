@@ -1,33 +1,54 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 class AuthService {
+  static String clientId =
+      "1063002805065-eobumao8o4tk4s54ea41jogjvls62pu5.apps.googleusercontent.com";
+      
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn(clientId: clientId);
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
-  Future<void> verifyPhoneNumber({
-    required String phoneNumber,
-    required Function(PhoneAuthCredential) verificationCompleted,
-    required Function(FirebaseAuthException) verificationFailed,
-    required Function(String, int?) codeSent,
-    required Function(String) codeAutoRetrievalTimeout,
-  }) async {
-    await _auth.verifyPhoneNumber(
-      phoneNumber: phoneNumber,
-      verificationCompleted: verificationCompleted,
-      verificationFailed: verificationFailed,
-      codeSent: codeSent,
-      codeAutoRetrievalTimeout: codeAutoRetrievalTimeout,
-    );
+  AuthService() {
+    // Listen to Google Sign-In user changes
+    _googleSignIn.onCurrentUserChanged.listen((GoogleSignInAccount? account) async {
+      if (account != null) {
+        // User is signed in with Google, now authenticate with Firebase
+        try {
+          final GoogleSignInAuthentication googleAuth = await account.authentication;
+          final AuthCredential credential = GoogleAuthProvider.credential(
+            accessToken: googleAuth.accessToken,
+            idToken: googleAuth.idToken,
+          );
+          // Only sign in with Firebase if not already signed in
+          if (_auth.currentUser == null) {
+            await _auth.signInWithCredential(credential);
+          }
+        } catch (e) {
+          debugPrint("Error during Firebase authentication: $e");
+          // If Firebase auth fails, sign out of Google to allow for a clean retry
+          await _googleSignIn.signOut();
+        }
+      }
+    });
+
+    // Trigger silent sign-in on web to check for existing sessions
+    _googleSignIn.signInSilently();
   }
 
-  Future<UserCredential> signInWithCredential(PhoneAuthCredential credential) async {
-    return await _auth.signInWithCredential(credential);
-  }
-
+  // Sign out from both Firebase and Google
   Future<void> signOut() async {
+    debugPrint("signed-out");
+    await _googleSignIn.signOut();
     await _auth.signOut();
   }
 
+  // Expose the GoogleSignIn instance for the UI to use
+  GoogleSignIn get googleSignIn => _googleSignIn;
+  
   User? get currentUser => _auth.currentUser;
 }

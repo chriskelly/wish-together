@@ -1,63 +1,29 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'dart:developer' as developer;
+// import 'package:provider/provider.dart';
+import 'package:google_sign_in_web/web_only.dart' as web_only;
+// import 'package:wishtogether/features/auth/data/auth_service.dart';
 
-import '../data/auth_service.dart';
-
-class LoginPage extends StatefulWidget {
+class LoginPage extends StatelessWidget {
   const LoginPage({super.key});
-
-  @override
-  State<LoginPage> createState() => _LoginPageState();
-}
-
-class _LoginPageState extends State<LoginPage> {
-  final _phoneController = TextEditingController();
-  final _authService = AuthService();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Login')),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
+      appBar: AppBar(title: const Text('Sign In')),
+      body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            TextField(
-              controller: _phoneController,
-              decoration: const InputDecoration(labelText: 'Phone Number (e.g. 408 555 1234)'),
-              keyboardType: TextInputType.phone,
+          children: <Widget>[
+            const Text(
+              'Welcome to WishTogether!',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () async {
-                // Automatically prepend the US country code
-                final phoneNumber = '+1${_phoneController.text}';
-                
-                await _authService.verifyPhoneNumber(
-                  phoneNumber: phoneNumber,
-                  verificationCompleted: (credential) async {
-                    await _authService.signInWithCredential(credential);
-                    // ignore: use_build_context_synchronously
-                    context.go('/');
-                  },
-                  verificationFailed: (e) {
-                    developer.log('Phone verification failed', error: e);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Phone verification failed: ${e.message}')),
-                    );
-                  },
-                  codeSent: (verificationId, forceResendingToken) {
-                    context.go('/verify', extra: verificationId);
-                  },
-                  codeAutoRetrievalTimeout: (verificationId) {
-                    developer.log('Auto-retrieval timeout for verification ID: $verificationId');
-                  },
-                );
-              },
-              child: const Text('Send Verification Code'),
-            ),
+            const Text('Sign in to continue'),
+            const SizedBox(height: 40),
+            // This button is rendered by the google_sign_in_web package
+            // and initiates the sign-in flow.
+            web_only.renderButton(),
           ],
         ),
       ),

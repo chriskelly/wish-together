@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/group/data/group_repository.dart';
 import 'package:wishtogether/features/group/domain/group.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:go_router/go_router.dart';
 import 'package:wishtogether/features/auth/presentation/home_page.dart';
 import 'package:wishtogether/features/group/presentation/group_details_page.dart';
@@ -18,19 +20,19 @@ class JoinGroupPage extends StatefulWidget {
 }
 
 class _JoinGroupPageState extends State<JoinGroupPage> {
-  final _groupRepository = GroupRepository();
-  final _currentUser = FirebaseAuth.instance.currentUser;
+  final _groupRepository = getIt<GroupRepository>();
   bool _isJoining = false;
 
   Future<void> _joinGroup() async {
-    if (_currentUser == null) return;
+    final currentUser = Provider.of<auth.User?>(context, listen: false);
+    if (currentUser == null) return;
 
     setState(() {
       _isJoining = true;
     });
 
     try {
-      await _groupRepository.joinGroup(widget.groupId, _currentUser.uid);
+      await _groupRepository.joinGroup(widget.groupId, currentUser.uid);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Successfully joined the group!')),
@@ -60,6 +62,8 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
 
   @override
   Widget build(BuildContext context) {
+    final currentUser = Provider.of<auth.User?>(context, listen: false);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -82,8 +86,8 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
           final group = snapshot.data!;
 
           // Check if user is already a member
-          if (_currentUser != null &&
-              group.members.contains(_currentUser.uid)) {
+          if (currentUser != null &&
+              group.members.contains(currentUser.uid)) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,

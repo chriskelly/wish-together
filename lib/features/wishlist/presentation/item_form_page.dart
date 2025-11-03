@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:wishtogether/core/service_locator.dart';
+import 'package:wishtogether/features/wishlist/data/item_repository.dart';
 import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 import 'package:wishtogether/features/wishlist/domain/item.dart';
 
@@ -23,7 +25,7 @@ class _ItemFormPageState extends State<ItemFormPage> {
   late final TextEditingController _nameController;
   late final TextEditingController _descriptionController;
   late final TextEditingController _linkController;
-  final _wishlistRepository = WishlistRepository();
+  late final ItemRepository _itemRepository;
   bool _isLoading = false;
 
   bool get _isEditing => widget.item != null;
@@ -31,6 +33,9 @@ class _ItemFormPageState extends State<ItemFormPage> {
   @override
   void initState() {
     super.initState();
+    final wishlistRepository = getIt<WishlistRepository>();
+    _itemRepository = wishlistRepository.items(widget.wishlistId);
+
     _nameController = TextEditingController(text: widget.item?.name ?? '');
     _descriptionController = TextEditingController(
       text: widget.item?.description ?? '',
@@ -59,8 +64,8 @@ class _ItemFormPageState extends State<ItemFormPage> {
             description: _descriptionController.text,
             url: _linkController.text,
           );
-          await _wishlistRepository.updateItemInWishlist(
-            widget.wishlistId,
+          await _itemRepository.update(
+            updatedItem.id!,
             updatedItem,
           );
         } else {
@@ -69,10 +74,7 @@ class _ItemFormPageState extends State<ItemFormPage> {
             description: _descriptionController.text,
             url: _linkController.text,
           );
-          await _wishlistRepository.addItemToWishlist(
-            widget.wishlistId,
-            newItem,
-          );
+          await _itemRepository.add(newItem);
         }
 
         if (mounted) {

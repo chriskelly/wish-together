@@ -2,8 +2,10 @@ import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import 'package:wishtogether/common/widgets/list_item_actions.dart';
 import 'package:wishtogether/common/widgets/stream_list_builder.dart';
+import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/presentation/home_page.dart';
 import 'package:wishtogether/features/group/data/group_repository.dart';
 import 'package:wishtogether/features/group/domain/group.dart';
@@ -14,7 +16,7 @@ import 'package:wishtogether/features/auth/data/user_repository.dart';
 import 'package:wishtogether/features/auth/domain/user.dart';
 import 'package:wishtogether/features/wishlist/presentation/wishlist_details_page.dart';
 
-class GroupDetailsPage extends StatelessWidget {
+class GroupDetailsPage extends StatefulWidget {
   static const String routeName = 'groupDetails';
   static const String route = '/group/:id';
   final String groupId;
@@ -22,16 +24,29 @@ class GroupDetailsPage extends StatelessWidget {
   const GroupDetailsPage({super.key, required this.groupId});
 
   @override
+  State<GroupDetailsPage> createState() => _GroupDetailsPageState();
+}
+
+class _GroupDetailsPageState extends State<GroupDetailsPage> {
+
+  final GroupRepository _groupRepository = getIt<GroupRepository>();
+  final WishlistRepository _wishlistRepository = getIt<WishlistRepository>();
+  final UserRepository _userRepository = getIt<UserRepository>();
+  late final auth.User? _authUser;
+
+  @override
+  void initState() {
+    super.initState();
+    _authUser = Provider.of<auth.User?>(context, listen: false);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final groupRepository = GroupRepository();
-    final wishlistRepository = WishlistRepository();
-    final userRepository = UserRepository();
-    final authUser = auth.FirebaseAuth.instance.currentUser;
 
     return Scaffold(
       appBar: AppBar(
         title: StreamBuilder<Group?>(
-          stream: groupRepository.streamOne(groupId),
+          stream: _groupRepository.streamOne(widget.groupId),
           builder: (context, snapshot) {
             if (!snapshot.hasData) {
               return const Text('Group Details');
@@ -44,20 +59,20 @@ class GroupDetailsPage extends StatelessWidget {
         ),
         actions: [
           StreamBuilder<Group?>(
-            stream: groupRepository.streamOne(groupId),
+            stream: _groupRepository.streamOne(widget.groupId),
             builder: (context, snapshot) {
               if (!snapshot.hasData || snapshot.data == null) {
                 return const SizedBox.shrink();
               }
               final group = snapshot.data!;
-              if (group.ownerId == authUser?.uid) {
+              if (group.ownerId == _authUser?.uid) {
                 return Row(
                   children: [
                     IconButton(
                       icon: const Icon(Icons.copy_outlined),
                       onPressed: () {
                         final invitationLink =
-                            '${Uri.base.origin}/#/join?group=$groupId';
+                            '${Uri.base.origin}/#/join?group=${widget.groupId}';
                         Clipboard.setData(ClipboardData(text: invitationLink));
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
@@ -87,7 +102,7 @@ class GroupDetailsPage extends StatelessWidget {
         ],
       ),
       body: StreamBuilder<Group?>(
-        stream: groupRepository.streamOne(groupId),
+        stream: _groupRepository.streamOne(widget.groupId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -110,19 +125,19 @@ class GroupDetailsPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   StreamListBuilder<Wishlist>(
-                    stream: wishlistRepository.streamWhere(
+                    stream: _wishlistRepository.streamWhere(
                       'sharedWithGroups',
-                      arrayContains: groupId,
+                      arrayContains: widget.groupId,
                     ),
                     isScrollable: false,
                     emptyMessage:
                         'No wishlists have been shared with this group yet.',
                     itemBuilder: (context, wishlist) {
-                      final isOwner = wishlist.ownerId == authUser?.uid;
+                      final isOwner = wishlist.ownerId == _authUser?.uid;
                       return Card(
                         margin: const EdgeInsets.symmetric(vertical: 4.0),
                         child: FutureBuilder<User?>(
-                          future: userRepository.get(wishlist.ownerId),
+                          future: _userRepository.get(wishlist.ownerId),
                           builder: (context, userSnapshot) {
                             String subtitle = 'Loading...';
                             if (userSnapshot.connectionState ==
@@ -148,7 +163,6 @@ class GroupDetailsPage extends StatelessWidget {
                                   ? ListItemActions(
                                       onDelete: () => _confirmRemoveWishlist(
                                         context,
-                                        wishlistRepository,
                                         group.id!,
                                         wishlist,
                                       ),
@@ -170,7 +184,7 @@ class GroupDetailsPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   StreamListBuilder<User>(
-                    stream: userRepository.streamUsersFromIds(group.members),
+                    stream: _userRepository.streamUsersFromIds(group.members),
                     isScrollable: false,
                     emptyMessage: 'This group has no members.',
                     itemBuilder: (context, member) {
@@ -200,7 +214,7 @@ class GroupDetailsPage extends StatelessWidget {
                     },
                   ),
                   // Leave Group Button
-                  if (group.ownerId != authUser?.uid)
+                  if (group.ownerId != _authUser?.uid)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 20.0),
                       child: Center(
@@ -215,9 +229,8 @@ class GroupDetailsPage extends StatelessWidget {
                           ),
                           onPressed: () => _confirmLeaveGroup(
                             context,
-                            groupRepository,
                             group.id!,
-                            authUser!.uid,
+                            _authUser!.uid,
                           ),
                         ),
                       ),
@@ -229,19 +242,18 @@ class GroupDetailsPage extends StatelessWidget {
         },
       ),
       floatingActionButton: StreamBuilder<Group?>(
-        stream: groupRepository.streamOne(groupId),
+        stream: _groupRepository.streamOne(widget.groupId),
         builder: (context, snapshot) {
-          if (!snapshot.hasData || snapshot.data == null || authUser == null) {
+          if (!snapshot.hasData || snapshot.data == null || _authUser == null) {
             return const SizedBox.shrink();
           }
           final group = snapshot.data!;
-          if (group.members.contains(authUser.uid)) {
+          if (group.members.contains(_authUser.uid)) {
             return FloatingActionButton.extended(
               onPressed: () => _showShareWishlistDialog(
                 context,
-                wishlistRepository,
-                authUser.uid,
-                groupId,
+                _authUser.uid,
+                widget.groupId,
               ),
               label: const Text('Share Wishlist'),
               icon: const Icon(Icons.add),
@@ -255,7 +267,6 @@ class GroupDetailsPage extends StatelessWidget {
 
   Future<void> _confirmRemoveWishlist(
     BuildContext context,
-    WishlistRepository wishlistRepository,
     String groupId,
     Wishlist wishlist,
   ) async {
@@ -283,7 +294,7 @@ class GroupDetailsPage extends StatelessWidget {
                     sharedWithGroups: List.from(wishlist.sharedWithGroups)
                       ..remove(groupId),
                   );
-                  await wishlistRepository.update(
+                  await _wishlistRepository.update(
                     updatedWishlist.id!,
                     updatedWishlist,
                   );
@@ -311,7 +322,6 @@ class GroupDetailsPage extends StatelessWidget {
 
   Future<void> _showShareWishlistDialog(
     BuildContext context,
-    WishlistRepository wishlistRepository,
     String userId,
     String groupId,
   ) async {
@@ -323,7 +333,7 @@ class GroupDetailsPage extends StatelessWidget {
           content: SizedBox(
             width: double.maxFinite,
             child: StreamBuilder<List<Wishlist>>(
-              stream: wishlistRepository.streamWhere(
+              stream: _wishlistRepository.streamWhere(
                 'ownerId',
                 isEqualTo: userId,
               ),
@@ -359,7 +369,7 @@ class GroupDetailsPage extends StatelessWidget {
                               wishlist.sharedWithGroups,
                             )..add(groupId),
                           );
-                          await wishlistRepository.update(
+                          await _wishlistRepository.update(
                             updatedWishlist.id!,
                             updatedWishlist,
                           );
@@ -402,7 +412,6 @@ class GroupDetailsPage extends StatelessWidget {
 
   Future<void> _confirmLeaveGroup(
     BuildContext context,
-    GroupRepository groupRepository,
     String groupId,
     String userId,
   ) async {
@@ -424,7 +433,7 @@ class GroupDetailsPage extends StatelessWidget {
               onPressed: () async {
                 Navigator.of(context).pop(); // Close the dialog
                 try {
-                  await groupRepository.leaveGroup(groupId, userId);
+                  await _groupRepository.leaveGroup(groupId, userId);
                   if (context.mounted) {
                     context.go(HomePage.route);
                     ScaffoldMessenger.of(context).showSnackBar(

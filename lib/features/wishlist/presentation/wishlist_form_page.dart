@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import 'package:wishtogether/common/widgets/primary_app_bar.dart';
+import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart' as auth;
 
 class WishlistFormPage extends StatefulWidget {
   static const String createRoute = '/create-wishlist';
@@ -21,7 +23,7 @@ class WishlistFormPage extends StatefulWidget {
 class _WishlistFormPageState extends State<WishlistFormPage> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
-  final _wishlistRepository = WishlistRepository();
+  final _wishlistRepository = getIt<WishlistRepository>();
   bool _isLoading = false;
 
   bool get _isEditing => widget.wishlist != null;
@@ -44,7 +46,7 @@ class _WishlistFormPageState extends State<WishlistFormPage> {
         _isLoading = true;
       });
 
-      final user = FirebaseAuth.instance.currentUser;
+      final user = Provider.of<auth.User?>(context, listen: false);
       if (user == null) {
         // This should not happen if the user is on this page,
         // but it's good practice to check.

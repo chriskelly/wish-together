@@ -1,9 +1,11 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:wishtogether/common/widgets/list_item_actions.dart';
 import 'package:wishtogether/common/widgets/stream_list_builder.dart';
+import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/wishlist/data/item_repository.dart';
 import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 import 'package:wishtogether/features/wishlist/domain/item.dart';
@@ -25,15 +27,16 @@ class WishlistDetailsPage extends StatefulWidget {
 }
 
 class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
-  final WishlistRepository _wishlistRepository = WishlistRepository();
+  final WishlistRepository _wishlistRepository = getIt<WishlistRepository>();
   late final ItemRepository _itemRepository;
-  final currentUser = FirebaseAuth.instance.currentUser;
+  late final auth.User? _currentUser;
   bool _isSpoilerFree = true; // Default to spoiler-free for the owner
 
   @override
   void initState() {
     super.initState();
     _itemRepository = _wishlistRepository.items(widget.wishlistId);
+    _currentUser = Provider.of<auth.User?>(context, listen: false);
   }
 
   @override
@@ -60,12 +63,12 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
             future: _wishlistRepository.get(widget.wishlistId),
             builder: (context, snapshot) {
               if (!snapshot.hasData ||
-                  currentUser == null ||
+                  _currentUser == null ||
                   snapshot.data == null) {
                 return const SizedBox.shrink();
               }
               final wishlist = snapshot.data!;
-              if (wishlist.ownerId == currentUser!.uid) {
+              if (wishlist.ownerId == _currentUser.uid) {
                 return Row(
                   children: [
                     IconButton(
@@ -111,10 +114,10 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
       floatingActionButton: FutureBuilder<Wishlist?>(
         future: _wishlistRepository.get(widget.wishlistId),
         builder: (context, snapshot) {
-          if (!snapshot.hasData || currentUser == null) {
+          if (!snapshot.hasData || _currentUser == null) {
             return const SizedBox.shrink();
           }
-          if (snapshot.data!.ownerId == currentUser!.uid) {
+          if (snapshot.data!.ownerId == _currentUser.uid) {
             return FloatingActionButton(
               onPressed: () => context.pushNamed(
                 ItemFormPage.createRouteName,
@@ -134,7 +137,7 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
       future: _wishlistRepository.get(widget.wishlistId),
       builder: (context, wishlistSnapshot) {
         if (!wishlistSnapshot.hasData) return const SizedBox.shrink();
-        final isOwner = wishlistSnapshot.data!.ownerId == currentUser?.uid;
+        final isOwner = wishlistSnapshot.data!.ownerId == _currentUser?.uid;
 
         return Card(
           margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -175,7 +178,7 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
 
   Widget _buildItemActions(Item item, bool isOwner, BuildContext context) {
     final bool isClaimed = item.claimedBy != null;
-    final bool claimedByCurrentUser = item.claimedBy == currentUser?.uid;
+    final bool claimedByCurrentUser = item.claimedBy == _currentUser?.uid;
 
     if (isOwner) {
       return Row(
@@ -267,10 +270,10 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
   }
 
   void _claimItem(Item item) async {
-    if (currentUser == null) return;
+    if (_currentUser == null) return;
     try {
       final updatedItem = item.copyWith(
-        claimedBy: currentUser!.uid,
+        claimedBy: _currentUser.uid,
         claimedAt: DateTime.now(),
       );
       await _itemRepository.update(updatedItem.id!, updatedItem);

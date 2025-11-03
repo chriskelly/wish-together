@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
 import 'firebase_options.dart';
 
@@ -15,8 +16,9 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  setupServiceLocator();
 
-  final authService = AuthService();
+  final authService = getIt<AuthService>();
   final router = createRouter(authService);
 
   runApp(WishTogetherApp(authService: authService, router: router));
@@ -34,21 +36,16 @@ class WishTogetherApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        Provider<AuthService>.value(value: authService),
-        StreamProvider<User?>(
+    return StreamProvider<User?>(
           create: (context) => authService.authStateChanges,
           initialData: null,
-        ),
-      ],
-      child: MaterialApp.router(
-        routerConfig: router,
-        title: 'WishTogether',
-        theme: lightTheme,
-        darkTheme: darkTheme,
-        themeMode: ThemeMode.system,
-      ),
+          child: MaterialApp.router(
+            routerConfig: router,
+            title: 'WishTogether',
+            theme: lightTheme,
+            darkTheme: darkTheme,
+            themeMode: ThemeMode.system,
+          ),
     );
   }
 }

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:wishtogether/features/auth/data/google_sign_in_stub.dart' 
-    if (dart.library.html) 'package:google_sign_in_web/web_only.dart' as web_only;
+import 'package:wishtogether/features/auth/data/google_sign_in_stub.dart'
+    if (dart.library.html) 'package:google_sign_in_web/web_only.dart'
+    as web_only;
 
 class LoginPage extends StatelessWidget {
-
   static const String route = '/login';
 
   const LoginPage({super.key});
@@ -16,9 +16,9 @@ class LoginPage extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            const Text(
+            Text(
               'Welcome to WishTogether!',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              style: Theme.of(context).textTheme.displayLarge,
             ),
             const SizedBox(height: 20),
             const Text('Sign in to continue'),

@@ -1,8 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import 'package:wishtogether/common/widgets/list_item_actions.dart';
 import 'package:wishtogether/common/widgets/stream_list_builder.dart';
+import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
 import 'package:wishtogether/features/group/data/group_repository.dart';
 import 'package:wishtogether/features/group/domain/group.dart';
@@ -27,30 +29,21 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  final _authService = AuthService();
-  final _userRepository = UserRepository();
-  final _wishlistRepository = WishlistRepository();
-  final _groupRepository = GroupRepository();
+
+  final AuthService _authService = getIt<AuthService>();
+  final UserRepository _userRepository = getIt<UserRepository>();
+  final WishlistRepository _wishlistRepository = getIt<WishlistRepository>();
+  final GroupRepository _groupRepository = getIt<GroupRepository>();
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<auth.User?>(
-      stream: _authService.authStateChanges,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
+    final authUser = Provider.of<auth.User?>(context);
 
-        final authUser = snapshot.data;
-        if (authUser == null) {
-          return _buildLoggedOutView(context);
-        } else {
-          return _buildLoggedInView(context, authUser);
-        }
-      },
-    );
+    if (authUser == null) {
+      return _buildLoggedOutView(context);
+    } else {
+      return _buildLoggedInView(context, authUser);
+    }
   }
 
   Widget _buildLoggedOutView(BuildContext context) {

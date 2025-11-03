@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-// import 'package:provider/provider.dart';
-import 'package:google_sign_in_web/web_only.dart' as web_only;
-// import 'package:wishtogether/features/auth/data/auth_service.dart';
+import 'package:wishtogether/features/auth/data/google_sign_in_stub.dart' 
+    if (dart.library.html) 'package:google_sign_in_web/web_only.dart' as web_only;
 
 class LoginPage extends StatelessWidget {
 

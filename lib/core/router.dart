@@ -26,40 +26,43 @@ class AuthListenable extends ChangeNotifier {
   }
 }
 
+Future<String?> handleRedirect(String uri, AuthService authService,
+    {UserRepository? userRepo}) async {
+  userRepo ??= UserRepository();
+  final loggedIn = authService.currentUser != null;
+  final loggingIn = uri == LoginPage.route;
+
+  if (!loggedIn) {
+    return loggingIn ? null : LoginPage.route;
+  }
+
+  // -- User is logged in --
+
+  final authUser = authService.currentUser!;
+  final user = await userRepo.getOrCreateUser(
+    authUser.uid,
+    email: authUser.email,
+    // displayName: authUser.displayName,
+  );
+  final hasProfile = user.displayName != null && user.displayName!.isNotEmpty;
+  final creatingProfile = uri.startsWith(ProfilePage.route);
+
+  if (!hasProfile && !creatingProfile) {
+    return ProfilePage.route;
+  }
+
+  if (loggingIn) {
+    return HomePage.route;
+  }
+
+  return null;
+}
+
 GoRouter createRouter(AuthService authService) {
   return GoRouter(
     refreshListenable: AuthListenable(authService),
-    redirect: (BuildContext context, GoRouterState state) async {
-      final loggedIn = authService.currentUser != null;
-      final loggingIn = state.uri.toString() == LoginPage.route;
-
-      if (!loggedIn) {
-        return loggingIn ? null : LoginPage.route;
-      }
-
-      // -- User is logged in --
-
-      final userRepo = UserRepository();
-      final authUser = authService.currentUser!;
-      final user = await userRepo.getOrCreateUser(
-        authUser.uid,
-        email: authUser.email,
-        // displayName: authUser.displayName,
-      );
-      final hasProfile =
-          user.displayName != null && user.displayName!.isNotEmpty;
-      final creatingProfile = state.uri.toString().startsWith(ProfilePage.route);
-
-      if (!hasProfile && !creatingProfile) {
-        return ProfilePage.route;
-      }
-
-      if (loggingIn) {
-        return HomePage.route;
-      }
-
-      return null;
-    },
+    redirect: (BuildContext context, GoRouterState state) =>
+        handleRedirect(state.uri.toString(), authService),
     routes: <RouteBase>[
       GoRoute(
         path: HomePage.route,

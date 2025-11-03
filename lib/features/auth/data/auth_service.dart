@@ -2,12 +2,13 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
-import 'package:google_sign_in/google_sign_in.dart';
+import 'package:wishtogether/features/auth/data/google_sign_in_stub.dart'
+    if (dart.library.html) 'package:google_sign_in/google_sign_in.dart';
 
 class AuthService {
   static String clientId =
       "1063002805065-eobumao8o4tk4s54ea41jogjvls62pu5.apps.googleusercontent.com";
-      
+
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn(clientId: clientId);
 
@@ -15,11 +16,14 @@ class AuthService {
 
   AuthService() {
     // Listen to Google Sign-In user changes
-    _googleSignIn.onCurrentUserChanged.listen((GoogleSignInAccount? account) async {
+    _googleSignIn.onCurrentUserChanged.listen((
+      GoogleSignInAccount? account,
+    ) async {
       if (account != null) {
         // User is signed in with Google, now authenticate with Firebase
         try {
-          final GoogleSignInAuthentication googleAuth = await account.authentication;
+          final GoogleSignInAuthentication googleAuth =
+              await account.authentication;
           final AuthCredential credential = GoogleAuthProvider.credential(
             accessToken: googleAuth.accessToken,
             idToken: googleAuth.idToken,
@@ -49,6 +53,6 @@ class AuthService {
 
   // Expose the GoogleSignIn instance for the UI to use
   GoogleSignIn get googleSignIn => _googleSignIn;
-  
+
   User? get currentUser => _auth.currentUser;
 }

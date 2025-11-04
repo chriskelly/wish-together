@@ -4,6 +4,8 @@ import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
 import 'package:wishtogether/features/auth/presentation/home_page.dart';
+import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
+import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
 import '../domain/user.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -64,6 +66,12 @@ class _ProfilePageState extends State<ProfilePage> {
         await _userRepository.updateData(authUser.uid, {
           'displayName': displayName,
         });
+
+        if (_isNewUser) {
+          await getIt<WishlistRepository>().add(
+            Wishlist(name: "$displayName's Wishlist", ownerId: authUser.uid),
+          );
+        }
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

@@ -28,7 +28,6 @@ class GroupDetailsPage extends StatefulWidget {
 }
 
 class _GroupDetailsPageState extends State<GroupDetailsPage> {
-
   final GroupRepository _groupRepository = getIt<GroupRepository>();
   final WishlistRepository _wishlistRepository = getIt<WishlistRepository>();
   final UserRepository _userRepository = getIt<UserRepository>();
@@ -42,7 +41,6 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
       appBar: AppBar(
         title: StreamBuilder<Group?>(
@@ -364,6 +362,16 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
                       title: Text(wishlist.name),
                       onTap: () async {
                         try {
+                          if (context.mounted) {
+                            Navigator.of(context).pop();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Sharing "${wishlist.name}" with the group...',
+                                ),
+                              ),
+                            );
+                          }
                           final updatedWishlist = wishlist.copyWith(
                             sharedWithGroups: List.from(
                               wishlist.sharedWithGroups,
@@ -373,16 +381,6 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
                             updatedWishlist.id!,
                             updatedWishlist,
                           );
-                          if (context.mounted) {
-                            Navigator.of(context).pop();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  '"${wishlist.name}" shared with the group.',
-                                ),
-                              ),
-                            );
-                          }
                         } catch (e) {
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(

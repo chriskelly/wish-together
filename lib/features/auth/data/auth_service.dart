@@ -41,7 +41,9 @@ class AuthService {
     });
 
     // Trigger silent sign-in on web to check for existing sessions
-    _googleSignIn.signInSilently();
+    if (_auth.currentUser == null) {
+      _googleSignIn.signInSilently();
+    }
   }
 
   // Sign out from both Firebase and Google

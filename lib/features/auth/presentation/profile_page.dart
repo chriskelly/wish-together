@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
 import 'package:wishtogether/core/service_locator.dart';
+import 'package:wishtogether/features/auth/data/auth_service.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
 import 'package:wishtogether/features/auth/presentation/home_page.dart';
 import '../domain/user.dart';
@@ -20,6 +19,7 @@ class _ProfilePageState extends State<ProfilePage> {
   final _formKey = GlobalKey<FormState>();
   final _displayNameController = TextEditingController();
   final _userRepository = getIt<UserRepository>();
+  final _authService = getIt<AuthService>();
 
   User? _currentUser;
   bool _isLoading = true;
@@ -36,7 +36,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   // Load user data; the router ensures the user document exists.
   Future<void> _loadUserData() async {
-    final authUser = Provider.of<auth.User?>(context, listen: false);
+    final authUser = _authService.currentUser;
     if (authUser != null) {
       // The get call is now safe because the router's redirect logic
       // using getOrCreateUser guarantees the document exists.
@@ -54,7 +54,7 @@ class _ProfilePageState extends State<ProfilePage> {
   // Save the user's profile.
   Future<void> _saveProfile() async {
     if (_formKey.currentState!.validate()) {
-      final authUser = Provider.of<auth.User?>(context, listen: false);
+      final authUser = _authService.currentUser;
       if (authUser == null) return;
 
       final displayName = _displayNameController.text.trim();

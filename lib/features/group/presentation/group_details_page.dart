@@ -2,10 +2,10 @@ import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
 import 'package:wishtogether/common/widgets/list_item_actions.dart';
 import 'package:wishtogether/common/widgets/stream_list_builder.dart';
 import 'package:wishtogether/core/service_locator.dart';
+import 'package:wishtogether/features/auth/data/auth_service.dart';
 import 'package:wishtogether/features/auth/presentation/home_page.dart';
 import 'package:wishtogether/features/group/data/group_repository.dart';
 import 'package:wishtogether/features/group/domain/group.dart';
@@ -37,7 +37,7 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
   @override
   void initState() {
     super.initState();
-    _authUser = Provider.of<auth.User?>(context, listen: false);
+    _authUser = getIt<AuthService>().currentUser;
   }
 
   @override

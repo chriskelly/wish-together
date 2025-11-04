@@ -2,10 +2,10 @@ import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:provider/provider.dart';
 import 'package:wishtogether/common/widgets/list_item_actions.dart';
 import 'package:wishtogether/common/widgets/stream_list_builder.dart';
 import 'package:wishtogether/core/service_locator.dart';
+import 'package:wishtogether/features/auth/data/auth_service.dart';
 import 'package:wishtogether/features/wishlist/data/item_repository.dart';
 import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 import 'package:wishtogether/features/wishlist/domain/item.dart';
@@ -36,7 +36,7 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
   void initState() {
     super.initState();
     _itemRepository = _wishlistRepository.items(widget.wishlistId);
-    _currentUser = Provider.of<auth.User?>(context, listen: false);
+    _currentUser = getIt<AuthService>().currentUser;
   }
 
   @override

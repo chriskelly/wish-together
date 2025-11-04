@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:wishtogether/core/service_locator.dart';
+import 'package:wishtogether/features/auth/data/auth_service.dart';
 import 'package:wishtogether/features/group/data/group_repository.dart';
 import 'package:wishtogether/features/group/domain/group.dart';
-import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:go_router/go_router.dart';
 import 'package:wishtogether/features/auth/presentation/home_page.dart';
 import 'package:wishtogether/features/group/presentation/group_details_page.dart';
@@ -21,10 +20,11 @@ class JoinGroupPage extends StatefulWidget {
 
 class _JoinGroupPageState extends State<JoinGroupPage> {
   final _groupRepository = getIt<GroupRepository>();
+  final _authService = getIt<AuthService>();
   bool _isJoining = false;
 
   Future<void> _joinGroup() async {
-    final currentUser = Provider.of<auth.User?>(context, listen: false);
+    final currentUser = _authService.currentUser;
     if (currentUser == null) return;
 
     setState(() {
@@ -62,7 +62,7 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
 
   @override
   Widget build(BuildContext context) {
-    final currentUser = Provider.of<auth.User?>(context, listen: false);
+    final currentUser = _authService.currentUser;
 
     return Scaffold(
       appBar: AppBar(

@@ -1,9 +1,8 @@
-import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
 import 'package:wishtogether/common/widgets/primary_app_bar.dart';
 import 'package:wishtogether/core/service_locator.dart';
+import 'package:wishtogether/features/auth/data/auth_service.dart';
 import 'package:wishtogether/features/group/data/group_repository.dart';
 import 'package:wishtogether/features/group/domain/group.dart';
 
@@ -24,6 +23,7 @@ class _GroupFormPageState extends State<GroupFormPage> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
   final _groupRepository = getIt<GroupRepository>();
+  final _authService = getIt<AuthService>();
   bool _isLoading = false;
 
   bool get _isEditing => widget.group != null;
@@ -50,7 +50,7 @@ class _GroupFormPageState extends State<GroupFormPage> {
     });
 
     try {
-      final user = Provider.of<auth.User?>(context, listen: false);
+      final user = _authService.currentUser;
       if (user == null) {
         throw Exception('You must be logged in to perform this action.');
       }

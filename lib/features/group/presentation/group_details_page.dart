@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart' as auth;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -19,9 +20,16 @@ import 'package:wishtogether/features/wishlist/presentation/wishlist_details_pag
 class GroupDetailsPage extends StatefulWidget {
   static const String routeName = 'groupDetails';
   static const String route = '/group/:id';
+
   final String groupId;
 
   const GroupDetailsPage({super.key, required this.groupId});
+
+  static String getInvitationLink(String groupId) {
+    // Use a hardcoded origin for tests and Uri.base for web
+    final origin = kIsWeb ? Uri.base.origin : 'http://localhost';
+    return '$origin/#/join?group=$groupId';
+  }
 
   @override
   State<GroupDetailsPage> createState() => _GroupDetailsPageState();
@@ -69,8 +77,9 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
                     IconButton(
                       icon: const Icon(Icons.copy_outlined),
                       onPressed: () {
+                        // Use the static method to get the link
                         final invitationLink =
-                            '${Uri.base.origin}/#/join?group=${widget.groupId}';
+                            GroupDetailsPage.getInvitationLink(widget.groupId);
                         Clipboard.setData(ClipboardData(text: invitationLink));
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(

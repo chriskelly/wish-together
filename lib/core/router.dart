@@ -16,6 +16,9 @@ import 'package:wishtogether/features/wishlist/presentation/wishlist_form_page.d
 import 'package:wishtogether/features/wishlist/presentation/wishlist_details_page.dart';
 import 'package:wishtogether/features/wishlist/presentation/item_form_page.dart';
 
+// The query parameter used for redirects.
+const String redirectToParam = 'redirect_to';
+
 class AuthListenable extends ChangeNotifier {
   final AuthService authService;
   late final Stream<firebase_auth.User?> _stream;
@@ -27,159 +30,182 @@ class AuthListenable extends ChangeNotifier {
 }
 
 GoRouter createRouter(AuthService authService) => GoRouter(
-  refreshListenable: AuthListenable(authService),
-  redirect: (BuildContext context, GoRouterState state) =>
-      handleRedirect(state.uri.toString(), authService),
-  routes: <RouteBase>[
-    homePageRoute(),
-    loginPageRoute(),
-    wishlistFormPageRoute(),
-    groupFormPageRoute(),
-    profilePageRoute(),
-    joinGroupPageRoute(),
-  ],
-);
+      refreshListenable: AuthListenable(authService),
+      redirect: (BuildContext context, GoRouterState state) =>
+          handleRedirect(state.uri.toString(), authService),
+      routes: <RouteBase>[
+        homePageRoute(),
+        loginPageRoute(),
+        wishlistFormPageRoute(),
+        groupFormPageRoute(),
+        profilePageRoute(),
+        joinGroupPageRoute(),
+      ],
+    );
 
 Future<String?> handleRedirect(
-  String uri,
+  String uriString,
   AuthService authService, {
   UserRepository? userRepo,
 }) async {
-  userRepo ??= UserRepository();
+  final uri = _normalizeUri(uriString);
   final loggedIn = authService.currentUser != null;
-  final loggingIn = uri == LoginPage.route;
-
   if (!loggedIn) {
-    return loggingIn ? null : LoginPage.route;
+    return _redirectIfNotLoggedIn(uri, uriString);
   }
 
-  // -- User is logged in --
+  // --- User is Logged In ---
 
-  final authUser = authService.currentUser!;
-  final user = await userRepo.getOrCreateUser(
-    authUser.uid,
-    email: authUser.email,
+  if (uri.path == LoginPage.route) {
+    return _redirectFromLogin(uri);
+  }
+
+  final user = await (userRepo ?? UserRepository()).getOrCreateUser(
+    authService.currentUser!.uid,
+    email: authService.currentUser!.email,
   );
-  final hasProfile = user.displayName != null && user.displayName!.isNotEmpty;
-  final creatingProfile = uri.startsWith(ProfilePage.route);
-
-  if (!hasProfile && !creatingProfile) {
-    return ProfilePage.route;
+  final hasDisplayName = user.displayName != null && user.displayName!.isNotEmpty;
+  if (!hasDisplayName) {
+    return _redirectToProfile(uri, uriString);
   }
 
-  if (loggingIn) {
-    return HomePage.route;
-  }
+  return null; // No redirect needed.
+}
 
-  return null;
+/// Normalizes a URI string for web hash URLs.
+Uri _normalizeUri(String uriString) {
+  final Uri parsedForFragment = Uri.parse(uriString);
+  final String effectiveUriString =
+      (parsedForFragment.hasFragment && parsedForFragment.fragment.startsWith('/'))
+          ? parsedForFragment.fragment
+          : uriString;
+  return Uri.parse(effectiveUriString);
+}
+
+/// If not on the login page, redirects to it, preserving the original destination.
+String? _redirectIfNotLoggedIn(Uri uri, String originalUri) {
+  if (uri.path == LoginPage.route) return null;
+  return '${LoginPage.route}?$redirectToParam=${Uri.encodeComponent(originalUri)}';
+}
+
+/// Redirects away from the login page to the intended destination or home.
+String _redirectFromLogin(Uri uri) {
+  return uri.queryParameters[redirectToParam] ?? HomePage.route;
+}
+
+/// If not on the profile page, redirects to it, preserving the redirect destination.
+String? _redirectToProfile(Uri uri, String originalUri) {
+  if (uri.path == ProfilePage.route) return null;
+  final redirectTo = uri.queryParameters[redirectToParam] ?? originalUri;
+  return '${ProfilePage.route}?$redirectToParam=${Uri.encodeComponent(redirectTo)}';
 }
 
 GoRoute homePageRoute() => GoRoute(
-  path: HomePage.route,
-  builder: (BuildContext context, GoRouterState state) => const HomePage(),
-  routes: [wishlistDetailsPageRoute(), groupDetailsPageRoute()],
-);
+      path: HomePage.route,
+      builder: (BuildContext context, GoRouterState state) => const HomePage(),
+      routes: [wishlistDetailsPageRoute(), groupDetailsPageRoute()],
+    );
 
 GoRoute wishlistDetailsPageRoute() => GoRoute(
-  name: WishlistDetailsPage.routeName,
-  path: WishlistDetailsPage.route.substring(1), // remove leading '/'
-  builder: (BuildContext context, GoRouterState state) {
-    final wishlistId = state.pathParameters['id']!;
-    return WishlistDetailsPage(wishlistId: wishlistId);
-  },
-  routes: [
-    itemFormPageCreateRoute(),
-    wishlistFormPageEditRoute(),
-    itemFormPageEditRoute(),
-  ],
-);
+      name: WishlistDetailsPage.routeName,
+      path: WishlistDetailsPage.route.substring(1),
+      builder: (BuildContext context, GoRouterState state) {
+        final wishlistId = state.pathParameters['id']!;
+        return WishlistDetailsPage(wishlistId: wishlistId);
+      },
+      routes: [
+        itemFormPageCreateRoute(),
+        wishlistFormPageEditRoute(),
+        itemFormPageEditRoute(),
+      ],
+    );
 
 GoRoute itemFormPageCreateRoute() => GoRoute(
-  name: ItemFormPage.createRouteName,
-  path: ItemFormPage.createRoute,
-  builder: (BuildContext context, GoRouterState state) {
-    final wishlistId = state.pathParameters['id']!;
-    return ItemFormPage(wishlistId: wishlistId);
-  },
-);
+      name: ItemFormPage.createRouteName,
+      path: ItemFormPage.createRoute,
+      builder: (BuildContext context, GoRouterState state) {
+        final wishlistId = state.pathParameters['id']!;
+        return ItemFormPage(wishlistId: wishlistId);
+      },
+    );
 
 GoRoute wishlistFormPageEditRoute() => GoRoute(
-  name: WishlistFormPage.editRouteName,
-  path: WishlistFormPage.editRoute,
-  builder: (BuildContext context, GoRouterState state) {
-    final wishlist = state.extra as Wishlist;
-    return WishlistFormPage(wishlist: wishlist);
-  },
-);
+      name: WishlistFormPage.editRouteName,
+      path: WishlistFormPage.editRoute,
+      builder: (BuildContext context, GoRouterState state) {
+        final wishlist = state.extra as Wishlist;
+        return WishlistFormPage(wishlist: wishlist);
+      },
+    );
 
 GoRoute itemFormPageEditRoute() => GoRoute(
-  name: ItemFormPage.editRouteName,
-  path: ItemFormPage.editRoute,
-  builder: (BuildContext context, GoRouterState state) {
-    final wishlistId = state.pathParameters['id']!;
-    final item = state.extra as Item;
-    return ItemFormPage(wishlistId: wishlistId, item: item);
-  },
-);
+      name: ItemFormPage.editRouteName,
+      path: ItemFormPage.editRoute,
+      builder: (BuildContext context, GoRouterState state) {
+        final wishlistId = state.pathParameters['id']!;
+        final item = state.extra as Item;
+        return ItemFormPage(wishlistId: wishlistId, item: item);
+      },
+    );
 
 GoRoute groupDetailsPageRoute() => GoRoute(
-  name: GroupDetailsPage.routeName,
-  path: GroupDetailsPage.route.substring(1), // remove leading '/'
-  builder: (BuildContext context, GoRouterState state) {
-    final groupId = state.pathParameters['id']!;
-    return GroupDetailsPage(groupId: groupId);
-  },
-  routes: [
-    GoRoute(
-      name: GroupFormPage.editRouteName,
-      path: GroupFormPage.editRoute,
+      name: GroupDetailsPage.routeName,
+      path: GroupDetailsPage.route.substring(1),
       builder: (BuildContext context, GoRouterState state) {
-        final group = state.extra as Group;
-        return GroupFormPage(group: group);
+        final groupId = state.pathParameters['id']!;
+        return GroupDetailsPage(groupId: groupId);
       },
-    ),
-  ],
-);
+      routes: [
+        GoRoute(
+          name: GroupFormPage.editRouteName,
+          path: GroupFormPage.editRoute,
+          builder: (BuildContext context, GoRouterState state) {
+            final group = state.extra as Group;
+            return GroupFormPage(group: group);
+          },
+        ),
+      ],
+    );
 
 GoRoute loginPageRoute() => GoRoute(
-  path: LoginPage.route,
-  builder: (BuildContext context, GoRouterState state) {
-    return const LoginPage();
-  },
-);
+      path: LoginPage.route,
+      builder: (BuildContext context, GoRouterState state) {
+        return const LoginPage();
+      },
+    );
 
 GoRoute wishlistFormPageRoute() => GoRoute(
-  path: WishlistFormPage.createRoute,
-  builder: (BuildContext context, GoRouterState state) {
-    return const WishlistFormPage();
-  },
-);
+      path: WishlistFormPage.createRoute,
+      builder: (BuildContext context, GoRouterState state) {
+        return const WishlistFormPage();
+      },
+    );
 
 GoRoute groupFormPageRoute() => GoRoute(
-  path: GroupFormPage.createRoute,
-  builder: (BuildContext context, GoRouterState state) {
-    return const GroupFormPage();
-  },
-);
+      path: GroupFormPage.createRoute,
+      builder: (BuildContext context, GoRouterState state) {
+        return const GroupFormPage();
+      },
+    );
 
 GoRoute profilePageRoute() => GoRoute(
-  path: ProfilePage.route,
-  builder: (BuildContext context, GoRouterState state) {
-    final redirectTo = state.uri.queryParameters['redirect_to'];
-    return ProfilePage(redirectTo: redirectTo);
-  },
-);
+      path: ProfilePage.route,
+      builder: (BuildContext context, GoRouterState state) {
+        final redirectTo = state.uri.queryParameters[redirectToParam];
+        return ProfilePage(redirectTo: redirectTo);
+      },
+    );
 
 GoRoute joinGroupPageRoute() => GoRoute(
-  name: JoinGroupPage.routeName,
-  path: JoinGroupPage.route,
-  builder: (BuildContext context, GoRouterState state) {
-    final groupId = state.uri.queryParameters['group'];
-    if (groupId == null) {
-      return const Scaffold(
-        body: Center(child: Text('Invalid invitation link.')),
-      );
-    }
-    return JoinGroupPage(groupId: groupId);
-  },
-);
+      name: JoinGroupPage.routeName,
+      path: JoinGroupPage.route,
+      builder: (BuildContext context, GoRouterState state) {
+        final groupId = state.uri.queryParameters['group'];
+        if (groupId == null) {
+          return const Scaffold(
+            body: Center(child: Text('Invalid invitation link.')),
+          );
+        }
+        return JoinGroupPage(groupId: groupId);
+      },
+    );

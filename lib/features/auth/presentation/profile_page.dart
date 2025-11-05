@@ -10,6 +10,7 @@ import '../domain/user.dart';
 
 class ProfilePage extends StatefulWidget {
   static const String route = '/profile';
+
   final String? redirectTo;
   const ProfilePage({super.key, this.redirectTo});
 
@@ -53,58 +54,10 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  // Save the user's profile.
-  Future<void> _saveProfile() async {
-    if (_formKey.currentState!.validate()) {
-      final authUser = _authService.currentUser;
-      if (authUser == null) return;
-
-      final displayName = _displayNameController.text.trim();
-
-      try {
-        // The user document is guaranteed to exist, so we always update.
-        await _userRepository.updateData(authUser.uid, {
-          'displayName': displayName,
-        });
-
-        if (_isNewUser) {
-          await getIt<WishlistRepository>().add(
-            Wishlist(name: "$displayName's Wishlist", ownerId: authUser.uid),
-          );
-        }
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Profile saved successfully!')),
-          );
-          // Redirect to the originally intended page, or home otherwise.
-          context.go(widget.redirectTo ?? HomePage.route);
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Error saving profile: $e')));
-        }
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _displayNameController.dispose();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          _isNewUser ? 'Create Your Profile' : 'Edit Profile',
-          style: Theme.of(context).textTheme.headlineSmall,
-        ),
-      ),
+      appBar: _profileAppBar(context),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Center(
@@ -112,50 +65,110 @@ class _ProfilePageState extends State<ProfilePage> {
                 constraints: const BoxConstraints(maxWidth: 600),
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          _isNewUser
-                              ? 'Welcome! Please enter your name to continue.'
-                              : 'Update your profile information.',
-                          style: Theme.of(context).textTheme.headlineSmall,
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 20),
-                        TextFormField(
-                          controller: _displayNameController,
-                          decoration: const InputDecoration(
-                            labelText: 'Name',
-                            border: OutlineInputBorder(),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Please enter your name';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 30),
-                        ElevatedButton(
-                          onPressed: _saveProfile,
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 40,
-                              vertical: 15,
-                            ),
-                            textStyle: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          child: const Text('Save and Continue'),
-                        ),
-                      ],
-                    ),
-                  ),
+                  child: _profilePageForm(context),
                 ),
               ),
             ),
     );
+  }
+
+  AppBar _profileAppBar(BuildContext context) => AppBar(
+    title: Text(
+      _isNewUser ? 'Create Your Profile' : 'Edit Profile',
+      style: Theme.of(context).textTheme.headlineSmall,
+    ),
+  );
+
+  Form _profilePageForm(BuildContext context) => Form(
+    key: _formKey,
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _headerText(context),
+        const SizedBox(height: 20),
+        _nameTextFormField(),
+        const SizedBox(height: 30),
+        _saveButton(context),
+      ],
+    ),
+  );
+
+  Text _headerText(BuildContext context) => Text(
+    _isNewUser
+        ? 'Welcome! Please enter your name to continue.'
+        : 'Update your profile information.',
+    style: Theme.of(context).textTheme.headlineSmall,
+    textAlign: TextAlign.center,
+  );
+
+  TextFormField _nameTextFormField() => TextFormField(
+    controller: _displayNameController,
+    decoration: const InputDecoration(
+      labelText: 'Name',
+      border: OutlineInputBorder(),
+    ),
+    validator: (value) {
+      if (value == null || value.trim().isEmpty) {
+        return 'Please enter your name';
+      }
+      return null;
+    },
+  );
+
+  ElevatedButton _saveButton(BuildContext context) => ElevatedButton(
+    onPressed: _saveProfile,
+    style: ElevatedButton.styleFrom(
+      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+      textStyle: Theme.of(context).textTheme.titleMedium,
+    ),
+    child: const Text('Save and Continue'),
+  );
+
+  Future<void> _saveProfile() async {
+    if (_formKey.currentState!.validate()) {
+      final authUser = _authService.currentUser;
+      if (authUser == null) return;
+      final displayName = _displayNameController.text.trim();
+      try {
+        await _addDisplayNameToUser(authUser.uid, displayName);
+        if (_isNewUser) {
+          await _createDefaultWishlist(displayName, authUser.uid);
+        }
+        _showConfirmationSnackbarAndExit();
+      } catch (e) {
+        _showErrorSnackBar(e);
+      }
+    }
+  }
+
+  Future<void> _addDisplayNameToUser(String userId, String displayName) async =>
+      await _userRepository.updateData(userId, {'displayName': displayName});
+
+  Future<void> _createDefaultWishlist(String displayName, String userId) async =>
+      await getIt<WishlistRepository>().add(
+        Wishlist(name: "$displayName's Wishlist", ownerId: userId),
+      );
+
+  void _showConfirmationSnackbarAndExit() {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profile saved successfully!')),
+      );
+      context.go(widget.redirectTo ?? HomePage.route);
+    }
+  }
+
+  void _showErrorSnackBar(Object e) {
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error saving profile: $e')));
+    }
+  }
+
+  @override
+  void dispose() {
+    _displayNameController.dispose();
+    super.dispose();
   }
 }

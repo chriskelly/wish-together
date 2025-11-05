@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wishtogether/common/widgets/list_item_actions.dart';
@@ -10,7 +9,6 @@ import 'package:wishtogether/features/group/domain/group.dart';
 import 'package:wishtogether/features/auth/domain/user.dart';
 import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
-import 'package:wishtogether/features/auth/presentation/login_page.dart';
 import 'package:wishtogether/features/auth/presentation/profile_page.dart';
 import 'package:wishtogether/features/group/presentation/group_details_page.dart';
 import 'package:wishtogether/features/group/presentation/group_form_page.dart';
@@ -28,7 +26,6 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-
   final AuthService _authService = getIt<AuthService>();
   final UserRepository _userRepository = getIt<UserRepository>();
   final WishlistRepository _wishlistRepository = getIt<WishlistRepository>();
@@ -36,239 +33,188 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final authUser = _authService.currentUser;
+    final authUser = _authService.currentUser!;
 
-    if (authUser == null) {
-      return _buildLoggedOutView(context);
-    } else {
-      return _buildLoggedInView(context, authUser);
-    }
-  }
+    return StreamBuilder<User?>(
+      stream: _userRepository.streamOne(authUser.uid),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return _userLoading();
+        }
+        if (!snapshot.hasData || snapshot.data == null) {
+          return _userLoadError();
+        }
 
-  Widget _buildLoggedOutView(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('WishTogether')),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              Text(
-                'Welcome to WishTogether!',
-                style: Theme.of(context).textTheme.displayLarge,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () => context.go(LoginPage.route),
-                child: const Text('Login'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _deleteWishlist(String wishlistId) async {
-    final bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Confirm Deletion'),
-          content: const Text(
-            'Are you sure you want to delete this wishlist? This action cannot be undone.',
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
+        final user = snapshot.data!;
+        return Scaffold(
+          appBar: _homePageAppBar(user.displayName, context),
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 24),
+                _wishlistDataSection(context, authUser.uid),
+                const SizedBox(height: 24),
+                _groupDataSection(context, authUser.uid),
+              ],
             ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Delete'),
-            ),
-          ],
+          ),
         );
       },
     );
+  }
 
-    if (confirmed == true) {
-      try {
-        await _wishlistRepository.delete(wishlistId);
-        if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Wishlist deleted.')));
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error deleting wishlist: $e')),
-          );
-        }
-      }
+  Scaffold _userLoading() =>
+      const Scaffold(body: Center(child: CircularProgressIndicator()));
+
+  Scaffold _userLoadError() => Scaffold(
+    appBar: AppBar(title: const Text('Home')),
+    body: const Center(child: Text('Could not load user profile.')),
+  );
+
+  AppBar _homePageAppBar(String? displayName, BuildContext context) => AppBar(
+    title: Text(
+      'Welcome, ${displayName ?? 'Friend'}!',
+      style: Theme.of(context).textTheme.headlineMedium,
+    ),
+    actions: [
+      IconButton(
+        icon: const Icon(Icons.person_outline),
+        tooltip: 'Profile',
+        onPressed: () => context.go(ProfilePage.route),
+      ),
+      IconButton(
+        icon: const Icon(Icons.logout),
+        tooltip: 'Logout',
+        onPressed: () async => await _authService.signOut(),
+      ),
+    ],
+  );
+
+  Widget _wishlistDataSection(BuildContext context, String userId) =>
+      _buildDataSection<Wishlist>(
+        context: context,
+        title: 'My Wishlists',
+        onAdd: () => context.push(WishlistFormPage.createRoute),
+        stream: _wishlistRepository.streamWhere('ownerId', isEqualTo: userId),
+        emptyListMessage: 'No wishlists yet. Create one!',
+        entityWidgetBuilder: _wishlistWidgetBuilder(),
+      );
+
+  EntityWidgetBuilder<Wishlist> _wishlistWidgetBuilder() =>
+      (context, wishlist) => Card(
+        child: ListTile(
+          title: Text(wishlist.name),
+          trailing: ListItemActions(
+            onDelete: () => _deleteWishlistDialog(wishlist.id!),
+            deleteTooltip: 'Delete Wishlist',
+          ),
+          onTap: () => context.goNamed(
+            WishlistDetailsPage.routeName,
+            pathParameters: {'id': wishlist.id!},
+          ),
+        ),
+      );
+
+  Future<void> _deleteWishlistDialog(String wishlistId) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) => AlertDialog(
+        title: const Text('Confirm Deletion'),
+        content: const Text('Are you sure you want to delete this wishlist?'),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await _wishlistRepository.delete(wishlistId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Wishlist deleted.')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
+
+  Widget _groupDataSection(BuildContext context, String userId) =>
+      _buildDataSection<Group>(
+        context: context,
+        title: 'My Groups',
+        onAdd: () => context.push(GroupFormPage.createRoute),
+        stream: _groupRepository.streamWhere('members', arrayContains: userId),
+        emptyListMessage: 'No groups yet. Create or join one!',
+        entityWidgetBuilder: _groupWidgetBuilder(userId: userId),
+      );
+
+  EntityWidgetBuilder<Group> _groupWidgetBuilder({required String userId}) =>
+      (context, group) {
+        final isOwner = group.ownerId == userId;
+        return Card(
+          child: ListTile(
+            title: Text(group.name),
+            trailing: isOwner
+                ? ListItemActions(
+                    onDelete: () => _deleteGroup(group.id!),
+                    deleteTooltip: 'Delete Group',
+                  )
+                : null,
+            onTap: () => context.goNamed(
+              GroupDetailsPage.routeName,
+              pathParameters: {'id': group.id!},
+            ),
+          ),
+        );
+      };
 
   Future<void> _deleteGroup(String groupId) async {
     final bool? confirmed = await showDialog<bool>(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Confirm Deletion'),
-          content: const Text(
-            'Are you sure you want to delete this group? This action cannot be undone.',
+      builder: (BuildContext context) => AlertDialog(
+        title: const Text('Confirm Deletion'),
+        content: const Text('Are you sure you want to delete this group?'),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
           ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Delete'),
-            ),
-          ],
-        );
-      },
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
     );
 
-    if (confirmed == true) {
-      try {
-        await _groupRepository.delete(groupId);
-        if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Group deleted.')));
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Error deleting group: $e')));
-        }
-      }
+    if (confirmed != true) return;
+
+    try {
+      await _groupRepository.delete(groupId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Group deleted.')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
-  }
-
-  Widget _buildLoggedInView(BuildContext context, auth.User authUser) {
-    return FutureBuilder<User?>(
-      future: _userRepository.get(authUser.uid),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        if (!snapshot.hasData || snapshot.data == null) {
-          return Scaffold(
-            appBar: AppBar(title: const Text('Loading Profile...')),
-            body: const Center(child: Text('Could not load user profile.')),
-          );
-        }
-
-        final user = snapshot.data!;
-
-        return Scaffold(
-          appBar: AppBar(
-            title: Text(
-              'Welcome, ${user.displayName}!',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.person_outline),
-                tooltip: 'Profile',
-                onPressed: () {
-                  context.go(ProfilePage.route);
-                },
-              ),
-              IconButton(
-                icon: const Icon(Icons.logout),
-                tooltip: 'Logout',
-                onPressed: () async {
-                  await _authService.signOut();
-                },
-              ),
-            ],
-          ),
-          body: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 24),
-                  _buildDataSection<Wishlist>(
-                    context: context,
-                    title: 'My Wishlists',
-                    onAdd: () => context.push(WishlistFormPage.createRoute),
-                    stream: _wishlistRepository.streamWhere(
-                      'ownerId',
-                      isEqualTo: authUser.uid,
-                    ),
-                    emptyListMessage: 'No wishlists yet. Create one!',
-                    itemBuilder: (context, wishlist) {
-                      return Card(
-                        child: ListTile(
-                          title: Text(wishlist.name),
-                          trailing: ListItemActions(
-                            onDelete: () => _deleteWishlist(wishlist.id!),
-                            deleteTooltip: 'Delete Wishlist',
-                          ),
-                          onTap: () {
-                            context.goNamed(
-                              WishlistDetailsPage.routeName,
-                              pathParameters: {'id': wishlist.id!},
-                            );
-                          },
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 24),
-                  _buildDataSection<Group>(
-                    context: context,
-                    title: 'My Groups',
-                    onAdd: () {
-                      context.push(GroupFormPage.createRoute);
-                    },
-                    stream: _groupRepository.streamWhere(
-                      'members',
-                      arrayContains: authUser.uid,
-                    ),
-                    emptyListMessage: 'No groups yet. Create or join one!',
-                    itemBuilder: (context, group) {
-                      final isOwner = group.ownerId == authUser.uid;
-                      return Card(
-                        child: ListTile(
-                          title: Text(group.name),
-                          trailing: isOwner
-                              ? ListItemActions(
-                                  onDelete: () => _deleteGroup(group.id!),
-                                  deleteTooltip: 'Delete Group',
-                                )
-                              : null,
-                          onTap: () {
-                            context.goNamed(
-                              GroupDetailsPage.routeName,
-                              pathParameters: {'id': group.id!},
-                            );
-                          },
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
   }
 
   Widget _buildDataSection<T>({
@@ -277,7 +223,7 @@ class _HomePageState extends State<HomePage> {
     required VoidCallback onAdd,
     required Stream<List<T>> stream,
     required String emptyListMessage,
-    required ItemWidgetBuilder<T> itemBuilder,
+    required EntityWidgetBuilder<T> entityWidgetBuilder,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -296,7 +242,7 @@ class _HomePageState extends State<HomePage> {
         const SizedBox(height: 8),
         StreamListBuilder<T>(
           stream: stream,
-          itemBuilder: itemBuilder,
+          entityWidgetBuilder: entityWidgetBuilder,
           isScrollable: false,
           emptyWidget: Container(
             height: 100,

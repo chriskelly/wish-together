@@ -107,7 +107,7 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
       ),
       body: StreamListBuilder<Item>(
         stream: _itemRepository.streamAll(),
-        itemBuilder: (context, item) => _buildItemCard(item, context),
+        entityWidgetBuilder: (context, item) => _buildItemCard(item, context),
         emptyMessage: 'This wishlist has no items yet.',
         listPadding: const EdgeInsets.only(bottom: 48),
       ),
@@ -206,10 +206,7 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
             onEdit: () {
               context.pushNamed(
                 ItemFormPage.editRouteName,
-                pathParameters: {
-                  'id': widget.wishlistId,
-                  'itemId': item.id!,
-                },
+                pathParameters: {'id': widget.wishlistId, 'itemId': item.id!},
                 extra: item,
               );
             },

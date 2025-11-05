@@ -139,7 +139,7 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
                     isScrollable: false,
                     emptyMessage:
                         'No wishlists have been shared with this group yet.',
-                    itemBuilder: (context, wishlist) {
+                    entityWidgetBuilder: (context, wishlist) {
                       final isOwner = wishlist.ownerId == _authUser?.uid;
                       return Card(
                         margin: const EdgeInsets.symmetric(vertical: 4.0),
@@ -194,7 +194,7 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
                     stream: _userRepository.streamUsersFromIds(group.members),
                     isScrollable: false,
                     emptyMessage: 'This group has no members.',
-                    itemBuilder: (context, member) {
+                    entityWidgetBuilder: (context, member) {
                       return Padding(
                         padding: const EdgeInsets.symmetric(
                           vertical: 6.0,

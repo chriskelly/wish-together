@@ -2,6 +2,7 @@ import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 import 'package:wishtogether/features/wishlist/domain/item.dart';
+import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
 
 void main() {
   group('WishlistRepository', () {
@@ -89,6 +90,41 @@ void main() {
         reason:
             'An ArgumentError should be thrown when updating an item without an ID.',
       );
+    });
+
+    test(
+        'removeWishlistFromGroup should remove the group ID from the sharedWithGroups list',
+        () async {
+      // ARRANGE: Create a wishlist that is shared with two groups.
+      const wishlistId = 'wishlist-to-remove-from';
+      const groupIdToRemove = 'group-to-remove';
+      const otherGroupId = 'other-group';
+      final initialWishlist = Wishlist(
+        id: wishlistId,
+        ownerId: 'owner-id',
+        name: 'My Wishlist',
+        sharedWithGroups: [groupIdToRemove, otherGroupId],
+      );
+
+      // Add the wishlist to the fake Firestore instance.
+      await fakeFirestore
+          .collection('wishlists')
+          .doc(wishlistId)
+          .set(wishlistRepository.toFirestore(initialWishlist));
+
+      // ACT: Call the method to remove the wishlist from the specified group.
+      await wishlistRepository.removeWishlistFromGroup(
+          wishlistId, groupIdToRemove);
+
+      // ASSERT: Verify that the group ID has been removed from the document.
+      final doc =
+          await fakeFirestore.collection('wishlists').doc(wishlistId).get();
+      final updatedWishlist = wishlistRepository.fromFirestore(doc);
+
+      expect(
+          updatedWishlist.sharedWithGroups, isNot(contains(groupIdToRemove)));
+      expect(updatedWishlist.sharedWithGroups, contains(otherGroupId));
+      expect(updatedWishlist.sharedWithGroups.length, 1);
     });
   });
 }

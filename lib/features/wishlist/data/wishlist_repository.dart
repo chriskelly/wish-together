@@ -34,4 +34,12 @@ class WishlistRepository extends FirebaseRepository<Wishlist> {
     }
     return items(wishlistId).update(item.id!, item);
   }
+
+  Future<void> removeWishlistFromGroup(String wishlistId, String groupId) async {
+    final wishlist = await get(wishlistId);
+    final updatedGroups = List<String>.from(wishlist.sharedWithGroups)
+      ..remove(groupId);
+    await update(wishlistId, wishlist.copyWith(sharedWithGroups: updatedGroups));
+  }
+
 }

@@ -1,4 +1,6 @@
 class Group {
+  static const String collectionName = 'groups';
+
   final String? id;
   final String name;
   final String ownerId;
@@ -21,11 +23,7 @@ class Group {
   }
 
   Map<String, dynamic> toMap() {
-    return {
-      'name': name,
-      'ownerId': ownerId,
-      'members': members,
-    };
+    return {'name': name, 'ownerId': ownerId, 'members': members};
   }
 
   Group copyWith({

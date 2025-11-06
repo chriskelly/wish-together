@@ -4,7 +4,7 @@ import 'package:wishtogether/features/auth/domain/user.dart';
 
 class UserRepository extends FirebaseRepository<User> {
   UserRepository({FirebaseFirestore? firestore})
-    : super('users', firestore: firestore);
+    : super(User.collectionName, firestore: firestore);
 
   @override
   User fromFirestore(DocumentSnapshot doc) {
@@ -17,16 +17,20 @@ class UserRepository extends FirebaseRepository<User> {
     return user.toMap();
   }
 
-  Future<User> getOrCreateUser(String uid, {String? email, String? displayName}) async {
+  Future<User> getOrCreateUser(
+    String uid, {
+    String? email,
+    String? displayName,
+  }) async {
     final doc = await instance.collection(collectionPath).doc(uid).get();
     if (doc.exists) {
       return fromFirestore(doc);
     } else {
-      final newUser = User(
-        email: email, 
-        displayName: displayName
-        );
-      await instance.collection(collectionPath).doc(uid).set(toFirestore(newUser));
+      final newUser = User(email: email, displayName: displayName);
+      await instance
+          .collection(collectionPath)
+          .doc(uid)
+          .set(toFirestore(newUser));
       final confirmedUser = await get(uid);
       return confirmedUser;
     }

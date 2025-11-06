@@ -1,4 +1,6 @@
 class Wishlist {
+  static const String collectionName = 'wishlists';
+
   final String? id;
   final String name;
   final String ownerId;

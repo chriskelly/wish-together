@@ -25,15 +25,15 @@ void main() {
         ); // This user won't be queried
 
         await fakeFirestore
-            .collection('users')
+            .collection(User.collectionName)
             .doc(user1.id)
             .set(user1.toMap());
         await fakeFirestore
-            .collection('users')
+            .collection(User.collectionName)
             .doc(user2.id)
             .set(user2.toMap());
         await fakeFirestore
-            .collection('users')
+            .collection(User.collectionName)
             .doc(user3.id)
             .set(user3.toMap());
 

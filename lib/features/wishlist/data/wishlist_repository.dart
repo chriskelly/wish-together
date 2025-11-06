@@ -6,7 +6,7 @@ import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
 
 class WishlistRepository extends FirebaseRepository<Wishlist> {
   WishlistRepository({FirebaseFirestore? firestore})
-    : super('wishlists', firestore: firestore);
+    : super(Wishlist.collectionName, firestore: firestore);
 
   @override
   Wishlist fromFirestore(DocumentSnapshot doc) {
@@ -35,11 +35,16 @@ class WishlistRepository extends FirebaseRepository<Wishlist> {
     return items(wishlistId).update(item.id!, item);
   }
 
-  Future<void> removeWishlistFromGroup(String wishlistId, String groupId) async {
+  Future<void> removeWishlistFromGroup(
+    String wishlistId,
+    String groupId,
+  ) async {
     final wishlist = await get(wishlistId);
     final updatedGroups = List<String>.from(wishlist.sharedWithGroups)
       ..remove(groupId);
-    await update(wishlistId, wishlist.copyWith(sharedWithGroups: updatedGroups));
+    await update(
+      wishlistId,
+      wishlist.copyWith(sharedWithGroups: updatedGroups),
+    );
   }
-
 }

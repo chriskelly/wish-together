@@ -2,6 +2,7 @@ import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wishtogether/features/wishlist/data/item_repository.dart';
 import 'package:wishtogether/features/wishlist/domain/item.dart';
+import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 void main() {
@@ -10,7 +11,8 @@ void main() {
     late ItemRepository itemRepository;
 
     const String testWishlistId = 'test_wishlist';
-    const String itemsCollectionPath = 'wishlists/$testWishlistId/items';
+    final String itemsCollectionPath =
+        '${Wishlist.collectionName}/$testWishlistId/${Item.collectionName}';
 
     setUp(() {
       fakeFirestore = FakeFirebaseFirestore();

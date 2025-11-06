@@ -10,7 +10,7 @@ void main() {
     late WishlistRepository wishlistRepository;
 
     const String testWishlistId = 'test_wishlist';
-    const String itemsCollectionPath = 'wishlists/$testWishlistId/items';
+    final String itemsCollectionPath = '${Wishlist.collectionName}/$testWishlistId/${Item.collectionName}';
 
     setUp(() {
       fakeFirestore = FakeFirebaseFirestore();
@@ -108,7 +108,7 @@ void main() {
 
       // Add the wishlist to the fake Firestore instance.
       await fakeFirestore
-          .collection('wishlists')
+          .collection(Wishlist.collectionName)
           .doc(wishlistId)
           .set(wishlistRepository.toFirestore(initialWishlist));
 
@@ -118,7 +118,7 @@ void main() {
 
       // ASSERT: Verify that the group ID has been removed from the document.
       final doc =
-          await fakeFirestore.collection('wishlists').doc(wishlistId).get();
+          await fakeFirestore.collection(Wishlist.collectionName).doc(wishlistId).get();
       final updatedWishlist = wishlistRepository.fromFirestore(doc);
 
       expect(

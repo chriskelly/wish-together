@@ -1,4 +1,6 @@
 class User {
+  static const String collectionName = 'users';
+
   final String? id;
   final String? displayName;
   final String? email;
@@ -18,10 +20,6 @@ class User {
   }
 
   factory User.fromMap(Map<String, dynamic> map, String id) {
-    return User(
-      id: id,
-      displayName: map['displayName'],
-      email: map['email'],
-    );
+    return User(id: id, displayName: map['displayName'], email: map['email']);
   }
 }

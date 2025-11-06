@@ -1,13 +1,13 @@
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wishtogether/features/group/data/group_repository.dart';
+import 'package:wishtogether/features/group/domain/group.dart';
 
 void main() {
   group('GroupRepository', () {
     late FakeFirebaseFirestore fakeFirestore;
     late GroupRepository groupRepository;
 
-    const String groupsCollection = 'groups';
     const String testGroupId = 'test_group';
     const String testUserId = 'test_user';
 
@@ -18,17 +18,16 @@ void main() {
 
     test('joinGroup should add a user to the group members list', () async {
       // ARRANGE: Create a group document without any members.
-      await fakeFirestore.collection(groupsCollection).doc(testGroupId).set({
-        'name': 'Test Group',
-        'members': [],
-      });
+      await fakeFirestore.collection(Group.collectionName).doc(testGroupId).set(
+        {'name': 'Test Group', 'members': []},
+      );
 
       // ACT: Call the method to join the group.
       await groupRepository.joinGroup(testGroupId, testUserId);
 
       // ASSERT: Verify that the user was added to the members list.
       final doc = await fakeFirestore
-          .collection(groupsCollection)
+          .collection(Group.collectionName)
           .doc(testGroupId)
           .get();
       final members = doc.data()?['members'] as List<dynamic>?;
@@ -45,17 +44,23 @@ void main() {
       'leaveGroup should remove a user from the group members list',
       () async {
         // ARRANGE: Create a group with the user already in the members list.
-        await fakeFirestore.collection(groupsCollection).doc(testGroupId).set({
-          'name': 'Test Group',
-          'members': [testUserId, 'another_user'], // Add the user to the group.
-        });
+        await fakeFirestore
+            .collection(Group.collectionName)
+            .doc(testGroupId)
+            .set({
+              'name': 'Test Group',
+              'members': [
+                testUserId,
+                'another_user',
+              ], // Add the user to the group.
+            });
 
         // ACT: Call the method to leave the group.
         await groupRepository.leaveGroup(testGroupId, testUserId);
 
         // ASSERT: Verify that the user has been removed.
         final doc = await fakeFirestore
-            .collection(groupsCollection)
+            .collection(Group.collectionName)
             .doc(testGroupId)
             .get();
         final members = doc.data()?['members'] as List<dynamic>?;

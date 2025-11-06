@@ -1,4 +1,6 @@
 class Item {
+  static const String collectionName = 'items';
+
   final String? id;
   final String name;
   final String? description;

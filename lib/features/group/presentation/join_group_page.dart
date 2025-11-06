@@ -38,8 +38,8 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
           }
 
           final group = snapshot.data!;
-          final currentUser = _authService.currentUser;
-          if (currentUser != null && group.members.contains(currentUser.uid)) {
+          final currentUserId = _authService.currentUserId;
+          if (currentUserId != null && group.members.contains(currentUserId)) {
             return _buildAlreadyMemberWidget(group);
           }
           return _buildInvitationContent(group);
@@ -135,15 +135,15 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
   );
 
   Future<void> _joinGroup() async {
-    final currentUser = _authService.currentUser;
-    if (currentUser == null) return;
+    final currentUserId = _authService.currentUserId;
+    if (currentUserId == null) return;
 
     setState(() {
       _isJoining = true;
     });
 
     try {
-      await _groupRepository.joinGroup(widget.groupId, currentUser.uid);
+      await _groupRepository.joinGroup(widget.groupId, currentUserId);
       if (mounted) {
         _showSuccessSnackbarAndNavigate();
       }

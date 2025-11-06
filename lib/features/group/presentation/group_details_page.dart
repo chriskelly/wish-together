@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -39,12 +38,12 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
   final GroupRepository _groupRepository = getIt<GroupRepository>();
   final WishlistRepository _wishlistRepository = getIt<WishlistRepository>();
   final UserRepository _userRepository = getIt<UserRepository>();
-  late final auth.User _authUser;
+  late final String _authUserId;
 
   @override
   void initState() {
     super.initState();
-    _authUser = getIt<AuthService>().currentUser!;
+    _authUserId = getIt<AuthService>().currentUserId!;
   }
 
   @override
@@ -60,7 +59,7 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
         }
 
         final group = snapshot.data!;
-        final isOwner = group.ownerId == _authUser.uid;
+        final isOwner = group.ownerId == _authUserId;
 
         return Scaffold(
           appBar: _buildAppBar(group, isOwner),
@@ -123,7 +122,7 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
         _sharedWishlistsSection(group.id!),
         const SizedBox(height: 20),
         _membersSection(group),
-        if (!isOwner) _leaveGroupButton(group.id!, _authUser.uid),
+        if (!isOwner) _leaveGroupButton(group.id!, _authUserId),
       ],
     ),
   );
@@ -149,7 +148,7 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
 
   EntityWidgetBuilder<Wishlist> _wishlistWidgetBuilder(String groupId) =>
       (context, wishlist) {
-        final isOwner = wishlist.ownerId == _authUser.uid;
+        final isOwner = wishlist.ownerId == _authUserId;
         return Card(
           margin: const EdgeInsets.symmetric(vertical: 4.0),
           child: FutureBuilder<User?>(
@@ -333,7 +332,7 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
   FloatingActionButton _shareWishlistFAB(Group group) =>
       FloatingActionButton.extended(
         onPressed: () =>
-            _showShareWishlistDialog(context, _authUser.uid, group.id!),
+            _showShareWishlistDialog(context, _authUserId, group.id!),
         label: const Text('Share Wishlist'),
         icon: const Icon(Icons.add),
       );

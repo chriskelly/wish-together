@@ -33,10 +33,10 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final authUser = _authService.currentUser!;
+    final authUserId = _authService.currentUserId!;
 
     return StreamBuilder<User?>(
-      stream: _userRepository.streamOne(authUser.uid),
+      stream: _userRepository.streamOne(authUserId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return _userLoading();
@@ -54,9 +54,9 @@ class _HomePageState extends State<HomePage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 24),
-                _wishlistDataSection(context, authUser.uid),
+                _wishlistDataSection(context, authUserId),
                 const SizedBox(height: 24),
-                _groupDataSection(context, authUser.uid),
+                _groupDataSection(context, authUserId),
               ],
             ),
           ),

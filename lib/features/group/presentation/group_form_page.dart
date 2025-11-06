@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wishtogether/common/widgets/primary_app_bar.dart';
@@ -92,7 +91,7 @@ class _GroupFormPageState extends State<GroupFormPage> {
       if (_isEditing) {
         await _updateGroup();
       } else {
-        await _addGroup(_authService.currentUser!);
+        await _addGroup(_authService.currentUserId!);
       }
       if (mounted) {
         _showSnackbarAndExit();
@@ -117,11 +116,11 @@ class _GroupFormPageState extends State<GroupFormPage> {
     await _groupRepository.update(updatedGroup.id!, updatedGroup);
   }
 
-  Future<void> _addGroup(User user) async => await _groupRepository.add(
+  Future<void> _addGroup(String userId) async => await _groupRepository.add(
     Group(
       name: _nameController.text.trim(),
-      ownerId: user.uid,
-      members: [user.uid],
+      ownerId: userId,
+      members: [userId],
     ),
   );
 

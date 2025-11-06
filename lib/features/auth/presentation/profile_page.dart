@@ -39,11 +39,11 @@ class _ProfilePageState extends State<ProfilePage> {
 
   // Load user data; the router ensures the user document exists.
   Future<void> _loadUserData() async {
-    final authUser = _authService.currentUser;
-    if (authUser != null) {
+    final authUserId = _authService.currentUserId;
+    if (authUserId != null) {
       // The get call is now safe because the router's redirect logic
       // using getOrCreateUser guarantees the document exists.
-      final user = await _userRepository.get(authUser.uid);
+      final user = await _userRepository.get(authUserId);
       if (mounted) {
         setState(() {
           _currentUser = user;
@@ -126,13 +126,13 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _saveProfile() async {
     if (_formKey.currentState!.validate()) {
-      final authUser = _authService.currentUser;
-      if (authUser == null) return;
+      final authUserId = _authService.currentUserId;
+      if (authUserId == null) return;
       final displayName = _displayNameController.text.trim();
       try {
-        await _addDisplayNameToUser(authUser.uid, displayName);
+        await _addDisplayNameToUser(authUserId, displayName);
         if (_isNewUser) {
-          await _createDefaultWishlist(displayName, authUser.uid);
+          await _createDefaultWishlist(displayName, authUserId);
         }
         _showConfirmationSnackbarAndExit();
       } catch (e) {
@@ -144,10 +144,12 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _addDisplayNameToUser(String userId, String displayName) async =>
       await _userRepository.updateData(userId, {'displayName': displayName});
 
-  Future<void> _createDefaultWishlist(String displayName, String userId) async =>
-      await getIt<WishlistRepository>().add(
-        Wishlist(name: "$displayName's Wishlist", ownerId: userId),
-      );
+  Future<void> _createDefaultWishlist(
+    String displayName,
+    String userId,
+  ) async => await getIt<WishlistRepository>().add(
+    Wishlist(name: "$displayName's Wishlist", ownerId: userId),
+  );
 
   void _showConfirmationSnackbarAndExit() {
     if (mounted) {

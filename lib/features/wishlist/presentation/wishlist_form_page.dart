@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wishtogether/common/widgets/primary_app_bar.dart';
@@ -102,7 +101,7 @@ class _WishlistFormPageState extends State<WishlistFormPage> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
-    final user = _authService.currentUser!;
+    final userId = _authService.currentUserId!;
     setState(() {
       _isLoading = true;
     });
@@ -110,7 +109,7 @@ class _WishlistFormPageState extends State<WishlistFormPage> {
       if (_isEditing) {
         await _updateWishlist();
       } else {
-        await _addWishlist(user);
+        await _addWishlist(userId);
       }
       if (mounted) {
         _showSnackbarAndExit();
@@ -135,10 +134,10 @@ class _WishlistFormPageState extends State<WishlistFormPage> {
     await _wishlistRepository.update(updatedWishlist.id!, updatedWishlist);
   }
 
-  Future<void> _addWishlist(auth.User user) async {
+  Future<void> _addWishlist(String userId) async {
     final newWishlist = Wishlist(
       name: _nameController.text.trim(),
-      ownerId: user.uid,
+      ownerId: userId,
     );
     await _wishlistRepository.add(newWishlist);
   }

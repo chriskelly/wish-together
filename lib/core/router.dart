@@ -49,7 +49,7 @@ Future<String?> handleRedirect(
   UserRepository? userRepo,
 }) async {
   final uri = _normalizeUri(uriString);
-  final loggedIn = authService.currentUser != null;
+  final loggedIn = authService.currentUserId != null;
   if (!loggedIn) {
     return _redirectIfNotLoggedIn(uri, uriString);
   }
@@ -61,8 +61,8 @@ Future<String?> handleRedirect(
   }
 
   final user = await (userRepo ?? UserRepository()).getOrCreateUser(
-    authService.currentUser!.uid,
-    email: authService.currentUser!.email,
+    authService.currentUserId!,
+    email: authService.currentUserEmail,
   );
   final hasDisplayName = user.displayName != null && user.displayName!.isNotEmpty;
   if (!hasDisplayName) {

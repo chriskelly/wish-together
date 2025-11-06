@@ -56,5 +56,7 @@ class AuthService {
   // Expose the GoogleSignIn instance for the UI to use
   GoogleSignIn get googleSignIn => _googleSignIn;
 
-  User? get currentUser => _auth.currentUser;
+  String? get currentUserId => _auth.currentUser?.uid;
+
+  String? get currentUserEmail => _auth.currentUser?.email;
 }

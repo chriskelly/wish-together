@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -29,14 +28,14 @@ class WishlistDetailsPage extends StatefulWidget {
 class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
   final WishlistRepository _wishlistRepository = getIt<WishlistRepository>();
   late final ItemRepository _itemRepository;
-  late final auth.User? _currentUser;
+  late final String? _currentUserId;
   bool _isSpoilerFree = true; // Default to spoiler-free for the owner
 
   @override
   void initState() {
     super.initState();
     _itemRepository = _wishlistRepository.items(widget.wishlistId);
-    _currentUser = getIt<AuthService>().currentUser;
+    _currentUserId = getIt<AuthService>().currentUserId;
   }
 
   @override
@@ -75,11 +74,11 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
   Widget _buildAppBarActions() => FutureBuilder<Wishlist?>(
     future: _wishlistRepository.get(widget.wishlistId),
     builder: (context, snapshot) {
-      if (!snapshot.hasData || _currentUser == null || snapshot.data == null) {
+      if (!snapshot.hasData || _currentUserId == null || snapshot.data == null) {
         return const SizedBox.shrink();
       }
       final wishlist = snapshot.data!;
-      if (wishlist.ownerId == _currentUser.uid) {
+      if (wishlist.ownerId == _currentUserId) {
         return Row(
           children: [_buildSpoilerToggleButton(), _buildEditButton(wishlist)],
         );
@@ -115,7 +114,7 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
       future: _wishlistRepository.get(widget.wishlistId),
       builder: (context, wishlistSnapshot) {
         if (!wishlistSnapshot.hasData) return const SizedBox.shrink();
-        final isOwner = wishlistSnapshot.data!.ownerId == _currentUser?.uid;
+        final isOwner = wishlistSnapshot.data!.ownerId == _currentUserId;
 
         return Card(
           margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -163,7 +162,7 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
 
   Widget _buildItemActions(Item item, bool isOwner, BuildContext context) {
     final bool isClaimed = item.claimedBy != null;
-    final bool claimedByCurrentUser = item.claimedBy == _currentUser?.uid;
+    final bool claimedByCurrentUser = item.claimedBy == _currentUserId;
 
     if (isOwner) {
       return _buildOwnerActions(item, isClaimed);
@@ -252,10 +251,10 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
   }
 
   Future<void> _claimItem(Item item) async {
-    if (_currentUser == null) return;
+    if (_currentUserId == null) return;
     try {
       final updatedItem = item.copyWith(
-        claimedBy: _currentUser.uid,
+        claimedBy: _currentUserId,
         claimedAt: DateTime.now(),
       );
       await _itemRepository.update(updatedItem.id!, updatedItem);
@@ -329,10 +328,10 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
   Widget _buildFloatingActionButton() => FutureBuilder<Wishlist?>(
     future: _wishlistRepository.get(widget.wishlistId),
     builder: (context, snapshot) {
-      if (!snapshot.hasData || _currentUser == null) {
+      if (!snapshot.hasData || _currentUserId == null) {
         return const SizedBox.shrink();
       }
-      if (snapshot.data!.ownerId == _currentUser.uid) {
+      if (snapshot.data!.ownerId == _currentUserId) {
         return FloatingActionButton(
           onPressed: () => context.pushNamed(
             ItemFormPage.createRouteName,

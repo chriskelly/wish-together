@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:wishtogether/core/router.dart';
@@ -14,28 +13,19 @@ class MockAuthService extends Mock implements AuthService {}
 
 class MockUserRepository extends Mock implements UserRepository {}
 
-class MockFirebaseUser extends Mock implements firebase_auth.User {
-  @override
-  final String uid = 'test-uid';
-  @override
-  final String? email = 'test@test.com';
-}
-
 void main() {
   late MockAuthService mockAuthService;
   late MockUserRepository mockUserRepository;
-  late MockFirebaseUser mockFirebaseUser;
 
   setUp(() {
     mockAuthService = MockAuthService();
     mockUserRepository = MockUserRepository();
-    mockFirebaseUser = MockFirebaseUser();
   });
 
   group('handleRedirect', () {
     group('user not logged in', () {
       setUp(() {
-        when(() => mockAuthService.currentUser).thenReturn(null);
+        when(() => mockAuthService.currentUserId).thenReturn(null);
       });
 
       test('should not redirect when on the login page', () async {
@@ -74,7 +64,8 @@ void main() {
 
     group('user logged in', () {
       setUp(() {
-        when(() => mockAuthService.currentUser).thenReturn(mockFirebaseUser);
+        when(() => mockAuthService.currentUserId).thenReturn('test-uid');
+        when(() => mockAuthService.currentUserEmail).thenReturn('test@test.com');
       });
 
       group('user has no display name', () {

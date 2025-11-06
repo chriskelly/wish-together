@@ -64,10 +64,7 @@ class _ItemFormPageState extends State<ItemFormPage> {
             description: _descriptionController.text,
             url: _linkController.text,
           );
-          await _itemRepository.update(
-            updatedItem.id!,
-            updatedItem,
-          );
+          await _itemRepository.update(updatedItem.id!, updatedItem);
         } else {
           final newItem = Item(
             name: _nameController.text,
@@ -150,6 +147,7 @@ class _ItemFormPageState extends State<ItemFormPage> {
                   hintText: 'e.g., https://example.com/product/123',
                 ),
                 keyboardType: TextInputType.url,
+                validator: _urlValidator,
               ),
               const SizedBox(height: 24),
               ElevatedButton(
@@ -173,5 +171,15 @@ class _ItemFormPageState extends State<ItemFormPage> {
         ),
       ),
     );
+  }
+
+  String? _urlValidator(String? value) {
+    if (value != null && value.trim().isNotEmpty) {
+      final uri = Uri.tryParse(value.trim());
+      if (uri == null || !uri.isAbsolute) {
+        return 'Please enter a valid URL (are you missing the "http://"?)';
+      }
+    }
+    return null;
   }
 }

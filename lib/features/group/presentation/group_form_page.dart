@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wishtogether/common/widgets/primary_app_bar.dart';
@@ -35,54 +36,70 @@ class _GroupFormPageState extends State<GroupFormPage> {
   }
 
   @override
-  void dispose() {
-    _nameController.dispose();
-    super.dispose();
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: _buildAppBar(),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              _nameTextFormField(),
+              const SizedBox(height: 24),
+              _submitButton(),
+              if (_isLoading) _loadingIndicator(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  PrimaryAppBar _buildAppBar() =>
+      PrimaryAppBar(title: _isEditing ? 'Edit Group' : 'Create a New Group');
+
+  TextFormField _nameTextFormField() => TextFormField(
+    controller: _nameController,
+    decoration: const InputDecoration(
+      labelText: 'Group Name',
+      border: OutlineInputBorder(),
+    ),
+    validator: (value) {
+      if (value == null || value.trim().isEmpty) {
+        return 'Please enter a group name.';
+      }
+      return null;
+    },
+  );
+
+  ElevatedButton _submitButton() {
+    return ElevatedButton(
+      onPressed: _isLoading ? null : _saveGroup,
+      child: Text(_isEditing ? 'Update Group' : 'Create Group'),
+    );
   }
 
   Future<void> _saveGroup() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
-
     setState(() {
       _isLoading = true;
     });
-
     try {
-      final user = _authService.currentUser;
-      if (user == null) {
-        throw Exception('You must be logged in to perform this action.');
-      }
-
       if (_isEditing) {
-        final updatedGroup = widget.group!.copyWith(
-          name: _nameController.text.trim(),
-        );
-        await _groupRepository.update(updatedGroup.id!, updatedGroup);
+        await _updateGroup();
       } else {
-        await _groupRepository.add(
-          Group(
-            name: _nameController.text.trim(),
-            ownerId: user.uid,
-            members: [user.uid],
-          ),
-        );
+        await _addGroup(_authService.currentUser!);
       }
-
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Group ${_isEditing ? 'updated' : 'created'}!'),
-          ),
-        );
-        context.pop();
+        _showSnackbarAndExit();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error saving group: $e')));
+        _showErrorSnackbar(e);
       }
     } finally {
       if (mounted) {
@@ -93,46 +110,40 @@ class _GroupFormPageState extends State<GroupFormPage> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: PrimaryAppBar(
-        title: _isEditing ? 'Edit Group' : 'Create a New Group',
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              TextFormField(
-                controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Group Name',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please enter a group name.';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: _isLoading ? null : _saveGroup,
-                child: Text(_isEditing ? 'Update Group' : 'Create Group'),
-              ),
-              if (_isLoading)
-                const Padding(
-                  padding: EdgeInsets.only(top: 16.0),
-                  child: Center(child: CircularProgressIndicator()),
-                ),
-            ],
-          ),
-        ),
-      ),
+  Future<void> _updateGroup() async {
+    final updatedGroup = widget.group!.copyWith(
+      name: _nameController.text.trim(),
     );
+    await _groupRepository.update(updatedGroup.id!, updatedGroup);
+  }
+
+  Future<void> _addGroup(User user) async => await _groupRepository.add(
+    Group(
+      name: _nameController.text.trim(),
+      ownerId: user.uid,
+      members: [user.uid],
+    ),
+  );
+
+  void _showSnackbarAndExit() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Group ${_isEditing ? 'updated' : 'created'}!')),
+    );
+    context.pop();
+  }
+
+  void _showErrorSnackbar(Object e) => ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(SnackBar(content: Text('Error saving group: $e')));
+
+  Padding _loadingIndicator() => const Padding(
+    padding: EdgeInsets.only(top: 16.0),
+    child: Center(child: CircularProgressIndicator()),
+  );
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
   }
 }

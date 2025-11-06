@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wishtogether/common/widgets/primary_app_bar.dart';
@@ -40,71 +41,10 @@ class _WishlistFormPageState extends State<WishlistFormPage> {
     super.dispose();
   }
 
-  Future<void> _saveWishlist() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() {
-        _isLoading = true;
-      });
-
-      final user = _authService.currentUser;
-      if (user == null) {
-        // This should not happen if the user is on this page,
-        // but it's good practice to check.
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('You must be logged in.')),
-          );
-        }
-        return;
-      }
-
-      try {
-        if (_isEditing) {
-          final updatedWishlist = widget.wishlist!.copyWith(
-            name: _nameController.text,
-          );
-          await _wishlistRepository.update(
-            updatedWishlist.id!,
-            updatedWishlist,
-          );
-        } else {
-          final newWishlist = Wishlist(
-            name: _nameController.text,
-            ownerId: user.uid,
-          );
-          await _wishlistRepository.add(newWishlist);
-        }
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Wishlist ${_isEditing ? 'updated' : 'created'}!'),
-            ),
-          );
-          context.pop();
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to save wishlist: $e')),
-          );
-        }
-      } finally {
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
-        }
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: PrimaryAppBar(
-        title: _isEditing ? 'Edit Wishlist' : 'Create a new Wishlist',
-      ),
+      appBar: _buildAppBar(),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -112,42 +52,107 @@ class _WishlistFormPageState extends State<WishlistFormPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              TextFormField(
-                controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Wishlist Name',
-                  border: OutlineInputBorder(),
-                  hintText: 'e.g., My Birthday 2024',
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please enter a name for your wishlist.';
-                  }
-                  return null;
-                },
-                autofocus: true,
-              ),
+              _nameTextFormField(),
               const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: _isLoading ? null : _saveWishlist,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : Text(_isEditing ? 'Update Wishlist' : 'Save Wishlist'),
-              ),
+              _submitButton(),
             ],
           ),
         ),
       ),
     );
   }
+
+  PrimaryAppBar _buildAppBar() => PrimaryAppBar(
+    title: _isEditing ? 'Edit Wishlist' : 'Create a new Wishlist',
+  );
+
+  TextFormField _nameTextFormField() => TextFormField(
+    controller: _nameController,
+    decoration: const InputDecoration(
+      labelText: 'Wishlist Name',
+      border: OutlineInputBorder(),
+      hintText: 'e.g., My Birthday 2024',
+    ),
+    validator: (value) {
+      if (value == null || value.trim().isEmpty) {
+        return 'Please enter a name for your wishlist.';
+      }
+      return null;
+    },
+    autofocus: true,
+  );
+
+  ElevatedButton _submitButton() => ElevatedButton(
+    onPressed: _isLoading ? null : _saveWishlist,
+    style: ElevatedButton.styleFrom(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+    ),
+    child: _isLoading
+        ? _loadingIndicator()
+        : Text(_isEditing ? 'Update Wishlist' : 'Save Wishlist'),
+  );
+
+  Widget _loadingIndicator() => const SizedBox(
+    height: 20,
+    width: 20,
+    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+  );
+
+  Future<void> _saveWishlist() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    final user = _authService.currentUser!;
+    setState(() {
+      _isLoading = true;
+    });
+    try {
+      if (_isEditing) {
+        await _updateWishlist();
+      } else {
+        await _addWishlist(user);
+      }
+      if (mounted) {
+        _showSnackbarAndExit();
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorSnackbar('Failed to save wishlist: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _updateWishlist() async {
+    final updatedWishlist = widget.wishlist!.copyWith(
+      name: _nameController.text.trim(),
+    );
+    await _wishlistRepository.update(updatedWishlist.id!, updatedWishlist);
+  }
+
+  Future<void> _addWishlist(auth.User user) async {
+    final newWishlist = Wishlist(
+      name: _nameController.text.trim(),
+      ownerId: user.uid,
+    );
+    await _wishlistRepository.add(newWishlist);
+  }
+
+  void _showSnackbarAndExit() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Wishlist ${_isEditing ? 'updated' : 'created'}!'),
+      ),
+    );
+    context.pop();
+  }
+
+  void _showErrorSnackbar(String message) => ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(SnackBar(content: Text(message)));
 }

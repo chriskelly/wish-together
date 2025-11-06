@@ -23,6 +23,117 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
   final _authService = getIt<AuthService>();
   bool _isJoining = false;
 
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: _buildAppBar(),
+      body: FutureBuilder<Group?>(
+        future: _groupRepository.get(widget.groupId),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return _buildLoadingState();
+          }
+          if (!snapshot.hasData || snapshot.data == null) {
+            return _buildInvalidInvitation();
+          }
+
+          final group = snapshot.data!;
+          final currentUser = _authService.currentUser;
+          if (currentUser != null && group.members.contains(currentUser.uid)) {
+            return _buildAlreadyMemberWidget(group);
+          }
+          return _buildInvitationContent(group);
+        },
+      ),
+    );
+  }
+
+  AppBar _buildAppBar() => AppBar(
+    title: Text(
+      'Group Invitation',
+      style: Theme.of(context).textTheme.headlineSmall,
+    ),
+  );
+
+  Widget _buildLoadingState() =>
+      const Center(child: CircularProgressIndicator());
+
+  Widget _buildInvalidInvitation() =>
+      const Center(child: Text('This invitation is no longer valid.'));
+
+  Widget _buildAlreadyMemberWidget(Group group) => Center(
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text('You are already a member of ${group.name}.'),
+        const SizedBox(height: 20),
+        ElevatedButton(
+          onPressed: () => context.goNamed(
+            GroupDetailsPage.routeName,
+            pathParameters: {'id': widget.groupId},
+          ),
+          child: const Text('View Group'),
+        ),
+      ],
+    ),
+  );
+
+  Widget _buildInvitationContent(Group group) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _groupAvatar(),
+          const SizedBox(height: 20),
+          _invitationText(),
+          const SizedBox(height: 4),
+          _groupNameText(group),
+          const SizedBox(height: 40),
+          _actionButtons(),
+        ],
+      ),
+    ),
+  );
+
+  Widget _groupAvatar() =>
+      const CircleAvatar(radius: 40, child: Icon(Icons.group, size: 40));
+
+  Widget _invitationText() => Text(
+    'You\'ve been invited to join',
+    style: Theme.of(context).textTheme.titleMedium,
+  );
+
+  Widget _groupNameText(Group group) => Text(
+    group.name,
+    style: Theme.of(
+      context,
+    ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+  );
+
+  Widget _actionButtons() => _isJoining
+      ? const CircularProgressIndicator()
+      : Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _declineButton(),
+            const SizedBox(width: 16),
+            _joinButton(),
+          ],
+        );
+
+  Widget _declineButton() =>
+      TextButton(onPressed: _declineInvitation, child: const Text('Decline'));
+
+  Widget _joinButton() => ElevatedButton.icon(
+    icon: const Icon(Icons.group_add_outlined),
+    onPressed: _joinGroup,
+    label: const Text('Join Group'),
+    style: ElevatedButton.styleFrom(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+    ),
+  );
+
   Future<void> _joinGroup() async {
     final currentUser = _authService.currentUser;
     if (currentUser == null) return;
@@ -34,20 +145,11 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
     try {
       await _groupRepository.joinGroup(widget.groupId, currentUser.uid);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Successfully joined the group!')),
-        );
-        // Go to the group details page after joining
-        context.goNamed(
-          GroupDetailsPage.routeName,
-          pathParameters: {'id': widget.groupId},
-        );
+        _showSuccessSnackbarAndNavigate();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error joining group: $e')));
+        _showErrorSnackbar(e);
         setState(() {
           _isJoining = false;
         });
@@ -56,108 +158,20 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
   }
 
   void _declineInvitation() {
-    // Simply navigate back to the home page
     context.go(HomePage.route);
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final currentUser = _authService.currentUser;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Group Invitation',
-          style: Theme.of(context).textTheme.headlineSmall,
-        ),
-      ),
-      body: FutureBuilder<Group?>(
-        future: _groupRepository.get(widget.groupId),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (!snapshot.hasData || snapshot.data == null) {
-            return const Center(
-              child: Text('This invitation is no longer valid.'),
-            );
-          }
-
-          final group = snapshot.data!;
-
-          // Check if user is already a member
-          if (currentUser != null &&
-              group.members.contains(currentUser.uid)) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text('You are already a member of ${group.name}.'),
-                  const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: () => context.goNamed(
-                      GroupDetailsPage.routeName,
-                      pathParameters: {'id': widget.groupId},
-                    ),
-                    child: const Text('View Group'),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const CircleAvatar(
-                    radius: 40,
-                    child: Icon(Icons.group, size: 40),
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    'You\'ve been invited to join',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    group.name,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                  const SizedBox(height: 40),
-                  _isJoining
-                      ? const CircularProgressIndicator()
-                      : Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            TextButton(
-                              onPressed: _declineInvitation,
-                              child: const Text('Decline'),
-                            ),
-                            const SizedBox(width: 16),
-                            ElevatedButton.icon(
-                              icon: const Icon(Icons.group_add_outlined),
-                              onPressed: _joinGroup,
-                              label: const Text('Join Group'),
-                              style: ElevatedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                  vertical: 12,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
+  void _showSuccessSnackbarAndNavigate() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Successfully joined the group!')),
+    );
+    context.goNamed(
+      GroupDetailsPage.routeName,
+      pathParameters: {'id': widget.groupId},
     );
   }
+
+  void _showErrorSnackbar(Object e) => ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(SnackBar(content: Text('Error joining group: $e')));
 }

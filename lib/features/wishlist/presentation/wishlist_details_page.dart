@@ -74,7 +74,9 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
   Widget _buildAppBarActions() => FutureBuilder<Wishlist?>(
     future: _wishlistRepository.get(widget.wishlistId),
     builder: (context, snapshot) {
-      if (!snapshot.hasData || _currentUserId == null || snapshot.data == null) {
+      if (!snapshot.hasData ||
+          _currentUserId == null ||
+          snapshot.data == null) {
         return const SizedBox.shrink();
       }
       final wishlist = snapshot.data!;
@@ -123,12 +125,14 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildItemName(item),
-                if (item.description != null && item.description!.isNotEmpty)
-                  _buildItemDescription(item),
-                if (item.url != null && item.url!.isNotEmpty)
-                  _buildItemUrl(item),
-                const SizedBox(height: 16),
+                _buildItemNameAndUrl(item),
+                (item.description != null && item.description!.isNotEmpty)
+                    ? _buildItemDescription(item)
+                    : (item.url != null && item.url!.isNotEmpty)
+                    ? const SizedBox(
+                        height: 16,
+                      ) // Ensure there's space between url and actions
+                    : const SizedBox.shrink(),
                 _buildItemActions(item, isOwner, context),
               ],
             ),
@@ -138,27 +142,47 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
     );
   }
 
-  Widget _buildItemName(Item item) =>
-      Text(item.name, style: Theme.of(context).textTheme.titleLarge);
-
-  Widget _buildItemDescription(Item item) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 8.0),
-    child: Text(item.description!),
-  );
-
-  Widget _buildItemUrl(Item item) => InkWell(
-    onTap: () => _launchURL(item.url!),
-    child: Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Text(
-        item.url!,
-        style: const TextStyle(
-          color: Colors.blue,
-          decoration: TextDecoration.underline,
-        ),
+  Widget _buildItemNameAndUrl(Item item) {
+    // The Row first allocates the fixed 8px spacing.
+    // The Flexible URL takes half the space if there is a url.
+    // The Expanded name takes all space if there is no url.
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Text(
+              item.name,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+          ),
+          if (item.url != null && item.url!.isNotEmpty) ...[
+            const SizedBox(width: 8),
+            Flexible(
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: InkWell(
+                  onTap: () => _launchURL(item.url!),
+                  child: Text(
+                    item.url!,
+                    style: const TextStyle(
+                      color: Colors.blue,
+                      decoration: TextDecoration.underline,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
-    ),
-  );
+    );
+  }
+
+  Widget _buildItemDescription(Item item) => Text(item.description!);
 
   Widget _buildItemActions(Item item, bool isOwner, BuildContext context) {
     final bool isClaimed = item.claimedBy != null;

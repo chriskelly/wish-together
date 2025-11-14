@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:wishtogether/common/widgets/data_section_builder.dart';
 import 'package:wishtogether/common/widgets/list_item_actions.dart';
 import 'package:wishtogether/common/widgets/stream_list_builder.dart';
 import 'package:wishtogether/core/service_locator.dart';
@@ -93,8 +94,7 @@ class _HomePageState extends State<HomePage> {
   );
 
   Widget _wishlistDataSection(BuildContext context, String userId) =>
-      _buildDataSection<Wishlist>(
-        context: context,
+      DataSectionBuilder<Wishlist>(
         title: 'My Wishlists',
         onAdd: () => context.push(WishlistFormPage.createRoute),
         stream: _wishlistRepository.streamWhere('ownerId', isEqualTo: userId),
@@ -153,8 +153,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _groupDataSection(BuildContext context, String userId) =>
-      _buildDataSection<Group>(
-        context: context,
+      DataSectionBuilder<Group>(
         title: 'My Groups',
         onAdd: () => context.push(GroupFormPage.createRoute),
         stream: _groupRepository.streamWhere('members', arrayContains: userId),
@@ -215,51 +214,5 @@ class _HomePageState extends State<HomePage> {
         context,
       ).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
-  }
-
-  Widget _buildDataSection<T>({
-    required BuildContext context,
-    required String title,
-    required VoidCallback onAdd,
-    required Stream<List<T>> stream,
-    required String emptyListMessage,
-    required EntityWidgetBuilder<T> entityWidgetBuilder,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(title, style: Theme.of(context).textTheme.titleLarge),
-            IconButton(
-              icon: const Icon(Icons.add_circle_outline),
-              onPressed: onAdd,
-              tooltip: 'Create new',
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        StreamListBuilder<T>(
-          stream: stream,
-          entityWidgetBuilder: entityWidgetBuilder,
-          isScrollable: false,
-          emptyWidget: Container(
-            height: 100,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              border: Border.all(color: Theme.of(context).dividerColor),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Center(
-              child: Text(
-                emptyListMessage,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:wishtogether/common/widgets/data_section_builder.dart';
 import 'package:wishtogether/common/widgets/list_item_actions.dart';
 import 'package:wishtogether/common/widgets/stream_list_builder.dart';
 import 'package:wishtogether/core/service_locator.dart';
@@ -119,7 +120,7 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _sharedWishlistsSection(group.id!),
+        _sharedWishlistsSection(context, group.id!),
         const SizedBox(height: 20),
         _membersSection(group),
         if (!isOwner) _leaveGroupButton(group.id!, _authUserId),
@@ -127,22 +128,16 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
     ),
   );
 
-  Widget _sharedWishlistsSection(String groupId) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Shared Wishlists', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 10),
-        StreamListBuilder<Wishlist>(
-          stream: _wishlistRepository.streamWhere(
-            'sharedWithGroups',
-            arrayContains: groupId,
-          ),
-          isScrollable: false,
-          emptyMessage: 'No wishlists have been shared with this group yet.',
-          entityWidgetBuilder: _wishlistWidgetBuilder(groupId),
-        ),
-      ],
+  Widget _sharedWishlistsSection(BuildContext context, String groupId) {
+    return DataSectionBuilder<Wishlist>(
+      title: 'Shared Wishlists',
+      onAdd: () => _showShareWishlistDialog(context, _authUserId, groupId),
+      stream: _wishlistRepository.streamWhere(
+        'sharedWithGroups',
+        arrayContains: groupId,
+      ),
+      emptyListMessage: 'No wishlists have been shared with this group yet.',
+      entityWidgetBuilder: _wishlistWidgetBuilder(groupId),
     );
   }
 

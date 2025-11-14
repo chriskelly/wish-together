@@ -11,9 +11,7 @@ import 'core/theme.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   setupServiceLocator();
 
   final authService = getIt<AuthService>();
@@ -25,10 +23,7 @@ void main() async {
 class WishTogetherApp extends StatelessWidget {
   final GoRouter router;
 
-  const WishTogetherApp({
-    super.key,
-    required this.router,
-  });
+  const WishTogetherApp({super.key, required this.router});
 
   @override
   Widget build(BuildContext context) {
@@ -38,6 +33,17 @@ class WishTogetherApp extends StatelessWidget {
       theme: lightTheme,
       darkTheme: darkTheme,
       themeMode: ThemeMode.system,
+      builder: (context, child) {
+        return Container(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1000),
+              child: child,
+            ),
+          ),
+        );
+      },
     );
   }
 }

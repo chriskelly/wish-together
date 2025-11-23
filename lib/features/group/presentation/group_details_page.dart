@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:wishtogether/common/widgets/confirmation_dialog.dart';
 import 'package:wishtogether/common/widgets/data_section_builder.dart';
 import 'package:wishtogether/common/widgets/list_item_actions.dart';
 import 'package:wishtogether/common/widgets/stream_list_builder.dart';
@@ -210,24 +211,11 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
     BuildContext context,
     Wishlist wishlist,
   ) {
-    return showDialog<bool>(
+    return showConfirmationDialog(
       context: context,
-      builder: (BuildContext context) => AlertDialog(
-        title: const Text('Remove Wishlist?'),
-        content: Text(
-          'Are you sure you want to remove "${wishlist.name}" from this group?',
-        ),
-        actions: <Widget>[
-          TextButton(
-            child: const Text('Cancel'),
-            onPressed: () => Navigator.of(context).pop(false),
-          ),
-          TextButton(
-            child: const Text('Remove', style: TextStyle(color: Colors.red)),
-            onPressed: () => Navigator.of(context).pop(true),
-          ),
-        ],
-      ),
+      title: 'Remove Wishlist?',
+      content: 'Are you sure you want to remove "${wishlist.name}" from this group?',
+      confirmText: 'Remove',
     );
   }
 
@@ -305,22 +293,11 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
   }
 
   Future<bool?> _showLeaveGroupDialog(BuildContext context) {
-    return showDialog<bool>(
+    return showConfirmationDialog(
       context: context,
-      builder: (BuildContext context) => AlertDialog(
-        title: const Text('Leave Group?'),
-        content: const Text('Are you sure you want to leave this group?'),
-        actions: <Widget>[
-          TextButton(
-            child: const Text('Cancel'),
-            onPressed: () => Navigator.of(context).pop(false),
-          ),
-          TextButton(
-            child: const Text('Leave', style: TextStyle(color: Colors.red)),
-            onPressed: () => Navigator.of(context).pop(true),
-          ),
-        ],
-      ),
+      title: 'Leave Group?',
+      content: 'Are you sure you want to leave this group?',
+      confirmText: 'Leave',
     );
   }
 

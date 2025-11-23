@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:wishtogether/common/widgets/button_loading_indicator.dart';
 import 'package:wishtogether/common/widgets/primary_app_bar.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
@@ -87,14 +88,8 @@ class _WishlistFormPageState extends State<WishlistFormPage> {
       padding: const EdgeInsets.symmetric(vertical: 16),
     ),
     child: _isLoading
-        ? _loadingIndicator()
+        ? const ButtonLoadingIndicator()
         : Text(_isEditing ? 'Update Wishlist' : 'Save Wishlist'),
-  );
-
-  Widget _loadingIndicator() => const SizedBox(
-    height: 20,
-    width: 20,
-    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
   );
 
   Future<void> _saveWishlist() async {

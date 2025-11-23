@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:wishtogether/common/widgets/button_loading_indicator.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/wishlist/data/item_repository.dart';
 import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
@@ -135,7 +136,7 @@ class _ItemFormPageState extends State<ItemFormPage> {
       padding: const EdgeInsets.symmetric(vertical: 16),
     ),
     child: _isLoading
-        ? _loadingIndicator()
+        ? const ButtonLoadingIndicator()
         : Text(_isEditing ? 'Update Item' : 'Save Item'),
   );
 
@@ -196,10 +197,4 @@ class _ItemFormPageState extends State<ItemFormPage> {
   void _showErrorSnackbar(Object e) => ScaffoldMessenger.of(
     context,
   ).showSnackBar(SnackBar(content: Text('Failed to save item: $e')));
-
-  Widget _loadingIndicator() => const SizedBox(
-    height: 20,
-    width: 20,
-    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-  );
 }

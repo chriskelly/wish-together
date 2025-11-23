@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:wishtogether/common/widgets/confirmation_dialog.dart';
 import 'package:wishtogether/common/widgets/data_section_builder.dart';
 import 'package:wishtogether/common/widgets/list_item_actions.dart';
 import 'package:wishtogether/common/widgets/stream_list_builder.dart';
@@ -118,22 +119,11 @@ class _HomePageState extends State<HomePage> {
       );
 
   Future<void> _deleteWishlistDialog(String wishlistId) async {
-    final bool? confirmed = await showDialog<bool>(
+    final bool? confirmed = await showConfirmationDialog(
       context: context,
-      builder: (BuildContext context) => AlertDialog(
-        title: const Text('Confirm Deletion'),
-        content: const Text('Are you sure you want to delete this wishlist?'),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+      title: 'Confirm Deletion',
+      content: 'Are you sure you want to delete this wishlist?',
+      confirmText: 'Delete',
     );
 
     if (confirmed != true) return;
@@ -182,22 +172,11 @@ class _HomePageState extends State<HomePage> {
       };
 
   Future<void> _deleteGroup(String groupId) async {
-    final bool? confirmed = await showDialog<bool>(
+    final bool? confirmed = await showConfirmationDialog(
       context: context,
-      builder: (BuildContext context) => AlertDialog(
-        title: const Text('Confirm Deletion'),
-        content: const Text('Are you sure you want to delete this group?'),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+      title: 'Confirm Deletion',
+      content: 'Are you sure you want to delete this group?',
+      confirmText: 'Delete',
     );
 
     if (confirmed != true) return;

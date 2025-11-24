@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wishtogether/common/widgets/primary_app_bar.dart';
 import 'package:wishtogether/core/service_locator.dart';
-import 'package:wishtogether/features/auth/data/auth_service.dart';
-import 'package:wishtogether/features/group/data/group_repository.dart';
+import 'package:wishtogether/features/group/application/create_group_use_case.dart';
+import 'package:wishtogether/features/group/application/update_group_use_case.dart';
 import 'package:wishtogether/features/group/domain/group.dart';
 
 class GroupFormPage extends StatefulWidget {
@@ -22,8 +22,8 @@ class GroupFormPage extends StatefulWidget {
 class _GroupFormPageState extends State<GroupFormPage> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
-  final _groupRepository = getIt<GroupRepository>();
-  final _authService = getIt<AuthService>();
+  final _createGroupUseCase = getIt<CreateGroupUseCase>();
+  final _updateGroupUseCase = getIt<UpdateGroupUseCase>();
   bool _isLoading = false;
 
   bool get _isEditing => widget.group != null;
@@ -88,10 +88,11 @@ class _GroupFormPageState extends State<GroupFormPage> {
       _isLoading = true;
     });
     try {
+      final name = _nameController.text.trim();
       if (_isEditing) {
-        await _updateGroup();
+        await _updateGroupUseCase.execute(widget.group!, name);
       } else {
-        await _addGroup(_authService.currentUserId!);
+        await _createGroupUseCase.execute(name);
       }
       if (mounted) {
         _showSnackbarAndExit();
@@ -108,21 +109,6 @@ class _GroupFormPageState extends State<GroupFormPage> {
       }
     }
   }
-
-  Future<void> _updateGroup() async {
-    final updatedGroup = widget.group!.copyWith(
-      name: _nameController.text.trim(),
-    );
-    await _groupRepository.update(updatedGroup.id!, updatedGroup);
-  }
-
-  Future<void> _addGroup(String userId) async => await _groupRepository.add(
-    Group(
-      name: _nameController.text.trim(),
-      ownerId: userId,
-      members: [userId],
-    ),
-  );
 
   void _showSnackbarAndExit() {
     ScaffoldMessenger.of(context).showSnackBar(

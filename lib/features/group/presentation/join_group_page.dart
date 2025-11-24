@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
+import 'package:wishtogether/features/auth/presentation/home_page.dart';
+import 'package:wishtogether/features/group/application/join_group_use_case.dart';
 import 'package:wishtogether/features/group/data/group_repository.dart';
 import 'package:wishtogether/features/group/domain/group.dart';
-import 'package:go_router/go_router.dart';
-import 'package:wishtogether/features/auth/presentation/home_page.dart';
 import 'package:wishtogether/features/group/presentation/group_details_page.dart';
 
 class JoinGroupPage extends StatefulWidget {
@@ -21,6 +22,7 @@ class JoinGroupPage extends StatefulWidget {
 class _JoinGroupPageState extends State<JoinGroupPage> {
   final _groupRepository = getIt<GroupRepository>();
   final _authService = getIt<AuthService>();
+  final _joinGroupUseCase = getIt<JoinGroupUseCase>();
   bool _isJoining = false;
 
   @override
@@ -135,15 +137,12 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
   );
 
   Future<void> _joinGroup() async {
-    final currentUserId = _authService.currentUserId;
-    if (currentUserId == null) return;
-
     setState(() {
       _isJoining = true;
     });
 
     try {
-      await _groupRepository.joinGroup(widget.groupId, currentUserId);
+      await _joinGroupUseCase.execute(widget.groupId);
       if (mounted) {
         _showSuccessSnackbarAndNavigate();
       }

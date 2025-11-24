@@ -16,6 +16,8 @@ import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
 import 'package:wishtogether/features/auth/domain/user.dart';
+import 'package:wishtogether/features/group/application/leave_group_use_case.dart';
+import 'package:wishtogether/features/group/application/share_wishlist_with_group_use_case.dart';
 import 'package:wishtogether/features/wishlist/presentation/wishlist_details_page.dart';
 
 class GroupDetailsPage extends StatefulWidget {
@@ -40,6 +42,9 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
   final GroupRepository _groupRepository = getIt<GroupRepository>();
   final WishlistRepository _wishlistRepository = getIt<WishlistRepository>();
   final UserRepository _userRepository = getIt<UserRepository>();
+  final LeaveGroupUseCase _leaveGroupUseCase = getIt<LeaveGroupUseCase>();
+  final ShareWishlistWithGroupUseCase _shareWishlistWithGroupUseCase =
+      getIt<ShareWishlistWithGroupUseCase>();
   late final String _authUserId;
 
   @override
@@ -214,7 +219,8 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
     return showConfirmationDialog(
       context: context,
       title: 'Remove Wishlist?',
-      content: 'Are you sure you want to remove "${wishlist.name}" from this group?',
+      content:
+          'Are you sure you want to remove "${wishlist.name}" from this group?',
       confirmText: 'Remove',
     );
   }
@@ -280,7 +286,7 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
     if (confirmed != true) return;
 
     try {
-      await _groupRepository.leaveGroup(groupId, userId);
+      await _leaveGroupUseCase.execute(groupId);
       navigator.go(HomePage.route);
       scaffoldMessenger.showSnackBar(
         const SnackBar(content: Text('You have left the group.')),
@@ -369,10 +375,7 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
       SnackBar(content: Text('Sharing "${wishlist.name}" with the group.')),
     );
     try {
-      final updatedWishlist = wishlist.copyWith(
-        sharedWithGroups: List.from(wishlist.sharedWithGroups)..add(groupId),
-      );
-      await _wishlistRepository.update(updatedWishlist.id!, updatedWishlist);
+      await _shareWishlistWithGroupUseCase.execute(wishlist.id!, groupId);
     } catch (e) {
       scaffoldMessenger.showSnackBar(
         SnackBar(content: Text('Failed to share wishlist: $e')),

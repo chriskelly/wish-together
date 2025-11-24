@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wishtogether/common/widgets/button_loading_indicator.dart';
 import 'package:wishtogether/core/service_locator.dart';
-import 'package:wishtogether/features/wishlist/data/item_repository.dart';
-import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
+import 'package:wishtogether/features/wishlist/application/create_item_use_case.dart';
+import 'package:wishtogether/features/wishlist/application/update_item_use_case.dart';
 import 'package:wishtogether/features/wishlist/domain/item.dart';
 
 class ItemFormPage extends StatefulWidget {
@@ -26,7 +26,8 @@ class _ItemFormPageState extends State<ItemFormPage> {
   late final TextEditingController _nameController;
   late final TextEditingController _descriptionController;
   late final TextEditingController _linkController;
-  late final ItemRepository _itemRepository;
+  final _createItemUseCase = getIt<CreateItemUseCase>();
+  final _updateItemUseCase = getIt<UpdateItemUseCase>();
   bool _isLoading = false;
 
   bool get _isEditing => widget.item != null;
@@ -34,9 +35,6 @@ class _ItemFormPageState extends State<ItemFormPage> {
   @override
   void initState() {
     super.initState();
-    final wishlistRepository = getIt<WishlistRepository>();
-    _itemRepository = wishlistRepository.items(widget.wishlistId);
-
     _nameController = TextEditingController(text: widget.item?.name ?? '');
     _descriptionController = TextEditingController(
       text: widget.item?.description ?? '',
@@ -148,10 +146,25 @@ class _ItemFormPageState extends State<ItemFormPage> {
       _isLoading = true;
     });
     try {
+      final name = _nameController.text.trim();
+      final description = _descriptionController.text.trim();
+      final url = _linkController.text.trim();
+
       if (_isEditing) {
-        await _updateItem();
+        await _updateItemUseCase.execute(
+          widget.wishlistId,
+          widget.item!,
+          name: name,
+          description: description.isEmpty ? null : description,
+          url: url.isEmpty ? null : url,
+        );
       } else {
-        await _addItem();
+        await _createItemUseCase.execute(
+          widget.wishlistId,
+          name,
+          description: description.isEmpty ? null : description,
+          url: url.isEmpty ? null : url,
+        );
       }
       if (mounted) {
         _showSnackbarAndExit();
@@ -167,24 +180,6 @@ class _ItemFormPageState extends State<ItemFormPage> {
         });
       }
     }
-  }
-
-  Future<void> _updateItem() async {
-    final updatedItem = widget.item!.copyWith(
-      name: _nameController.text,
-      description: _descriptionController.text,
-      url: _linkController.text,
-    );
-    await _itemRepository.update(updatedItem.id!, updatedItem);
-  }
-
-  Future<void> _addItem() async {
-    final newItem = Item(
-      name: _nameController.text,
-      description: _descriptionController.text,
-      url: _linkController.text,
-    );
-    await _itemRepository.add(newItem);
   }
 
   void _showSnackbarAndExit() {

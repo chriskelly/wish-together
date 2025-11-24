@@ -6,6 +6,8 @@ import 'package:wishtogether/common/widgets/list_item_actions.dart';
 import 'package:wishtogether/common/widgets/stream_list_builder.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
+import 'package:wishtogether/features/wishlist/application/claim_item_use_case.dart';
+import 'package:wishtogether/features/wishlist/application/unclaim_item_use_case.dart';
 import 'package:wishtogether/features/wishlist/data/item_repository.dart';
 import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 import 'package:wishtogether/features/wishlist/domain/item.dart';
@@ -28,6 +30,8 @@ class WishlistDetailsPage extends StatefulWidget {
 
 class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
   final WishlistRepository _wishlistRepository = getIt<WishlistRepository>();
+  final ClaimItemUseCase _claimItemUseCase = getIt<ClaimItemUseCase>();
+  final UnclaimItemUseCase _unclaimItemUseCase = getIt<UnclaimItemUseCase>();
   late final ItemRepository _itemRepository;
   late final String? _currentUserId;
   bool _isSpoilerFree = true; // Default to spoiler-free for the owner
@@ -276,13 +280,8 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
   }
 
   Future<void> _claimItem(Item item) async {
-    if (_currentUserId == null) return;
     try {
-      final updatedItem = item.copyWith(
-        claimedBy: _currentUserId,
-        claimedAt: DateTime.now(),
-      );
-      await _itemRepository.update(updatedItem.id!, updatedItem);
+      await _claimItemUseCase.execute(widget.wishlistId, item);
       if (mounted) {
         _showSuccessSnackbar('Item claimed!');
       }
@@ -295,7 +294,7 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
 
   Future<void> _unclaimItem(Item item) async {
     try {
-      await _itemRepository.unclaim(item.id!);
+      await _unclaimItemUseCase.execute(widget.wishlistId, item.id!);
       if (mounted) {
         _showSuccessSnackbar('Item unclaimed.');
       }

@@ -9,6 +9,12 @@ import 'package:wishtogether/features/group/application/leave_group_use_case.dar
 import 'package:wishtogether/features/group/application/share_wishlist_with_group_use_case.dart';
 import 'package:wishtogether/features/group/application/update_group_use_case.dart';
 import 'package:wishtogether/features/group/data/group_repository.dart';
+import 'package:wishtogether/features/wishlist/application/claim_item_use_case.dart';
+import 'package:wishtogether/features/wishlist/application/create_item_use_case.dart';
+import 'package:wishtogether/features/wishlist/application/create_wishlist_use_case.dart';
+import 'package:wishtogether/features/wishlist/application/unclaim_item_use_case.dart';
+import 'package:wishtogether/features/wishlist/application/update_item_use_case.dart';
+import 'package:wishtogether/features/wishlist/application/update_wishlist_use_case.dart';
 import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 
 final getIt = GetIt.instance;
@@ -36,4 +42,16 @@ void setupServiceLocator() {
   getIt.registerLazySingleton<ShareWishlistWithGroupUseCase>(
     () => ShareWishlistWithGroupUseCase(),
   );
+
+  // Wishlist Use Cases
+  getIt.registerLazySingleton<CreateWishlistUseCase>(
+    () => CreateWishlistUseCase(),
+  );
+  getIt.registerLazySingleton<UpdateWishlistUseCase>(
+    () => UpdateWishlistUseCase(),
+  );
+  getIt.registerLazySingleton<CreateItemUseCase>(() => CreateItemUseCase());
+  getIt.registerLazySingleton<UpdateItemUseCase>(() => UpdateItemUseCase());
+  getIt.registerLazySingleton<ClaimItemUseCase>(() => ClaimItemUseCase());
+  getIt.registerLazySingleton<UnclaimItemUseCase>(() => UnclaimItemUseCase());
 }

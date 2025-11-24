@@ -3,8 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'package:wishtogether/common/widgets/button_loading_indicator.dart';
 import 'package:wishtogether/common/widgets/primary_app_bar.dart';
 import 'package:wishtogether/core/service_locator.dart';
-import 'package:wishtogether/features/auth/data/auth_service.dart';
-import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
+import 'package:wishtogether/features/wishlist/application/create_wishlist_use_case.dart';
+import 'package:wishtogether/features/wishlist/application/update_wishlist_use_case.dart';
 import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
 
 class WishlistFormPage extends StatefulWidget {
@@ -23,8 +23,8 @@ class WishlistFormPage extends StatefulWidget {
 class _WishlistFormPageState extends State<WishlistFormPage> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
-  final _wishlistRepository = getIt<WishlistRepository>();
-  final _authService = getIt<AuthService>();
+  final _createWishlistUseCase = getIt<CreateWishlistUseCase>();
+  final _updateWishlistUseCase = getIt<UpdateWishlistUseCase>();
   bool _isLoading = false;
 
   bool get _isEditing => widget.wishlist != null;
@@ -96,15 +96,15 @@ class _WishlistFormPageState extends State<WishlistFormPage> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
-    final userId = _authService.currentUserId!;
     setState(() {
       _isLoading = true;
     });
     try {
+      final name = _nameController.text.trim();
       if (_isEditing) {
-        await _updateWishlist();
+        await _updateWishlistUseCase.execute(widget.wishlist!, name);
       } else {
-        await _addWishlist(userId);
+        await _createWishlistUseCase.execute(name);
       }
       if (mounted) {
         _showSnackbarAndExit();
@@ -120,21 +120,6 @@ class _WishlistFormPageState extends State<WishlistFormPage> {
         });
       }
     }
-  }
-
-  Future<void> _updateWishlist() async {
-    final updatedWishlist = widget.wishlist!.copyWith(
-      name: _nameController.text.trim(),
-    );
-    await _wishlistRepository.update(updatedWishlist.id!, updatedWishlist);
-  }
-
-  Future<void> _addWishlist(String userId) async {
-    final newWishlist = Wishlist(
-      name: _nameController.text.trim(),
-      ownerId: userId,
-    );
-    await _wishlistRepository.add(newWishlist);
   }
 
   void _showSnackbarAndExit() {

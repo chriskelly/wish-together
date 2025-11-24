@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wishtogether/core/service_locator.dart';
-import 'package:wishtogether/features/auth/data/auth_service.dart';
-import 'package:wishtogether/features/auth/data/user_repository.dart';
+import 'package:wishtogether/features/auth/application/load_user_profile_use_case.dart';
+import 'package:wishtogether/features/auth/application/save_user_profile_use_case.dart';
 import 'package:wishtogether/features/auth/presentation/home_page.dart';
-import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
-import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
 import '../domain/user.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -21,8 +19,8 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   final _formKey = GlobalKey<FormState>();
   final _displayNameController = TextEditingController();
-  final _userRepository = getIt<UserRepository>();
-  final _authService = getIt<AuthService>();
+  final _loadUserProfileUseCase = getIt<LoadUserProfileUseCase>();
+  final _saveUserProfileUseCase = getIt<SaveUserProfileUseCase>();
 
   User? _currentUser;
   bool _isLoading = true;
@@ -39,18 +37,13 @@ class _ProfilePageState extends State<ProfilePage> {
 
   // Load user data; the router ensures the user document exists.
   Future<void> _loadUserData() async {
-    final authUserId = _authService.currentUserId;
-    if (authUserId != null) {
-      // The get call is now safe because the router's redirect logic
-      // using getOrCreateUser guarantees the document exists.
-      final user = await _userRepository.get(authUserId);
-      if (mounted) {
-        setState(() {
-          _currentUser = user;
-          _displayNameController.text = user.displayName ?? '';
-          _isLoading = false;
-        });
-      }
+    final user = await _loadUserProfileUseCase.execute();
+    if (mounted && user != null) {
+      setState(() {
+        _currentUser = user;
+        _displayNameController.text = user.displayName ?? '';
+        _isLoading = false;
+      });
     }
   }
 
@@ -126,30 +119,15 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _saveProfile() async {
     if (_formKey.currentState!.validate()) {
-      final authUserId = _authService.currentUserId;
-      if (authUserId == null) return;
       final displayName = _displayNameController.text.trim();
       try {
-        await _addDisplayNameToUser(authUserId, displayName);
-        if (_isNewUser) {
-          await _createDefaultWishlist(displayName, authUserId);
-        }
+        await _saveUserProfileUseCase.execute(displayName);
         _showConfirmationSnackbarAndExit();
       } catch (e) {
         _showErrorSnackBar(e);
       }
     }
   }
-
-  Future<void> _addDisplayNameToUser(String userId, String displayName) async =>
-      await _userRepository.updateData(userId, {'displayName': displayName});
-
-  Future<void> _createDefaultWishlist(
-    String displayName,
-    String userId,
-  ) async => await getIt<WishlistRepository>().add(
-    Wishlist(name: "$displayName's Wishlist", ownerId: userId),
-  );
 
   void _showConfirmationSnackbarAndExit() {
     if (mounted) {

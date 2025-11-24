@@ -7,6 +7,7 @@ import 'package:wishtogether/features/auth/domain/user.dart';
 import 'package:wishtogether/features/auth/presentation/home_page.dart';
 import 'package:wishtogether/features/auth/presentation/login_page.dart';
 import 'package:wishtogether/features/auth/presentation/profile_page.dart';
+import 'package:wishtogether/features/auth/presentation/verification_page.dart';
 import 'package:wishtogether/features/group/presentation/group_details_page.dart';
 
 class MockAuthService extends Mock implements AuthService {}
@@ -37,35 +38,51 @@ void main() {
         expect(result, isNull);
       });
 
-      test('should redirect to login page from a protected page with redirect',
-          () async {
-        const initialRoute = HomePage.route; // This is '/'
+      test('should not redirect when on the verify page', () async {
         final result = await handleRedirect(
-          initialRoute,
+          VerificationPage.route,
           mockAuthService,
           userRepo: mockUserRepository,
         );
-        final expectedRedirect = '${LoginPage.route}?$redirectToParam=${Uri.encodeComponent(initialRoute)}';
-        expect(result, expectedRedirect);
+        expect(result, isNull);
       });
 
       test(
-          'should redirect to login page preserving the join link as redirect_to', () async {
-        final joinUri = GroupDetailsPage.getInvitationLink('123');
-        final result = await handleRedirect(
-          joinUri,
-          mockAuthService,
-          userRepo: mockUserRepository,
-        );
-        final expectedRedirect = '${LoginPage.route}?$redirectToParam=${Uri.encodeComponent(joinUri)}';
-        expect(result, expectedRedirect);
-      });
+        'should redirect to login page from a protected page with redirect',
+        () async {
+          const initialRoute = HomePage.route; // This is '/'
+          final result = await handleRedirect(
+            initialRoute,
+            mockAuthService,
+            userRepo: mockUserRepository,
+          );
+          final expectedRedirect =
+              '${LoginPage.route}?$redirectToParam=${Uri.encodeComponent(initialRoute)}';
+          expect(result, expectedRedirect);
+        },
+      );
+
+      test(
+        'should redirect to login page preserving the join link as redirect_to',
+        () async {
+          final joinUri = GroupDetailsPage.getInvitationLink('123');
+          final result = await handleRedirect(
+            joinUri,
+            mockAuthService,
+            userRepo: mockUserRepository,
+          );
+          final expectedRedirect =
+              '${LoginPage.route}?$redirectToParam=${Uri.encodeComponent(joinUri)}';
+          expect(result, expectedRedirect);
+        },
+      );
     });
 
     group('user logged in', () {
       setUp(() {
         when(() => mockAuthService.currentUserId).thenReturn('test-uid');
-        when(() => mockAuthService.currentUserEmail).thenReturn('test@test.com');
+        when(() => mockAuthService.currentUserEmail).thenReturn(null);
+        when(() => mockAuthService.currentUserPhoneNumber).thenReturn(null);
       });
 
       group('user has no display name', () {
@@ -74,10 +91,9 @@ void main() {
             () => mockUserRepository.getOrCreateUser(
               any(),
               email: any(named: 'email'),
+              phoneNumber: any(named: 'phoneNumber'),
             ),
-          ).thenAnswer(
-            (_) async => User(id: 'test-uid', email: 'test@test.com'),
-          );
+          ).thenAnswer((_) async => User(id: 'test-uid'));
         });
 
         test('should not redirect when on the profile page', () async {
@@ -102,16 +118,36 @@ void main() {
         });
 
         test(
-            'should redirect to profile page preserving the join link as redirect_to', () async {
-          final joinUri = GroupDetailsPage.getInvitationLink('123');
-          final result = await handleRedirect(
-            joinUri,
-            mockAuthService,
-            userRepo: mockUserRepository,
-          );
-          final expectedRedirect = '${ProfilePage.route}?$redirectToParam=${Uri.encodeComponent(joinUri)}';
-          expect(result, expectedRedirect);
-        });
+          'should redirect to profile page preserving the join link as redirect_to',
+          () async {
+            final joinUri = GroupDetailsPage.getInvitationLink('123');
+            final result = await handleRedirect(
+              joinUri,
+              mockAuthService,
+              userRepo: mockUserRepository,
+            );
+            final expectedRedirect =
+                '${ProfilePage.route}?$redirectToParam=${Uri.encodeComponent(joinUri)}';
+            expect(result, expectedRedirect);
+          },
+        );
+
+        test(
+          'should redirect to profile page preserving redirect_to from verify page',
+          () async {
+            final joinUri = GroupDetailsPage.getInvitationLink('123');
+            final verifyUriWithRedirect =
+                '${VerificationPage.route}?$redirectToParam=${Uri.encodeComponent(joinUri)}';
+            final result = await handleRedirect(
+              verifyUriWithRedirect,
+              mockAuthService,
+              userRepo: mockUserRepository,
+            );
+            final expectedRedirect =
+                '${ProfilePage.route}?$redirectToParam=${Uri.encodeComponent(joinUri)}';
+            expect(result, expectedRedirect);
+          },
+        );
       });
 
       group('user has a display name', () {
@@ -120,6 +156,7 @@ void main() {
             () => mockUserRepository.getOrCreateUser(
               any(),
               email: any(named: 'email'),
+              phoneNumber: any(named: 'phoneNumber'),
             ),
           ).thenAnswer(
             (_) async => User(
@@ -130,18 +167,22 @@ void main() {
           );
         });
 
-        test('should redirect to home page when on login page without redirect', () async {
-          final result = await handleRedirect(
-            LoginPage.route,
-            mockAuthService,
-            userRepo: mockUserRepository,
-          );
-          expect(result, HomePage.route);
-        });
+        test(
+          'should redirect to home page when on login page without redirect',
+          () async {
+            final result = await handleRedirect(
+              LoginPage.route,
+              mockAuthService,
+              userRepo: mockUserRepository,
+            );
+            expect(result, HomePage.route);
+          },
+        );
 
         test('should redirect to join link after login', () async {
           final joinUri = GroupDetailsPage.getInvitationLink('123');
-          final loginUriWithRedirect = '${LoginPage.route}?$redirectToParam=${Uri.encodeComponent(joinUri)}';
+          final loginUriWithRedirect =
+              '${LoginPage.route}?$redirectToParam=${Uri.encodeComponent(joinUri)}';
           final result = await handleRedirect(
             loginUriWithRedirect,
             mockAuthService,
@@ -150,23 +191,38 @@ void main() {
           expect(result, joinUri);
         });
 
-        test('should not redirect from any other page (including join link)', () async {
-          // From home
-          var result = await handleRedirect(
-            HomePage.route,
+        test('should redirect to join link after verification', () async {
+          final joinUri = GroupDetailsPage.getInvitationLink('123');
+          final verifyUriWithRedirect =
+              '${VerificationPage.route}?$redirectToParam=${Uri.encodeComponent(joinUri)}';
+          final result = await handleRedirect(
+            verifyUriWithRedirect,
             mockAuthService,
             userRepo: mockUserRepository,
           );
-          expect(result, isNull);
-
-          // From join link
-          result = await handleRedirect(
-            GroupDetailsPage.getInvitationLink('123'),
-            mockAuthService,
-            userRepo: mockUserRepository,
-          );
-          expect(result, isNull);
+          expect(result, joinUri);
         });
+
+        test(
+          'should not redirect from any other page (including join link)',
+          () async {
+            // From home
+            var result = await handleRedirect(
+              HomePage.route,
+              mockAuthService,
+              userRepo: mockUserRepository,
+            );
+            expect(result, isNull);
+
+            // From join link
+            result = await handleRedirect(
+              GroupDetailsPage.getInvitationLink('123'),
+              mockAuthService,
+              userRepo: mockUserRepository,
+            );
+            expect(result, isNull);
+          },
+        );
       });
     });
   });

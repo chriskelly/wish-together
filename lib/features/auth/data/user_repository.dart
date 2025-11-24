@@ -21,12 +21,17 @@ class UserRepository extends FirebaseRepository<User> {
     String uid, {
     String? email,
     String? displayName,
+    String? phoneNumber,
   }) async {
     final doc = await instance.collection(collectionPath).doc(uid).get();
     if (doc.exists) {
       return fromFirestore(doc);
     } else {
-      final newUser = User(email: email, displayName: displayName);
+      final newUser = User(
+        email: email,
+        displayName: displayName,
+        phoneNumber: phoneNumber,
+      );
       await instance
           .collection(collectionPath)
           .doc(uid)

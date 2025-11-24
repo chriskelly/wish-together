@@ -39,11 +39,6 @@ class AuthService {
         }
       }
     });
-
-    // Trigger silent sign-in on web to check for existing sessions
-    if (_auth.currentUser == null) {
-      _googleSignIn.signInSilently();
-    }
   }
 
   // Sign out from both Firebase and Google
@@ -59,4 +54,28 @@ class AuthService {
   String? get currentUserId => _auth.currentUser?.uid;
 
   String? get currentUserEmail => _auth.currentUser?.email;
+
+  String? get currentUserPhoneNumber => _auth.currentUser?.phoneNumber;
+
+  Future<void> verifyPhoneNumber({
+    required String phoneNumber,
+    required Function(PhoneAuthCredential) verificationCompleted,
+    required Function(FirebaseAuthException) verificationFailed,
+    required Function(String, int?) codeSent,
+    required Function(String) codeAutoRetrievalTimeout,
+  }) async {
+    await _auth.verifyPhoneNumber(
+      phoneNumber: phoneNumber,
+      verificationCompleted: verificationCompleted,
+      verificationFailed: verificationFailed,
+      codeSent: codeSent,
+      codeAutoRetrievalTimeout: codeAutoRetrievalTimeout,
+    );
+  }
+
+  Future<UserCredential> signInWithPhoneCredential(
+    PhoneAuthCredential credential,
+  ) async {
+    return await _auth.signInWithCredential(credential);
+  }
 }

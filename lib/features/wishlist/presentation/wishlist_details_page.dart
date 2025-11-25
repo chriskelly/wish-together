@@ -45,53 +45,50 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: _buildAppBar(),
-      body: StreamListBuilder<Item>(
-        stream: _itemRepository.streamAll(),
-        entityWidgetBuilder: (context, item) => _buildItemCard(item, context),
-        emptyMessage: 'This wishlist has no items yet.',
-        listPadding: const EdgeInsets.only(bottom: 48),
-      ),
-      floatingActionButton: _buildFloatingActionButton(),
+    return StreamBuilder<Wishlist>(
+      stream: _wishlistRepository.streamOne(widget.wishlistId),
+      builder: (context, wishlistSnapshot) {
+        if (wishlistSnapshot.connectionState == ConnectionState.waiting) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Loading...')),
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (!wishlistSnapshot.hasData || wishlistSnapshot.data == null) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Wishlist Not Found')),
+            body: const Center(child: Text('Wishlist Not Found')),
+          );
+        }
+        final wishlist = wishlistSnapshot.data!;
+        final isOwner = wishlist.ownerId == _currentUserId;
+
+        return Scaffold(
+          appBar: _buildAppBar(wishlist, isOwner),
+          body: StreamListBuilder<Item>(
+            stream: _itemRepository.streamAll(),
+            entityWidgetBuilder: (context, item) =>
+                _buildItemCard(item, context, wishlist, isOwner),
+            emptyMessage: 'This wishlist has no items yet.',
+            listPadding: const EdgeInsets.only(bottom: 48),
+          ),
+          floatingActionButton: _buildFloatingActionButton(wishlist, isOwner),
+        );
+      },
     );
   }
 
-  AppBar _buildAppBar() =>
-      AppBar(title: _buildAppBarTitle(), actions: [_buildAppBarActions()]);
-
-  Widget _buildAppBarTitle() => FutureBuilder<Wishlist?>(
-    future: _wishlistRepository.get(widget.wishlistId),
-    builder: (context, snapshot) {
-      if (snapshot.connectionState == ConnectionState.waiting) {
-        return const Text('Loading...');
-      }
-      if (!snapshot.hasData || snapshot.data == null) {
-        return const Text('Wishlist Not Found');
-      }
-      return Text(
-        snapshot.data!.name,
-        style: Theme.of(context).textTheme.headlineSmall,
-      );
-    },
-  );
-
-  Widget _buildAppBarActions() => FutureBuilder<Wishlist?>(
-    future: _wishlistRepository.get(widget.wishlistId),
-    builder: (context, snapshot) {
-      if (!snapshot.hasData ||
-          _currentUserId == null ||
-          snapshot.data == null) {
-        return const SizedBox.shrink();
-      }
-      final wishlist = snapshot.data!;
-      if (wishlist.ownerId == _currentUserId) {
-        return Row(
-          children: [_buildSpoilerToggleButton(), _buildEditButton(wishlist)],
-        );
-      }
-      return const SizedBox.shrink();
-    },
+  AppBar _buildAppBar(Wishlist wishlist, bool isOwner) => AppBar(
+    title: Text(
+      wishlist.name,
+      style: Theme.of(context).textTheme.headlineSmall,
+    ),
+    actions: [
+      if (isOwner)
+        Row(children: [_buildSpoilerToggleButton(), _buildEditButton(wishlist)])
+      else
+        const SizedBox.shrink(),
+    ],
   );
 
   Widget _buildSpoilerToggleButton() => IconButton(
@@ -116,34 +113,32 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
     tooltip: 'Edit Wishlist',
   );
 
-  Widget _buildItemCard(Item item, BuildContext context) {
-    return FutureBuilder<Wishlist?>(
-      future: _wishlistRepository.get(widget.wishlistId),
-      builder: (context, wishlistSnapshot) {
-        if (!wishlistSnapshot.hasData) return const SizedBox.shrink();
-        final isOwner = wishlistSnapshot.data!.ownerId == _currentUserId;
-
-        return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildItemNameAndUrl(item),
-                (item.description != null && item.description!.isNotEmpty)
-                    ? _buildItemDescription(item)
-                    : (item.url != null && item.url!.isNotEmpty)
-                    ? const SizedBox(
-                        height: 16,
-                      ) // Ensure there's space between url and actions
-                    : const SizedBox.shrink(),
-                _buildItemActions(item, isOwner, context),
-              ],
-            ),
-          ),
-        );
-      },
+  Widget _buildItemCard(
+    Item item,
+    BuildContext context,
+    Wishlist wishlist,
+    bool isOwner,
+  ) {
+    return Card(
+      key: ValueKey(item.id),
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildItemNameAndUrl(item),
+            (item.description != null && item.description!.isNotEmpty)
+                ? _buildItemDescription(item)
+                : (item.url != null && item.url!.isNotEmpty)
+                ? const SizedBox(
+                    height: 16,
+                  ) // Ensure there's space between url and actions
+                : const SizedBox.shrink(),
+            _buildItemActions(item, isOwner, context),
+          ],
+        ),
+      ),
     );
   }
 
@@ -324,7 +319,8 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
   Future<bool?> _showDeleteDialog() => showConfirmationDialog(
     context: context,
     title: 'Delete Item?',
-    content: 'Are you sure you want to delete this item? This action cannot be undone.',
+    content:
+        'Are you sure you want to delete this item? This action cannot be undone.',
     confirmText: 'Delete',
   );
 
@@ -336,22 +332,16 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
     context,
   ).showSnackBar(SnackBar(content: Text(message)));
 
-  Widget _buildFloatingActionButton() => FutureBuilder<Wishlist?>(
-    future: _wishlistRepository.get(widget.wishlistId),
-    builder: (context, snapshot) {
-      if (!snapshot.hasData || _currentUserId == null) {
-        return const SizedBox.shrink();
-      }
-      if (snapshot.data!.ownerId == _currentUserId) {
-        return FloatingActionButton(
-          onPressed: () => context.pushNamed(
-            ItemFormPage.createRouteName,
-            pathParameters: {'id': widget.wishlistId},
-          ),
-          child: const Icon(Icons.add),
-        );
-      }
+  Widget _buildFloatingActionButton(Wishlist wishlist, bool isOwner) {
+    if (!isOwner) {
       return const SizedBox.shrink();
-    },
-  );
+    }
+    return FloatingActionButton(
+      onPressed: () => context.pushNamed(
+        ItemFormPage.createRouteName,
+        pathParameters: {'id': widget.wishlistId},
+      ),
+      child: const Icon(Icons.add),
+    );
+  }
 }

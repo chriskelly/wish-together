@@ -1,16 +1,18 @@
 # WishTogether
 
-A new Flutter project.
+Give the perfect gift every time!
 
-## Getting Started
+## Try It Out
 
-This project is a starting point for a Flutter application.
+You can use the deployed version at [https://wishtogether.gift](https://wishtogether.gift)
 
-A few resources to get you started if this is your first Flutter project:
+## Features
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+### Create Wishlists
+Create and manage your personal wishlists. Add items you'd love to receive, and keep them organized.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+### Share with Groups
+Create groups with family and friends. Keep wishlists synced between multiple groups. Great for in-laws!
+
+### Spoiler-Free Gifting
+By default, no need to worry about spoilers! The owner can enable spoiler mode when they're ready to see what's been claimed.

@@ -27,8 +27,7 @@ class _LoginPageState extends State<LoginPage>
   late AnimationController _arrowAnimationController;
   late Animation<double> _arrowAnimation;
 
-  static const String _privacyPolicyUrl =
-      'https://chriskelly.github.io/WishTogetherPublic/';
+  static const String _privacyPolicyUrl = 'https://wishtogether.gift/privacy';
 
   @override
   void initState() {

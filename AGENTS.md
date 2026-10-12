@@ -39,6 +39,9 @@ per-area `OVERVIEW.md` next to the code you are touching.
 │       ├── auth/              # see lib/features/auth/OVERVIEW.md
 │       ├── group/             # see lib/features/group/OVERVIEW.md
 │       └── wishlist/          # see lib/features/wishlist/OVERVIEW.md
+├── docs/
+│   ├── specs/                 # gitignored — open design specs (local only)
+│   └── plans/                 # gitignored — local implementation plans
 ├── test/                      # mirrors lib/ path-for-path: <file>_test.dart
 └── web/                       # web host: index.html, manifest.json, privacy.html
 ```
@@ -154,14 +157,16 @@ Rules:
 | Root `AGENTS.md` | How to work in this repo |
 | `lib/**/OVERVIEW.md` | Durable per-area context; update when shipped behavior agents must know changes |
 | `README.md` | User-facing product description |
-| `GEMINI.md` | Pointer to this file only |
+| `docs/specs/` | Gitignored — local open-design specs; never committed |
+| `docs/plans/` | Gitignored — local implementation plans; never committed |
 | GitHub issues | Roadmap and larger-work tracking |
 
 Rules:
 
 - Durable docs (`AGENTS.md`, `OVERVIEW.md`, `README.md`) must not cite transient specs,
   plans, or phase numbers.
-- This repo has no `docs/specs/` or `docs/plans/` tree; do not create one.
+- `docs/specs/` and `docs/plans/` are gitignored scratch spaces for open designs and local
+  plans. They are never committed; promote lasting policy into `AGENTS.md` / `OVERVIEW.md`.
 - When a change makes an `OVERVIEW.md` inaccurate, update it in the same change.
 
 ## Hard guardrails

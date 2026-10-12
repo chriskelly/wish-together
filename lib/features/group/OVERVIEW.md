@@ -1,0 +1,63 @@
+# Group — Overview
+
+Groups are how users share wishlists with family and friends. A group is a named set of
+members identified by Firebase Auth uid; wishlists are shared *into* a group.
+
+## Responsibility
+
+- Create, rename, join, and leave groups.
+- Group membership.
+- Invitation links.
+- Sharing and un-sharing wishlists into a group.
+
+## Layout
+
+| Layer | Files |
+| ----- | ----- |
+| `domain/` | `group.dart` |
+| `data/` | `group_repository.dart` |
+| `application/` | `create_group_use_case.dart`, `join_group_use_case.dart`, `leave_group_use_case.dart`, `update_group_use_case.dart`, `share_wishlist_with_group_use_case.dart` |
+| `presentation/` | `group_form_page.dart`, `group_details_page.dart`, `join_group_page.dart` |
+
+## Key types
+
+- `Group` — `id`, `name`, `ownerId`, `members: List<String>` (uids); collection `groups`.
+- `GroupRepository extends FirebaseRepository<Group>` — `joinGroup(groupId, userId)`
+  (`FieldValue.arrayUnion`) and `leaveGroup(groupId, userId)` (`FieldValue.arrayRemove`).
+- Use cases: `CreateGroupUseCase` (owner is also the first member),
+  `JoinGroupUseCase`, `LeaveGroupUseCase`, `UpdateGroupUseCase` (rename),
+  `ShareWishlistWithGroupUseCase`.
+- `GroupDetailsPage.getInvitationLink(groupId)` builds an invite URL.
+- `JoinGroupPage` handles the invite deep link.
+
+## Invariants
+
+- Membership is a `members` array of uids, mutated with atomic array operations — there is
+  no membership sub-collection.
+- A group's owner is always a member; the creator is added as a member at creation.
+- Only the owner sees the edit and copy-invite actions; non-owners see the Leave action.
+- Sharing a wishlist writes the **group id into the wishlist's** `sharedWithGroups` array,
+  not the group document. It is idempotent: an already-shared group is skipped.
+- The group's "Shared Wishlists" list is the set of wishlists whose `sharedWithGroups`
+  `arrayContains` the group id; a wishlist is removed by its owner.
+- The invite format is `<origin>/#/join?group=<groupId>` (web hash router). The router
+  preserves the invite URL as `redirect_to` through login, verification, and profile, so an
+  invited, not-yet-onboarded user still lands on the join page.
+
+## Data flow
+
+`HomePage` streams the user's groups with `streamWhere('members', arrayContains: uid)`.
+`GroupDetailsPage` streams the group, streams member `User` documents via
+`UserRepository.streamUsersFromIds(group.members)`, and streams shared wishlists via
+`streamWhere('sharedWithGroups', arrayContains: groupId)`. Joining uses the current uid
+from `AuthService`; no uid is passed in from the UI.
+
+## How it is tested
+
+- `test/features/group/application/` — all five use cases with `mocktail` mocks registered
+  in `getIt` (owner-as-member, unauthenticated throw, exception propagation, and the
+  idempotent share case).
+- `test/features/group/data/group_repository_test.dart` — join/leave array operations
+  against `FakeFirebaseFirestore`.
+- `test/core/router_test.dart` covers the invite-link redirect matrix.
+- The group pages themselves have no widget tests.

@@ -46,3 +46,7 @@ app.*.map.json
 
 # firebase
 .firebase/
+
+# Local working docs (never committed)
+docs/specs/
+docs/plans/

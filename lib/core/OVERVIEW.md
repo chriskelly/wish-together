@@ -1,0 +1,60 @@
+# Core — Overview
+
+Shared infrastructure and the composition roots that wire the app together. Nothing here
+is a feature; features import from `core/`.
+
+## Responsibility
+
+- Base data access (`FirebaseRepository<T>`).
+- Navigation and the auth/onboarding redirect contract (`router.dart`).
+- Dependency wiring (`service_locator.dart`).
+- App theming (`theme.dart`).
+
+## Key types
+
+| Type | File | What it is |
+| ---- | ---- | ---------- |
+| `FirebaseRepository<T>` | `data/firebase_repository.dart` | Abstract base for feature repositories. |
+| `createRouter(AuthService)` / `handleRedirect(...)` | `router.dart` | The `go_router` graph and the redirect contract. |
+| `setupServiceLocator()` / `getIt` | `service_locator.dart` | Registers repositories and use cases as lazy singletons. |
+| `lightTheme`, `darkTheme`, `appTextTheme` | `theme.dart` | Material 3 theme from a blue seed color (`google_fonts`). |
+
+### `FirebaseRepository<T>`
+
+Holds a `FirebaseFirestore instance` (injectable via the `firestore:` constructor argument
+for tests, otherwise `FirebaseFirestore.instance`) and a `collectionPath`. Provides generic
+`streamAll`, `streamWhere(...)`, `streamOne`, `get`, `add`, `update`, `updateData`, and
+`delete`. Subclasses implement `fromFirestore(DocumentSnapshot)` and `toFirestore(T)`.
+
+### `router.dart`
+
+`createRouter` builds a `GoRouter` whose `refreshListenable` re-evaluates on auth changes
+and whose `redirect` delegates to the pure function `handleRedirect(uriString, AuthService,
+{UserRepository?})`. Keeping the logic in `handleRedirect` is what makes it unit-testable.
+
+## Invariants
+
+- `FirebaseRepository.instance` is `late final`, assigned once in the constructor.
+- A logged-out user is redirected to `/login`, preserving the original destination in the
+  `redirect_to` query parameter. `/login` and `/verify` never redirect while logged out.
+- A logged-in user with no `displayName` is redirected to `/profile` (also preserving
+  `redirect_to`), so onboarding completes before any other page renders.
+- A logged-in user on `/login` is sent to `redirect_to` or `/`.
+- Every redirect for a logged-in user calls `UserRepository.getOrCreateUser`, so the
+  `users/{uid}` document is created lazily on first navigation.
+- Web hash URLs are normalized: the route may arrive in the URI fragment, not the path.
+
+## Data flow
+
+`lib/main.dart` initializes Firebase, runs `setupServiceLocator()`, then
+`createRouter(getIt<AuthService>())` and mounts it via `MaterialApp.router`. Pages read
+dependencies from `getIt` and repositories from the locator; nothing constructs a
+repository inline.
+
+## How it is tested
+
+- `test/core/data/firebase_repository_test.dart` exercises the generic CRUD and stream
+  methods against `FakeFirebaseFirestore` using a throwaway `TestModelRepository`.
+- `test/core/router_test.dart` drives `handleRedirect` across the logged-out /
+  logged-in-without-name / logged-in-with-name matrix, including join-link redirects, with
+  a mocked `AuthService` and `UserRepository`.

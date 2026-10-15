@@ -11,7 +11,7 @@ per-area `OVERVIEW.md` next to the code you are touching.
 
 | Layer | Tech |
 | ----- | ---- |
-| Runtime | Flutter 3.41 / Dart 3.11 (stable), Material 3 |
+| Runtime | Flutter 3 / Dart 3 (stable), Material 3 |
 | Auth | Firebase Auth — phone OTP; Google Sign-In on web; App Check |
 | Data | Cloud Firestore (project `wish-together-project`, db `(default)`) |
 | Navigation | `go_router` |
@@ -84,10 +84,11 @@ files you touch.
 `flutter test --coverage`, `flutter build web` — then deploys a Firebase Hosting **preview
 channel** (`pr-<number>`, commented on the PR and deleted when it closes). Pushes to
 `master` run the same checks and **deploy live** to `https://wishtogether.gift`. It
-authenticates with the `FIREBASE_SERVICE_ACCOUNT` repository secret (the service-account
-JSON, D12) via `google-github-actions/auth`, and pins Flutter to the version in
-`.github/workflows/ci-web.yml`. Coverage is uploaded as the `coverage-lcov` artifact and is
-**report-only** (no threshold, D14).
+authenticates with the `FIREBASE_SERVICE_ACCOUNT` repository secret (a service-account JSON)
+via `google-github-actions/auth`, and pins the Flutter and firebase-tools versions in the
+workflow `env`. Coverage is uploaded as the `coverage-lcov` artifact and is **report-only**
+(no threshold). Preview deploys are skipped for pull requests from forks, which do not
+receive secrets.
 
 ## Testing policy
 

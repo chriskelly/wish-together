@@ -9,10 +9,8 @@ on:
   push:
     branches: [master]
 
-# Required by the checkout step, and by the PR comment step.
 permissions:
   contents: read
-  pull-requests: write
 
 # Collapse superseded PR runs; never cancel a live deploy on master.
 concurrency:
@@ -22,7 +20,11 @@ concurrency:
 env:
   # Pinned to the toolchain this repo targets (see AGENTS.md / pubspec.yaml).
   FLUTTER_VERSION: "3.47.7"
-  FIREBASE_TOOLS_VERSION: "15"
+  FIREBASE_TOOLS_VERSION: "15.34.0"
+  # Preview channels expire after this long; the PR comment quotes the same value.
+  PREVIEW_EXPIRES: "7d"
+  # Evaluates to `pr-<number>` on pull requests; unused on push.
+  CHANNEL_ID: pr-${{ github.event.pull_request.number }}
 
 jobs:
   web:
@@ -30,6 +32,9 @@ jobs:
     # Everything except the PR-close event, which is handled by the cleanup job.
     if: github.event_name != 'pull_request' || github.event.action != 'closed'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -54,7 +59,7 @@ jobs:
         run: flutter test --coverage
 
       - name: Upload coverage report
-        # Report-only (D14): no threshold, never fails the build.
+        # Report-only: no threshold, never fails the build.
         if: always()
         uses: actions/upload-artifact@v7
         with:
@@ -65,59 +70,72 @@ jobs:
       - name: Build web
         run: flutter build web --release
 
+      # Fork PRs do not receive repository secrets, so they only get the checks above.
       - name: Authenticate to Firebase
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
         uses: google-github-actions/auth@v3
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
       - name: Deploy preview channel
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         id: preview
-        env:
-          CHANNEL_ID: pr-${{ github.event.pull_request.number }}
         run: |
-          npx --yes firebase-tools@${{ env.FIREBASE_TOOLS_VERSION }} \
-            hosting:channel:deploy "$CHANNEL_ID" --expires 7d --json \
+          npx --yes firebase-tools@"$FIREBASE_TOOLS_VERSION" \
+            hosting:channel:deploy "$CHANNEL_ID" --expires "$PREVIEW_EXPIRES" --json \
             > "$RUNNER_TEMP/firebase-preview.json"
-          url=$(jq -r '.result | to_entries[0].value.url' "$RUNNER_TEMP/firebase-preview.json")
+          url=$(jq -r '[.result[]?.url] | map(select(. != null and . != "")) | .[0] // ""' \
+            "$RUNNER_TEMP/firebase-preview.json")
+          if [ -z "$url" ]; then
+            echo "::error::No preview URL in the firebase-tools output."
+            cat "$RUNNER_TEMP/firebase-preview.json"
+            exit 1
+          fi
           echo "url=$url" >> "$GITHUB_OUTPUT"
-          echo "channel=$CHANNEL_ID" >> "$GITHUB_OUTPUT"
 
       - name: Comment the preview URL on the PR
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/github-script@v9
         env:
           PREVIEW_URL: ${{ steps.preview.outputs.url }}
-          CHANNEL_ID: ${{ steps.preview.outputs.channel }}
+          CHANNEL: ${{ env.CHANNEL_ID }}
+          EXPIRES: ${{ env.PREVIEW_EXPIRES }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           script: |
             const marker = '<!-- ci-web-preview -->';
-            const url = process.env.PREVIEW_URL;
-            const channel = process.env.CHANNEL_ID;
-            const runUrl = process.env.RUN_URL;
             const body = [
               marker,
-              `🔥 **Firebase preview** for \`${channel}\` (auto-expires in 7 days).`,
+              `🔥 **Firebase preview** for \`${process.env.CHANNEL}\` (auto-expires in ${process.env.EXPIRES}).`,
               '',
-              `- Preview: ${url}`,
-              `- Build log: ${runUrl}`,
+              `- Preview: ${process.env.PREVIEW_URL}`,
+              `- Build log: ${process.env.RUN_URL}`,
             ].join('\n');
 
-            const { owner, repo } = context.repo;
-            const issue_number = context.issue.number;
-            const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number });
-            const existing = comments.find((c) => c.body && c.body.includes(marker));
+            try {
+              const { owner, repo } = context.repo;
+              const issue_number = context.issue.number;
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner,
+                repo,
+                issue_number,
+                per_page: 100,
+              });
+              const existing = comments.find((c) => c.body && c.body.includes(marker));
 
-            if (existing) {
-              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
-            } else {
-              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+              if (existing) {
+                await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+              } else {
+                await github.rest.issues.createComment({ owner, repo, issue_number, body });
+              }
+            } catch (err) {
+              // The comment is informational; never fail the build over it.
+              core.warning(`Could not post the preview comment: ${err.message}`);
             }
 
       - name: Deploy live
         if: github.event_name == 'push'
-        run: npx --yes firebase-tools@${{ env.FIREBASE_TOOLS_VERSION }} deploy --only hosting
+        run: npx --yes firebase-tools@"$FIREBASE_TOOLS_VERSION" deploy --only hosting
 
   cleanup-preview:
     name: Delete preview channel
@@ -125,17 +143,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        # Needed so the Firebase CLI can resolve the project from .firebaserc.
+        # Firebase resolves the project from .firebaserc, keeping one source of truth.
         uses: actions/checkout@v7
 
       - name: Authenticate to Firebase
+        if: github.event.pull_request.head.repo.full_name == github.repository
         uses: google-github-actions/auth@v3
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
       - name: Delete the preview channel
-        env:
-          CHANNEL_ID: pr-${{ github.event.pull_request.number }}
+        if: github.event.pull_request.head.repo.full_name == github.repository
         run: |
-          npx --yes firebase-tools@${{ env.FIREBASE_TOOLS_VERSION }} \
-            hosting:channel:delete "$CHANNEL_ID" --force
+          # Best-effort: the channel may never have been created, or already expired.
+          if ! npx --yes firebase-tools@"$FIREBASE_TOOLS_VERSION" \
+              hosting:channel:delete "$CHANNEL_ID" --force; then
+            echo "::warning::No preview channel $CHANNEL_ID to delete."
+          fi

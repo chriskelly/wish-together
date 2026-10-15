@@ -74,9 +74,20 @@ Run every command from the repository root.
 After substantive changes, run `dart format .`, `flutter analyze`, and `flutter test`.
 `flutter analyze` must be clean and `flutter test` green before you claim work complete.
 
-Formatting note: `dart format .` is the formatter, but a repo-wide format is **not yet
-enforced in CI** and the tree is not fully formatted today. Format the files you touch;
-do not reformat unrelated product code in the same change.
+Formatting: `dart format .` is the formatter and is **enforced in CI** as
+`dart format --output=none --set-exit-if-changed .`; the tree is formatted. Format the
+files you touch.
+
+## CI
+
+`.github/workflows/ci-web.yml` runs on every PR — format gate, `flutter analyze`,
+`flutter test --coverage`, `flutter build web` — then deploys a Firebase Hosting **preview
+channel** (`pr-<number>`, commented on the PR and deleted when it closes). Pushes to
+`master` run the same checks and **deploy live** to `https://wishtogether.gift`. It
+authenticates with the `FIREBASE_SERVICE_ACCOUNT` repository secret (the service-account
+JSON, D12) via `google-github-actions/auth`, and pins Flutter to the version in
+`.github/workflows/ci-web.yml`. Coverage is uploaded as the `coverage-lcov` artifact and is
+**report-only** (no threshold, D14).
 
 ## Testing policy
 

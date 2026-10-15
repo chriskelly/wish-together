@@ -1,0 +1,141 @@
+name: Web CI
+
+# PR  -> analyze, test, build, deploy a Firebase Hosting preview channel and comment it on the PR.
+# push to master -> the same checks, then deploy live to https://wishtogether.gift.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+  push:
+    branches: [master]
+
+# Required by the checkout step, and by the PR comment step.
+permissions:
+  contents: read
+  pull-requests: write
+
+# Collapse superseded PR runs; never cancel a live deploy on master.
+concurrency:
+  group: web-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Pinned to the toolchain this repo targets (see AGENTS.md / pubspec.yaml).
+  FLUTTER_VERSION: "3.47.7"
+  FIREBASE_TOOLS_VERSION: "15"
+
+jobs:
+  web:
+    name: Analyze, test, build & deploy
+    # Everything except the PR-close event, which is handled by the cleanup job.
+    if: github.event_name != 'pull_request' || github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Check formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test --coverage
+
+      - name: Upload coverage report
+        # Report-only (D14): no threshold, never fails the build.
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-lcov
+          path: coverage/lcov.info
+          if-no-files-found: warn
+
+      - name: Build web
+        run: flutter build web --release
+
+      - name: Authenticate to Firebase
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Deploy preview channel
+        if: github.event_name == 'pull_request'
+        id: preview
+        env:
+          CHANNEL_ID: pr-${{ github.event.pull_request.number }}
+        run: |
+          npx --yes firebase-tools@${{ env.FIREBASE_TOOLS_VERSION }} \
+            hosting:channel:deploy "$CHANNEL_ID" --expires 7d --json \
+            > "$RUNNER_TEMP/firebase-preview.json"
+          url=$(jq -r '.result | to_entries[0].value.url' "$RUNNER_TEMP/firebase-preview.json")
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "channel=$CHANNEL_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Comment the preview URL on the PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v9
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+          CHANNEL_ID: ${{ steps.preview.outputs.channel }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            const marker = '<!-- ci-web-preview -->';
+            const url = process.env.PREVIEW_URL;
+            const channel = process.env.CHANNEL_ID;
+            const runUrl = process.env.RUN_URL;
+            const body = [
+              marker,
+              `🔥 **Firebase preview** for \`${channel}\` (auto-expires in 7 days).`,
+              '',
+              `- Preview: ${url}`,
+              `- Build log: ${runUrl}`,
+            ].join('\n');
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+      - name: Deploy live
+        if: github.event_name == 'push'
+        run: npx --yes firebase-tools@${{ env.FIREBASE_TOOLS_VERSION }} deploy --only hosting
+
+  cleanup-preview:
+    name: Delete preview channel
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        # Needed so the Firebase CLI can resolve the project from .firebaserc.
+        uses: actions/checkout@v7
+
+      - name: Authenticate to Firebase
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Delete the preview channel
+        env:
+          CHANNEL_ID: pr-${{ github.event.pull_request.number }}
+        run: |
+          npx --yes firebase-tools@${{ env.FIREBASE_TOOLS_VERSION }} \
+            hosting:channel:delete "$CHANNEL_ID" --force

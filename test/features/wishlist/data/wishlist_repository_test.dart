@@ -10,20 +10,24 @@ void main() {
     late WishlistRepository wishlistRepository;
 
     const String testWishlistId = 'test_wishlist';
-    final String itemsCollectionPath = '${Wishlist.collectionName}/$testWishlistId/${Item.collectionName}';
+    final String itemsCollectionPath =
+        '${Wishlist.collectionName}/$testWishlistId/${Item.collectionName}';
 
     setUp(() {
       fakeFirestore = FakeFirebaseFirestore();
       wishlistRepository = WishlistRepository(firestore: fakeFirestore);
     });
 
-    test('items method should return a correctly configured ItemRepository', () {
-      // ACT: Get the ItemRepository for a specific wishlist.
-      final itemRepository = wishlistRepository.items(testWishlistId);
+    test(
+      'items method should return a correctly configured ItemRepository',
+      () {
+        // ACT: Get the ItemRepository for a specific wishlist.
+        final itemRepository = wishlistRepository.items(testWishlistId);
 
-      // ASSERT: Verify that the repository is pointing to the correct collection path.
-      expect(itemRepository.collectionPath, equals(itemsCollectionPath));
-    });
+        // ASSERT: Verify that the repository is pointing to the correct collection path.
+        expect(itemRepository.collectionPath, equals(itemsCollectionPath));
+      },
+    );
 
     test(
       'addItemToWishlist should add an item to the correct sub-collection',
@@ -76,25 +80,25 @@ void main() {
       },
     );
 
-    test('updateItemInWishlist should throw an error if the item has no ID', () {
-      // ARRANGE: Create an item without an ID.
-      final itemWithoutId = Item(name: 'Item without ID');
-
-      // ACT & ASSERT: Expect an ArgumentError to be thrown.
-      expect(
-        () => wishlistRepository.updateItemInWishlist(
-          testWishlistId,
-          itemWithoutId,
-        ),
-        throwsArgumentError,
-        reason:
-            'An ArgumentError should be thrown when updating an item without an ID.',
-      );
-    });
-
     test(
-        'removeWishlistFromGroup should remove the group ID from the sharedWithGroups list',
-        () async {
+      'updateItemInWishlist should throw an error if the item has no ID',
+      () {
+        // ARRANGE: Create an item without an ID.
+        final itemWithoutId = Item(name: 'Item without ID');
+
+        // ACT & ASSERT: Expect an ArgumentError to be thrown.
+        expect(
+          () => wishlistRepository.updateItemInWishlist(
+            testWishlistId,
+            itemWithoutId,
+          ),
+          throwsArgumentError,
+          reason: 'An ArgumentError should be thrown when updating an item without an ID.',
+        );
+      },
+    );
+
+    test('removeWishlistFromGroup should remove the group ID from the sharedWithGroups list', () async {
       // ARRANGE: Create a wishlist that is shared with two groups.
       const wishlistId = 'wishlist-to-remove-from';
       const groupIdToRemove = 'group-to-remove';
@@ -114,15 +118,21 @@ void main() {
 
       // ACT: Call the method to remove the wishlist from the specified group.
       await wishlistRepository.removeWishlistFromGroup(
-          wishlistId, groupIdToRemove);
+        wishlistId,
+        groupIdToRemove,
+      );
 
       // ASSERT: Verify that the group ID has been removed from the document.
-      final doc =
-          await fakeFirestore.collection(Wishlist.collectionName).doc(wishlistId).get();
+      final doc = await fakeFirestore
+          .collection(Wishlist.collectionName)
+          .doc(wishlistId)
+          .get();
       final updatedWishlist = wishlistRepository.fromFirestore(doc);
 
       expect(
-          updatedWishlist.sharedWithGroups, isNot(contains(groupIdToRemove)));
+        updatedWishlist.sharedWithGroups,
+        isNot(contains(groupIdToRemove)),
+      );
       expect(updatedWishlist.sharedWithGroups, contains(otherGroupId));
       expect(updatedWishlist.sharedWithGroups.length, 1);
     });

@@ -51,12 +51,10 @@ void main() {
       final existingUser = User(id: userId, displayName: 'Old Name');
 
       when(() => mockAuthService.currentUserId).thenReturn(userId);
-      when(
-        () => mockUserRepository.get(userId),
-      ).thenAnswer((_) async => existingUser);
-      when(
-        () => mockUserRepository.updateData(any(), any()),
-      ).thenAnswer((_) async => {});
+      when(() => mockUserRepository.get(userId))
+          .thenAnswer((_) async => existingUser);
+      when(() => mockUserRepository.updateData(any(), any()))
+          .thenAnswer((_) async => {});
 
       // Act
       await saveUserProfileUseCase.execute(displayName);
@@ -76,23 +74,19 @@ void main() {
       final mockDocRef = MockDocumentReference();
 
       when(() => mockAuthService.currentUserId).thenReturn(userId);
-      when(
-        () => mockUserRepository.get(userId),
-      ).thenAnswer((_) async => existingUser);
-      when(
-        () => mockUserRepository.updateData(any(), any()),
-      ).thenAnswer((_) async => {});
-      when(
-        () => mockWishlistRepository.add(any()),
-      ).thenAnswer((_) async => mockDocRef);
+      when(() => mockUserRepository.get(userId))
+          .thenAnswer((_) async => existingUser);
+      when(() => mockUserRepository.updateData(any(), any()))
+          .thenAnswer((_) async => {});
+      when(() => mockWishlistRepository.add(any()))
+          .thenAnswer((_) async => mockDocRef);
 
       // Act
       await saveUserProfileUseCase.execute(displayName);
 
       // Assert
-      final captured = verify(
-        () => mockWishlistRepository.add(captureAny()),
-      ).captured;
+      final captured = verify(() => mockWishlistRepository.add(captureAny()))
+          .captured;
       expect(captured.length, 1);
       final wishlist = captured[0] as Wishlist;
       expect(wishlist.name, "$displayName's Wishlist");
@@ -106,12 +100,10 @@ void main() {
       final existingUser = User(id: userId, displayName: 'Old Name');
 
       when(() => mockAuthService.currentUserId).thenReturn(userId);
-      when(
-        () => mockUserRepository.get(userId),
-      ).thenAnswer((_) async => existingUser);
-      when(
-        () => mockUserRepository.updateData(any(), any()),
-      ).thenAnswer((_) async => {});
+      when(() => mockUserRepository.get(userId))
+          .thenAnswer((_) async => existingUser);
+      when(() => mockUserRepository.updateData(any(), any()))
+          .thenAnswer((_) async => {});
 
       // Act
       await saveUserProfileUseCase.execute(displayName);
@@ -141,12 +133,10 @@ void main() {
       const userId = 'user123';
       final exception = Exception('Failed to update user');
       when(() => mockAuthService.currentUserId).thenReturn(userId);
-      when(
-        () => mockUserRepository.get(userId),
-      ).thenAnswer((_) async => User(id: userId));
-      when(
-        () => mockUserRepository.updateData(any(), any()),
-      ).thenThrow(exception);
+      when(() => mockUserRepository.get(userId))
+          .thenAnswer((_) async => User(id: userId));
+      when(() => mockUserRepository.updateData(any(), any()))
+          .thenThrow(exception);
 
       // Act & Assert
       expect(() => saveUserProfileUseCase.execute('John Doe'), throwsException);

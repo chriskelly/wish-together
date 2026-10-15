@@ -46,12 +46,10 @@ void main() {
         url: 'https://old.com',
       );
 
-      when(
-        () => mockWishlistRepository.items(wishlistId),
-      ).thenReturn(mockItemRepository);
-      when(
-        () => mockItemRepository.update(any(), any()),
-      ).thenAnswer((_) async => {});
+      when(() => mockWishlistRepository.items(wishlistId))
+          .thenReturn(mockItemRepository);
+      when(() => mockItemRepository.update(any(), any()))
+          .thenAnswer((_) async => {});
 
       // Act
       await updateItemUseCase.execute(
@@ -84,9 +82,8 @@ void main() {
       const wishlistId = 'wishlist123';
       final item = Item(id: 'item123', name: 'Old Name');
       final exception = Exception('Failed to update item');
-      when(
-        () => mockWishlistRepository.items(wishlistId),
-      ).thenReturn(mockItemRepository);
+      when(() => mockWishlistRepository.items(wishlistId))
+          .thenReturn(mockItemRepository);
       when(() => mockItemRepository.update(any(), any())).thenThrow(exception);
 
       // Act & Assert

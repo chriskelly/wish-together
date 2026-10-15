@@ -45,12 +45,16 @@ void main() {
       await updateGroupUseCase.execute(existingGroup, newName);
 
       // Assert
-      verify(() => mockGroupRepository.update(
-        groupId,
-        any(that: predicate<Group>(
-          (group) => group.name == newName && group.id == groupId,
-        )),
-      )).called(1);
+      verify(
+        () => mockGroupRepository.update(
+          groupId,
+          any(
+            that: predicate<Group>(
+              (group) => group.name == newName && group.id == groupId,
+            ),
+          ),
+        ),
+      ).called(1);
     });
 
     test('should propagate exceptions from GroupRepository', () async {
@@ -72,4 +76,3 @@ void main() {
     });
   });
 }
-

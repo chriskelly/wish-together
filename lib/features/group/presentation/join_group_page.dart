@@ -108,9 +108,8 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
 
   Widget _groupNameText(Group group) => Text(
     group.name,
-    style: Theme.of(
-      context,
-    ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+    style: Theme.of(context).textTheme.headlineSmall
+        ?.copyWith(fontWeight: FontWeight.bold),
   );
 
   Widget _actionButtons() => _isJoining
@@ -170,7 +169,7 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
     );
   }
 
-  void _showErrorSnackbar(Object e) => ScaffoldMessenger.of(
-    context,
-  ).showSnackBar(SnackBar(content: Text('Error joining group: $e')));
+  void _showErrorSnackbar(Object e) =>
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Error joining group: $e')));
 }

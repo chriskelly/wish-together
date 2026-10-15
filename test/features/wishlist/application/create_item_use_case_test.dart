@@ -44,12 +44,10 @@ void main() {
       const itemUrl = 'https://example.com';
       final mockDocRef = MockDocumentReference();
 
-      when(
-        () => mockWishlistRepository.items(wishlistId),
-      ).thenReturn(mockItemRepository);
-      when(
-        () => mockItemRepository.add(any()),
-      ).thenAnswer((_) async => mockDocRef);
+      when(() => mockWishlistRepository.items(wishlistId))
+          .thenReturn(mockItemRepository);
+      when(() => mockItemRepository.add(any()))
+          .thenAnswer((_) async => mockDocRef);
 
       // Act
       await createItemUseCase.execute(
@@ -60,9 +58,8 @@ void main() {
       );
 
       // Assert
-      final captured = verify(
-        () => mockItemRepository.add(captureAny()),
-      ).captured;
+      final captured = verify(() => mockItemRepository.add(captureAny()))
+          .captured;
       expect(captured.length, 1);
       final item = captured[0] as Item;
       expect(item.name, itemName);
@@ -76,20 +73,17 @@ void main() {
       const itemName = 'New Item';
       final mockDocRef = MockDocumentReference();
 
-      when(
-        () => mockWishlistRepository.items(wishlistId),
-      ).thenReturn(mockItemRepository);
-      when(
-        () => mockItemRepository.add(any()),
-      ).thenAnswer((_) async => mockDocRef);
+      when(() => mockWishlistRepository.items(wishlistId))
+          .thenReturn(mockItemRepository);
+      when(() => mockItemRepository.add(any()))
+          .thenAnswer((_) async => mockDocRef);
 
       // Act
       await createItemUseCase.execute(wishlistId, itemName);
 
       // Assert
-      final captured = verify(
-        () => mockItemRepository.add(captureAny()),
-      ).captured;
+      final captured = verify(() => mockItemRepository.add(captureAny()))
+          .captured;
       expect(captured.length, 1);
       final item = captured[0] as Item;
       expect(item.name, itemName);
@@ -101,9 +95,8 @@ void main() {
       // Arrange
       const wishlistId = 'wishlist123';
       final exception = Exception('Failed to create item');
-      when(
-        () => mockWishlistRepository.items(wishlistId),
-      ).thenReturn(mockItemRepository);
+      when(() => mockWishlistRepository.items(wishlistId))
+          .thenReturn(mockItemRepository);
       when(() => mockItemRepository.add(any())).thenThrow(exception);
 
       // Act & Assert

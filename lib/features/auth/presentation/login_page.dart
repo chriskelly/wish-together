@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:go_router/go_router.dart';
+
 import 'dart:developer' as developer;
+
 import 'package:url_launcher/url_launcher.dart';
 import 'package:wishtogether/core/router.dart';
 import 'package:wishtogether/core/service_locator.dart';
@@ -144,9 +146,9 @@ class _LoginPageState extends State<LoginPage>
       // Automatically prepend the US country code
       final phoneNumber = '+1${_phoneController.text}';
 
-      final redirectTo = GoRouterState.of(
-        context,
-      ).uri.queryParameters[redirectToParam];
+      final redirectTo = GoRouterState.of(context)
+          .uri
+          .queryParameters[redirectToParam];
       await _authService.verifyPhoneNumber(
         phoneNumber: phoneNumber,
         verificationCompleted: (credential) async {
@@ -168,9 +170,9 @@ class _LoginPageState extends State<LoginPage>
         },
         codeSent: (verificationId, forceResendingToken) {
           if (mounted) {
-            final redirectTo = GoRouterState.of(
-              context,
-            ).uri.queryParameters[redirectToParam];
+            final redirectTo = GoRouterState.of(context)
+                .uri
+                .queryParameters[redirectToParam];
             final verifyUri = redirectTo != null
                 ? '${VerificationPage.route}?$redirectToParam=${Uri.encodeComponent(redirectTo)}'
                 : VerificationPage.route;
@@ -206,24 +208,21 @@ class _LoginPageState extends State<LoginPage>
         context,
         icon: Icons.list_alt,
         title: 'Create Wishlists',
-        description:
-            'Create and manage your personal wishlists. Add items you\'d love to receive, and keep them organized.',
+        description: 'Create and manage your personal wishlists. Add items you\'d love to receive, and keep them organized.',
       ),
       const SizedBox(height: 20),
       _buildFeatureCard(
         context,
         icon: Icons.group,
         title: 'Share with Groups',
-        description:
-            'Create groups with family and friends. Keep wishlists synced between multiple groups. Great for in-laws!',
+        description: 'Create groups with family and friends. Keep wishlists synced between multiple groups. Great for in-laws!',
       ),
       const SizedBox(height: 20),
       _buildFeatureCard(
         context,
         icon: Icons.card_giftcard,
         title: 'Spoiler-Free Gifting',
-        description:
-            'By default, no need to worry about spoilers! The owner can enable spoiler mode when they\'re ready to see what\'s been claimed.',
+        description: 'By default, no need to worry about spoilers! The owner can enable spoiler mode when they\'re ready to see what\'s been claimed.',
       ),
       const SizedBox(height: 40),
     ];

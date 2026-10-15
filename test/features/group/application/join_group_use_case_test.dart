@@ -34,9 +34,8 @@ void main() {
       const userId = 'user123';
 
       when(() => mockAuthService.currentUserId).thenReturn(userId);
-      when(
-        () => mockGroupRepository.joinGroup(any(), any()),
-      ).thenAnswer((_) async => {});
+      when(() => mockGroupRepository.joinGroup(any(), any()))
+          .thenAnswer((_) async => {});
 
       // Act
       await joinGroupUseCase.execute(groupId);
@@ -63,9 +62,8 @@ void main() {
       const userId = 'user123';
       final exception = Exception('Failed to join group');
       when(() => mockAuthService.currentUserId).thenReturn(userId);
-      when(
-        () => mockGroupRepository.joinGroup(any(), any()),
-      ).thenThrow(exception);
+      when(() => mockGroupRepository.joinGroup(any(), any()))
+          .thenThrow(exception);
 
       // Act & Assert
       expect(() => joinGroupUseCase.execute(groupId), throwsException);

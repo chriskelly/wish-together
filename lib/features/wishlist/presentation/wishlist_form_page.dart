@@ -131,7 +131,7 @@ class _WishlistFormPageState extends State<WishlistFormPage> {
     context.pop();
   }
 
-  void _showErrorSnackbar(String message) => ScaffoldMessenger.of(
-    context,
-  ).showSnackBar(SnackBar(content: Text(message)));
+  void _showErrorSnackbar(String message) =>
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
 }

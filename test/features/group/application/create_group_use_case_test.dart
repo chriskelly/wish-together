@@ -44,17 +44,15 @@ void main() {
       final mockDocRef = MockDocumentReference();
 
       when(() => mockAuthService.currentUserId).thenReturn(userId);
-      when(
-        () => mockGroupRepository.add(any()),
-      ).thenAnswer((_) async => mockDocRef);
+      when(() => mockGroupRepository.add(any()))
+          .thenAnswer((_) async => mockDocRef);
 
       // Act
       await createGroupUseCase.execute(groupName);
 
       // Assert
-      final captured = verify(
-        () => mockGroupRepository.add(captureAny()),
-      ).captured;
+      final captured = verify(() => mockGroupRepository.add(captureAny()))
+          .captured;
       expect(captured.length, 1);
       final group = captured[0] as Group;
       expect(group.name, groupName);

@@ -189,7 +189,7 @@ class _ItemFormPageState extends State<ItemFormPage> {
     context.pop();
   }
 
-  void _showErrorSnackbar(Object e) => ScaffoldMessenger.of(
-    context,
-  ).showSnackBar(SnackBar(content: Text('Failed to save item: $e')));
+  void _showErrorSnackbar(Object e) =>
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Failed to save item: $e')));
 }

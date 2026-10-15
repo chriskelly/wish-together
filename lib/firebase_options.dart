@@ -60,5 +60,4 @@ class DefaultFirebaseOptions {
     authDomain: 'wish-together-project.firebaseapp.com',
     storageBucket: 'wish-together-project.firebasestorage.app',
   );
-
 }

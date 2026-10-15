@@ -37,9 +37,8 @@ void main() {
         ownerId: 'owner123',
       );
 
-      when(
-        () => mockWishlistRepository.update(any(), any()),
-      ).thenAnswer((_) async => {});
+      when(() => mockWishlistRepository.update(any(), any()))
+          .thenAnswer((_) async => {});
 
       // Act
       await updateWishlistUseCase.execute(existingWishlist, newName);
@@ -66,9 +65,8 @@ void main() {
         ownerId: 'owner123',
       );
       final exception = Exception('Failed to update wishlist');
-      when(
-        () => mockWishlistRepository.update(any(), any()),
-      ).thenThrow(exception);
+      when(() => mockWishlistRepository.update(any(), any()))
+          .thenThrow(exception);
 
       // Act & Assert
       expect(

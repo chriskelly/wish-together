@@ -117,9 +117,9 @@ class _GroupFormPageState extends State<GroupFormPage> {
     context.pop();
   }
 
-  void _showErrorSnackbar(Object e) => ScaffoldMessenger.of(
-    context,
-  ).showSnackBar(SnackBar(content: Text('Error saving group: $e')));
+  void _showErrorSnackbar(Object e) =>
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Error saving group: $e')));
 
   Padding _loadingIndicator() => const Padding(
     padding: EdgeInsets.only(top: 16.0),

@@ -66,11 +66,7 @@ void main() {
           .thenThrow(exception);
 
       // Act & Assert
-      expect(
-        () => leaveGroupUseCase.execute(groupId),
-        throwsException,
-      );
+      expect(() => leaveGroupUseCase.execute(groupId), throwsException);
     });
   });
 }
-

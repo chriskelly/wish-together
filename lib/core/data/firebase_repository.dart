@@ -9,11 +9,16 @@ abstract class FirebaseRepository<T> {
   }
 
   Stream<List<T>> streamAll() {
-    return instance.collection(collectionPath).snapshots().map(
-        (snapshot) => snapshot.docs.map((doc) => fromFirestore(doc)).toList());
+    return instance
+        .collection(collectionPath)
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs.map((doc) => fromFirestore(doc)).toList(),
+        );
   }
 
-  Stream<List<T>> streamWhere(String field, {
+  Stream<List<T>> streamWhere(
+    String field, {
     Object? isEqualTo,
     Object? isNotEqualTo,
     Object? isLessThan,
@@ -28,21 +33,24 @@ abstract class FirebaseRepository<T> {
   }) {
     return instance
         .collection(collectionPath)
-        .where(field,
-            isEqualTo: isEqualTo,
-            isNotEqualTo: isNotEqualTo,
-            isLessThan: isLessThan,
-            isLessThanOrEqualTo: isLessThanOrEqualTo,
-            isGreaterThan: isGreaterThan,
-            isGreaterThanOrEqualTo: isGreaterThanOrEqualTo,
-            arrayContains: arrayContains,
-            arrayContainsAny: arrayContainsAny,
-            whereIn: whereIn,
-            whereNotIn: whereNotIn,
-            isNull: isNull)
+        .where(
+          field,
+          isEqualTo: isEqualTo,
+          isNotEqualTo: isNotEqualTo,
+          isLessThan: isLessThan,
+          isLessThanOrEqualTo: isLessThanOrEqualTo,
+          isGreaterThan: isGreaterThan,
+          isGreaterThanOrEqualTo: isGreaterThanOrEqualTo,
+          arrayContains: arrayContains,
+          arrayContainsAny: arrayContainsAny,
+          whereIn: whereIn,
+          whereNotIn: whereNotIn,
+          isNull: isNull,
+        )
         .snapshots()
-        .map((snapshot) =>
-            snapshot.docs.map((doc) => fromFirestore(doc)).toList());
+        .map(
+          (snapshot) => snapshot.docs.map((doc) => fromFirestore(doc)).toList(),
+        );
   }
 
   Stream<T> streamOne(String id) {
@@ -63,7 +71,10 @@ abstract class FirebaseRepository<T> {
   }
 
   Future<void> update(String id, T data) {
-    return instance.collection(collectionPath).doc(id).update(toFirestore(data));
+    return instance
+        .collection(collectionPath)
+        .doc(id)
+        .update(toFirestore(data));
   }
 
   Future<void> updateData(String id, Map<String, dynamic> data) {

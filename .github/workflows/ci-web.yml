@@ -1,0 +1,137 @@
+name: Web CI
+
+# PR  -> analyze, test, build, deploy a Firebase Hosting preview channel and comment it on the PR.
+# push to master -> the same checks, then deploy live to https://wishtogether.gift.
+# Preview-channel cleanup lives in .github/workflows/ci-web-cleanup.yml.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+# Collapse superseded PR runs; never cancel a live deploy on master.
+concurrency:
+  group: web-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Pinned to the toolchain this repo targets (see AGENTS.md / pubspec.yaml).
+  FLUTTER_VERSION: "3.47.7"
+  FIREBASE_TOOLS_VERSION: "15.34.0"
+  # Preview channels expire after this long; the PR comment quotes the same value.
+  PREVIEW_EXPIRES: "7d"
+  # Evaluates to `pr-<number>` on pull requests; unused on push.
+  CHANNEL_ID: pr-${{ github.event.pull_request.number }}
+
+jobs:
+  web:
+    name: Analyze, test, build & deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Check formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test --coverage
+
+      - name: Upload coverage report
+        # Report-only: no threshold, never fails the build.
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-lcov
+          path: coverage/lcov.info
+          if-no-files-found: warn
+
+      - name: Build web
+        run: flutter build web --release
+
+      # Fork PRs do not receive repository secrets, so they only get the checks above.
+      - name: Authenticate to Firebase
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Deploy preview channel
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        id: preview
+        run: |
+          npx --yes firebase-tools@"$FIREBASE_TOOLS_VERSION" \
+            hosting:channel:deploy "$CHANNEL_ID" --expires "$PREVIEW_EXPIRES" --json \
+            > "$RUNNER_TEMP/firebase-preview.json"
+          url=$(jq -r '[.result[]?.url] | map(select(. != null and . != "")) | .[0] // ""' \
+            "$RUNNER_TEMP/firebase-preview.json")
+          if [ -z "$url" ]; then
+            echo "::error::No preview URL in the firebase-tools output."
+            cat "$RUNNER_TEMP/firebase-preview.json"
+            exit 1
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Comment the preview URL on the PR
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/github-script@v9
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+          CHANNEL: ${{ env.CHANNEL_ID }}
+          EXPIRES: ${{ env.PREVIEW_EXPIRES }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            const marker = '<!-- ci-web-preview -->';
+            const body = [
+              marker,
+              `🔥 **Firebase preview** for \`${process.env.CHANNEL}\` (auto-expires in ${process.env.EXPIRES}).`,
+              '',
+              `- Preview: ${process.env.PREVIEW_URL}`,
+              `- Build log: ${process.env.RUN_URL}`,
+            ].join('\n');
+
+            try {
+              const { owner, repo } = context.repo;
+              const issue_number = context.issue.number;
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner,
+                repo,
+                issue_number,
+                per_page: 100,
+              });
+              const existing = comments.find((c) => c.body && c.body.includes(marker));
+
+              if (existing) {
+                await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+              } else {
+                await github.rest.issues.createComment({ owner, repo, issue_number, body });
+              }
+            } catch (err) {
+              // The comment is informational; never fail the build over it.
+              core.warning(`Could not post the preview comment: ${err.message}`);
+            }
+
+      - name: Deploy live
+        if: github.event_name == 'push'
+        run: npx --yes firebase-tools@"$FIREBASE_TOOLS_VERSION" deploy --only hosting

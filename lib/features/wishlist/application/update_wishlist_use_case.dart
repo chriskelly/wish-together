@@ -10,4 +10,3 @@ class UpdateWishlistUseCase {
     await wishlistRepository.update(wishlist.id!, updatedWishlist);
   }
 }
-

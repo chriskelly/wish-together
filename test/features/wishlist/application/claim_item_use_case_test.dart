@@ -46,12 +46,10 @@ void main() {
       final item = Item(id: itemId, name: 'Test Item');
 
       when(() => mockAuthService.currentUserId).thenReturn(userId);
-      when(
-        () => mockWishlistRepository.items(wishlistId),
-      ).thenReturn(mockItemRepository);
-      when(
-        () => mockItemRepository.update(any(), any()),
-      ).thenAnswer((_) async => {});
+      when(() => mockWishlistRepository.items(wishlistId))
+          .thenReturn(mockItemRepository);
+      when(() => mockItemRepository.update(any(), any()))
+          .thenAnswer((_) async => {});
 
       // Act
       await claimItemUseCase.execute(wishlistId, item);
@@ -89,9 +87,8 @@ void main() {
       final exception = Exception('Failed to claim item');
 
       when(() => mockAuthService.currentUserId).thenReturn(userId);
-      when(
-        () => mockWishlistRepository.items(wishlistId),
-      ).thenReturn(mockItemRepository);
+      when(() => mockWishlistRepository.items(wishlistId))
+          .thenReturn(mockItemRepository);
       when(() => mockItemRepository.update(any(), any())).thenThrow(exception);
 
       // Act & Assert

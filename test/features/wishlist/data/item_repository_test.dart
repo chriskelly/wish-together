@@ -79,8 +79,7 @@ void main() {
         expect(
           firestoreMap['claimedAt'],
           isNull,
-          reason:
-              'A null claimedAt in the model should result in a null value in the Firestore map.',
+          reason: 'A null claimedAt in the model should result in a null value in the Firestore map.',
         );
 
         // ARRANGE (fromFirestore): Add the map to the fake Firestore instance.
@@ -96,8 +95,7 @@ void main() {
         expect(
           retrievedItem.claimedAt,
           isNull,
-          reason:
-              'A null claimedAt in Firestore should result in a null value in the Item model.',
+          reason: 'A null claimedAt in Firestore should result in a null value in the Item model.',
         );
       },
     );

@@ -44,17 +44,15 @@ void main() {
       final mockDocRef = MockDocumentReference();
 
       when(() => mockAuthService.currentUserId).thenReturn(userId);
-      when(
-        () => mockWishlistRepository.add(any()),
-      ).thenAnswer((_) async => mockDocRef);
+      when(() => mockWishlistRepository.add(any()))
+          .thenAnswer((_) async => mockDocRef);
 
       // Act
       await createWishlistUseCase.execute(wishlistName);
 
       // Assert
-      final captured = verify(
-        () => mockWishlistRepository.add(captureAny()),
-      ).captured;
+      final captured = verify(() => mockWishlistRepository.add(captureAny()))
+          .captured;
       expect(captured.length, 1);
       final wishlist = captured[0] as Wishlist;
       expect(wishlist.name, wishlistName);

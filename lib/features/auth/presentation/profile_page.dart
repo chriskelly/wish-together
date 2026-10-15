@@ -4,6 +4,7 @@ import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/application/load_user_profile_use_case.dart';
 import 'package:wishtogether/features/auth/application/save_user_profile_use_case.dart';
 import 'package:wishtogether/features/auth/presentation/home_page.dart';
+
 import '../domain/user.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -140,9 +141,8 @@ class _ProfilePageState extends State<ProfilePage> {
 
   void _showErrorSnackBar(Object e) {
     if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error saving profile: $e')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Error saving profile: $e')));
     }
   }
 

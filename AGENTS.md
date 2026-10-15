@@ -11,7 +11,7 @@ per-area `OVERVIEW.md` next to the code you are touching.
 
 | Layer | Tech |
 | ----- | ---- |
-| Runtime | Flutter 3.41 / Dart 3.11 (stable), Material 3 |
+| Runtime | Flutter 3 / Dart 3 (stable), Material 3 |
 | Auth | Firebase Auth — phone OTP; Google Sign-In on web; App Check |
 | Data | Cloud Firestore (project `wish-together-project`, db `(default)`) |
 | Navigation | `go_router` |
@@ -74,9 +74,22 @@ Run every command from the repository root.
 After substantive changes, run `dart format .`, `flutter analyze`, and `flutter test`.
 `flutter analyze` must be clean and `flutter test` green before you claim work complete.
 
-Formatting note: `dart format .` is the formatter, but a repo-wide format is **not yet
-enforced in CI** and the tree is not fully formatted today. Format the files you touch;
-do not reformat unrelated product code in the same change.
+Formatting: `dart format .` is the formatter and is **enforced in CI** as
+`dart format --output=none --set-exit-if-changed .`; the tree is formatted. Format the
+files you touch.
+
+## CI
+
+`.github/workflows/ci-web.yml` runs on every PR — format gate, `flutter analyze`,
+`flutter test --coverage`, `flutter build web` — then deploys a Firebase Hosting **preview
+channel** (`pr-<number>`, commented on the PR). Pushes to `master` run the same checks and
+**deploy live** to `https://wishtogether.gift`. `.github/workflows/ci-web-cleanup.yml`
+deletes the preview channel when the PR closes. Both authenticate with the
+`FIREBASE_SERVICE_ACCOUNT` repository secret (a service-account JSON) via
+`google-github-actions/auth`, and pin the Flutter and firebase-tools versions in the
+workflow `env`. Coverage is uploaded as the `coverage-lcov` artifact and is **report-only**
+(no threshold). Preview deploys are skipped for pull requests from forks, which do not
+receive secrets.
 
 ## Testing policy
 

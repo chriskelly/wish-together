@@ -3,8 +3,7 @@ import 'package:wishtogether/core/data/firebase_repository.dart';
 import 'package:wishtogether/features/auth/domain/user.dart';
 
 class UserRepository extends FirebaseRepository<User> {
-  UserRepository({FirebaseFirestore? firestore})
-    : super(User.collectionName, firestore: firestore);
+  UserRepository({super.firestore}) : super(User.collectionName);
 
   @override
   User fromFirestore(DocumentSnapshot doc) {

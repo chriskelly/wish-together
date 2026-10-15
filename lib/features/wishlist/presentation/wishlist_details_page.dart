@@ -319,18 +319,17 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
   Future<bool?> _showDeleteDialog() => showConfirmationDialog(
     context: context,
     title: 'Delete Item?',
-    content:
-        'Are you sure you want to delete this item? This action cannot be undone.',
+    content: 'Are you sure you want to delete this item? This action cannot be undone.',
     confirmText: 'Delete',
   );
 
-  void _showSuccessSnackbar(String message) => ScaffoldMessenger.of(
-    context,
-  ).showSnackBar(SnackBar(content: Text(message)));
+  void _showSuccessSnackbar(String message) =>
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
 
-  void _showErrorSnackbar(String message) => ScaffoldMessenger.of(
-    context,
-  ).showSnackBar(SnackBar(content: Text(message)));
+  void _showErrorSnackbar(String message) =>
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
 
   Widget _buildFloatingActionButton(Wishlist wishlist, bool isOwner) {
     if (!isOwner) {

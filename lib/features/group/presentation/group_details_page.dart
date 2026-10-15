@@ -116,9 +116,8 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
   void _onInvitationCopyPressed(String groupId) {
     final invitationLink = GroupDetailsPage.getInvitationLink(groupId);
     Clipboard.setData(ClipboardData(text: invitationLink));
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Invitation link copied!')));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Invitation link copied!')));
   }
 
   Widget _buildGroupDetails(Group group, bool isOwner) => SingleChildScrollView(

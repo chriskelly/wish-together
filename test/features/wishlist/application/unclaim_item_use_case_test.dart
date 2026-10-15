@@ -32,12 +32,10 @@ void main() {
       const wishlistId = 'wishlist123';
       const itemId = 'item123';
 
-      when(
-        () => mockWishlistRepository.items(wishlistId),
-      ).thenReturn(mockItemRepository);
-      when(
-        () => mockItemRepository.unclaim(itemId),
-      ).thenAnswer((_) async => {});
+      when(() => mockWishlistRepository.items(wishlistId))
+          .thenReturn(mockItemRepository);
+      when(() => mockItemRepository.unclaim(itemId))
+          .thenAnswer((_) async => {});
 
       // Act
       await unclaimItemUseCase.execute(wishlistId, itemId);
@@ -52,9 +50,8 @@ void main() {
       const itemId = 'item123';
       final exception = Exception('Failed to unclaim item');
 
-      when(
-        () => mockWishlistRepository.items(wishlistId),
-      ).thenReturn(mockItemRepository);
+      when(() => mockWishlistRepository.items(wishlistId))
+          .thenReturn(mockItemRepository);
       when(() => mockItemRepository.unclaim(itemId)).thenThrow(exception);
 
       // Act & Assert

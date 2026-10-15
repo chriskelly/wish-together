@@ -48,10 +48,9 @@ void main() {
 
       // Assert
       verify(() => mockWishlistRepository.get(wishlistId)).called(1);
-      final captured = verify(() => mockWishlistRepository.update(
-        wishlistId,
-        captureAny(),
-      )).captured;
+      final captured = verify(
+        () => mockWishlistRepository.update(wishlistId, captureAny()),
+      ).captured;
       expect(captured.length, 1);
       final updatedWishlist = captured[0] as Wishlist;
       expect(updatedWishlist.sharedWithGroups, contains(groupId));
@@ -77,14 +76,16 @@ void main() {
       await shareWishlistWithGroupUseCase.execute(wishlistId, groupId);
 
       // Assert
-      final captured = verify(() => mockWishlistRepository.update(
-        wishlistId,
-        captureAny(),
-      )).captured;
+      final captured = verify(
+        () => mockWishlistRepository.update(wishlistId, captureAny()),
+      ).captured;
       expect(captured.length, 1);
       final updatedWishlist = captured[0] as Wishlist;
       // Should still only have one instance
-      expect(updatedWishlist.sharedWithGroups.where((id) => id == groupId).length, 1);
+      expect(
+        updatedWishlist.sharedWithGroups.where((id) => id == groupId).length,
+        1,
+      );
     });
 
     test('should propagate exceptions from WishlistRepository', () async {
@@ -102,4 +103,3 @@ void main() {
     });
   });
 }
-

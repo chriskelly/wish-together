@@ -3,8 +3,7 @@ import 'package:wishtogether/core/data/firebase_repository.dart';
 import 'package:wishtogether/features/group/domain/group.dart';
 
 class GroupRepository extends FirebaseRepository<Group> {
-  GroupRepository({FirebaseFirestore? firestore})
-    : super(Group.collectionName, firestore: firestore);
+  GroupRepository({super.firestore}) : super(Group.collectionName);
 
   @override
   Group fromFirestore(DocumentSnapshot doc) {

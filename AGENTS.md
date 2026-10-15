@@ -82,10 +82,11 @@ files you touch.
 
 `.github/workflows/ci-web.yml` runs on every PR — format gate, `flutter analyze`,
 `flutter test --coverage`, `flutter build web` — then deploys a Firebase Hosting **preview
-channel** (`pr-<number>`, commented on the PR and deleted when it closes). Pushes to
-`master` run the same checks and **deploy live** to `https://wishtogether.gift`. It
-authenticates with the `FIREBASE_SERVICE_ACCOUNT` repository secret (a service-account JSON)
-via `google-github-actions/auth`, and pins the Flutter and firebase-tools versions in the
+channel** (`pr-<number>`, commented on the PR). Pushes to `master` run the same checks and
+**deploy live** to `https://wishtogether.gift`. `.github/workflows/ci-web-cleanup.yml`
+deletes the preview channel when the PR closes. Both authenticate with the
+`FIREBASE_SERVICE_ACCOUNT` repository secret (a service-account JSON) via
+`google-github-actions/auth`, and pin the Flutter and firebase-tools versions in the
 workflow `env`. Coverage is uploaded as the `coverage-lcov` artifact and is **report-only**
 (no threshold). Preview deploys are skipped for pull requests from forks, which do not
 receive secrets.

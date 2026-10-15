@@ -1,0 +1,44 @@
+name: Web CI cleanup
+
+# Deletes the PR's Firebase Hosting preview channel once the PR closes.
+# This is a separate workflow so normal PR runs do not show a permanently
+# skipped cleanup job in the checks list.
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-ci-cleanup-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  FIREBASE_TOOLS_VERSION: "15.34.0"
+  CHANNEL_ID: pr-${{ github.event.pull_request.number }}
+
+jobs:
+  cleanup-preview:
+    name: Delete preview channel
+    # Fork PRs never created a channel and receive no secrets.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        # Firebase resolves the project from .firebaserc, keeping one source of truth.
+        uses: actions/checkout@v7
+
+      - name: Authenticate to Firebase
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Delete the preview channel
+        run: |
+          # Best-effort: the channel may never have been created, or already expired.
+          if ! npx --yes firebase-tools@"$FIREBASE_TOOLS_VERSION" \
+              hosting:channel:delete "$CHANNEL_ID" --force; then
+            echo "::warning::No preview channel $CHANNEL_ID to delete."
+          fi

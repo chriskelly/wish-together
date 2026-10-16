@@ -56,67 +56,95 @@ class _LoginPageState extends State<LoginPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SingleChildScrollView(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 600),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.start,
-                children: <Widget>[
-                  // Login section - always visible at the top
-                  // Takes up at least the full viewport height so users must scroll
-                  ConstrainedBox(
-                    constraints: BoxConstraints(
-                      minHeight: MediaQuery.of(context).size.height,
-                    ),
-                    child: Stack(
-                      children: [
-                        Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: <Widget>[
-                            Text(
-                              'Welcome to WishTogether',
-                              style: Theme.of(context).textTheme.displayLarge,
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 40),
-                            // This button is rendered by the google_sign_in_web package
-                            // and initiates the sign-in flow.
-                            web_only.renderButton(),
-                            const SizedBox(height: 20),
-                            _dividerBetweenOAuthAndPhone(),
-                            const SizedBox(height: 20),
-                            _phoneNumberInputField(),
-                            const SizedBox(height: 20),
-                            _requestVerificationCodeButton(context),
-                          ],
-                        ),
-                        // Downward arrow indicator - only on web, positioned at bottom
-                        if (kIsWeb)
-                          Positioned(
-                            bottom: 20,
-                            left: 0,
-                            right: 0,
-                            child: Center(
-                              child: _buildScrollIndicator(context),
-                            ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 600),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: <Widget>[
+                    // Login section - always visible at the top
+                    // Takes up at least the full viewport height so users must scroll
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: MediaQuery.of(context).size.height,
+                      ),
+                      child: Stack(
+                        children: [
+                          Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: <Widget>[
+                              Text(
+                                'Welcome to WishTogether',
+                                style: Theme.of(context).textTheme.displayLarge,
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 40),
+                              _googleSignInButton(),
+                              const SizedBox(height: 20),
+                              _dividerBetweenOAuthAndPhone(),
+                              const SizedBox(height: 20),
+                              _phoneNumberInputField(),
+                              const SizedBox(height: 20),
+                              _requestVerificationCodeButton(context),
+                            ],
                           ),
-                      ],
+                          // Downward arrow indicator - only on web, positioned at bottom
+                          if (kIsWeb)
+                            Positioned(
+                              bottom: 20,
+                              left: 0,
+                              right: 0,
+                              child: Center(
+                                child: _buildScrollIndicator(context),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
-                  ),
-                  // App information section - only visible on web, below login
-                  if (kIsWeb) ..._buildAppInfoSection(context),
-                  const SizedBox(height: 24),
-                  _buildPrivacyPolicyLink(context),
-                ],
+                    // App information section - only visible on web, below login
+                    if (kIsWeb) ..._buildAppInfoSection(context),
+                    const SizedBox(height: 24),
+                    _buildPrivacyPolicyLink(context),
+                  ],
+                ),
               ),
             ),
           ),
         ),
       ),
     );
+  }
+
+  /// Renders the Google sign-in button.
+  ///
+  /// On web this is the button provided by `google_sign_in_web`. On native
+  /// platforms (iOS/Android) that package is unavailable, so we render our own
+  /// button that drives the native Google sign-in flow through [AuthService].
+  Widget _googleSignInButton() {
+    if (kIsWeb) {
+      return web_only.renderButton();
+    }
+    return ElevatedButton(
+      onPressed: _signInWithGoogle,
+      child: const Text('Sign in with Google'),
+    );
+  }
+
+  Future<void> _signInWithGoogle() async {
+    try {
+      await _authService.googleSignIn.signIn();
+    } catch (error) {
+      developer.log('Google sign-in failed', error: error);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Google sign-in failed: $error')),
+        );
+      }
+    }
   }
 
   Row _dividerBetweenOAuthAndPhone() => const Row(

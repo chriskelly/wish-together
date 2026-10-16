@@ -19,8 +19,17 @@
         "lib/firebase_options.dart": {
           "projectId": "wish-together-project",
           "configurations": {
+            "ios": "1:1063002805065:ios:932498daa47afaf4e08098",
             "web": "1:1063002805065:web:5d1f2d9e8b634967e08098"
           }
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "wish-together-project",
+          "appId": "1:1063002805065:ios:932498daa47afaf4e08098",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
         }
       }
     }

@@ -6,11 +6,19 @@ import 'package:wishtogether/features/auth/data/google_sign_in_stub.dart'
     if (dart.library.html) 'package:google_sign_in/google_sign_in.dart';
 
 class AuthService {
+  /// The web OAuth client id. Used by the web build and as the server client id.
   static String clientId =
       "1063002805065-eobumao8o4tk4s54ea41jogjvls62pu5.apps.googleusercontent.com";
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn(clientId: clientId);
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    // On iOS the plugin reads the iOS OAuth client (CLIENT_ID) from the bundled
+    // GoogleService-Info.plist. Passing the web client id here would not match
+    // the reversed-client-ID URL scheme configured in Info.plist.
+    clientId: (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS)
+        ? null
+        : clientId,
+  );
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 

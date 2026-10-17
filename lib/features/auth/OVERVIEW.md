@@ -41,9 +41,10 @@ profile).
   they save a name on `ProfilePage`.
 - The default wishlist is created only on the first save (when the prior `displayName`
   was empty), so it is not duplicated on later profile edits.
-- `google_sign_in_stub.dart` is a compile-time stub (via conditional import) that keeps
-  `AuthService` compiling off-web and in the test runner; the real web button comes from
-  `google_sign_in_web`.
+- `google_sign_in_stub.dart` is a compile-time stub that `login_page.dart` falls back to on
+  non-web platforms so its `web_only.renderButton()` reference still compiles there; the real
+  web button comes from `google_sign_in_web`. `AuthService` always imports the real
+  `google_sign_in` package, on native and web alike.
 
 ## Data flow
 

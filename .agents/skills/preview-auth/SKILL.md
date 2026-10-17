@@ -40,7 +40,10 @@ steps.**
   web `apiKey` from `lib/firebase_options.dart`).
 - `curl`, `jq`, and an authenticated `gcloud` (`gcloud auth login`) whose account
   can update the project's API key (`apikeys.keys.update`) and Auth config
-  (`firebaseauth.configs.update`). If a call returns 403, you lack that role.
+  (`firebaseauth.configs.update`), and use the project as a quota project
+  (`serviceusage.services.use` — Owner/Editor have it). If a call returns 403, you
+  lack one of those. The script sends `x-goog-user-project` on the Identity
+  Toolkit calls (which require it for user credentials).
 - The preview host from `firebase hosting:channel:list --json` (or the URL that
   `ci-web.yml` commented on the PR) — **copy the exact host**, e.g.
   `wish-together-project--pr-12-abcde.web.app`.

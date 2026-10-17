@@ -54,14 +54,17 @@ authorize() {
     || die "gcloud auth print-access-token failed; run 'gcloud auth login'"
 }
 
-http_get() {
-  curl -sS --fail-with-body -H "Authorization: Bearer $TOKEN" "$1"
-}
-
-http_patch() {
-  curl -sS --fail-with-body -X PATCH \
-    -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-    -d "$2" "$1"
+# One HTTP helper. The Identity Toolkit API requires a quota project when called
+# with user credentials (gcloud auth print-access-token) and rejects the request
+# with 403 otherwise; the API Keys API *rejects* x-goog-user-project, so the
+# header is sent only to Identity Toolkit. Both APIs need the bearer token.
+req() {
+  local url="$1"; shift
+  local -a hdr=(-H "Authorization: Bearer $TOKEN")
+  case "$url" in
+    "$ITK"/*) hdr+=(-H "x-goog-user-project: $PROJECT_ID") ;;
+  esac
+  curl -sS --fail-with-body "${hdr[@]}" "$@" "$url"
 }
 
 # The browser (web) API key from the generated Firebase web config.
@@ -77,8 +80,9 @@ web_api_key() {
 # Locate the API Keys API key whose keyString matches the web apiKey, following
 # pagination and skipping keys the caller cannot read. Sets KEY_NAME and KEY_JSON.
 # Returns 0 on match, 1 on no match, 2 on a failed API call.
+# Note: GetKey never returns keyString; it is only on the `.../keyString` sub-resource.
 find_key() {
-  local wk page token pt name json ks
+  local wk page token pt name ks
   wk="$(web_api_key)" || return 2
   token=""
   while :; do
@@ -87,17 +91,16 @@ find_key() {
       pt="$(jq -rn --arg t "$token" '$t|@uri')"
       url+="&pageToken=$pt"
     fi
-    page="$(http_get "$url")" || return 2
+    page="$(req "$url")" || return 2
     while IFS= read -r name; do
       [[ -n "$name" ]] || continue
-      if ! json="$(http_get "$API/$name")"; then
+      if ! ks="$(req "$API/$name/keyString" | jq -r '.keyString // empty')"; then
         note "skipping unreadable key: $name"
         continue
       fi
-      ks="$(jq -r '.keyString // empty' <<<"$json")"
       if [[ "$ks" == "$wk" ]]; then
+        KEY_JSON="$(req "$API/$name")" || return 2
         KEY_NAME="$name"
-        KEY_JSON="$json"
         return 0
       fi
     done < <(jq -r '.keys[]?.name' <<<"$page")
@@ -150,11 +153,12 @@ print_google_step() {
 cmd_list() {
   authorize
   echo "== Firebase Auth authorized domains (project $PROJECT_ID) =="
-  http_get "$ITK/projects/$PROJECT_ID/config" | jq -r '.authorizedDomains[]?'
+  req "$ITK/projects/$PROJECT_ID/config" | jq -r '.authorizedDomains[]?'
   echo
   echo "== Browser API key HTTP referrers =="
   find_key_or_die
-  jq -r '"browserKeyRestrictions: \(if .restrictions.browserKeyRestrictions == null then "absent (add will refuse)" else "present" end)\napiTargets: \(.restrictions.apiTargets // [] | join(", ") | if . == "" then "none" else . end)\nreferrers:\n" + ([.restrictions.browserKeyRestrictions.allowedReferrers[]?] | join("\n"))' \
+  note "key: $KEY_NAME"
+  jq -r '"browserKeyRestrictions: \(if .restrictions.browserKeyRestrictions == null then "absent (add will refuse)" else "present" end)\napiTargets: \(.restrictions.apiTargets // [] | map(.service) | join(", ") | if . == "" then "none" else . end)\nreferrers:\n" + ([.restrictions.browserKeyRestrictions.allowedReferrers[]?] | join("\n"))' \
     <<<"$KEY_JSON"
 }
 
@@ -182,7 +186,7 @@ mutate() {
     remove) new_refs="$(del_entry "$entry" <<<"$cur_refs")" ;;
   esac
 
-  cfg="$(http_get "$ITK/projects/$PROJECT_ID/config")"
+  cfg="$(req "$ITK/projects/$PROJECT_ID/config")"
   cur_domains="$(jq -c '.authorizedDomains // []' <<<"$cfg")"
   case "$mode" in
     add)    new_domains="$(add_entry "$host" <<<"$cur_domains")" ;;
@@ -242,13 +246,14 @@ mutate() {
   if [[ "$domains_changed" == yes ]]; then
     # Re-read to fail closed if another writer (e.g. a channel deploy) changed the list.
     local cfg2
-    cfg2="$(http_get "$ITK/projects/$PROJECT_ID/config")"
+    cfg2="$(req "$ITK/projects/$PROJECT_ID/config")"
     [[ "$(jq -c '.authorizedDomains // []' <<<"$cfg2")" == "$cur_domains" ]] \
       || die "Auth authorized domains changed while working; nothing was written. Re-run."
 
     local out
-    if ! out="$(http_patch "$ITK/projects/$PROJECT_ID/config?updateMask=authorizedDomains" \
-        "$(jq -cn --argjson d "$new_domains" '{authorizedDomains: $d}')")"; then
+    if ! out="$(req "$ITK/projects/$PROJECT_ID/config?updateMask=authorizedDomains" \
+        -X PATCH -H "Content-Type: application/json" \
+        -d "$(jq -cn --argjson d "$new_domains" '{authorizedDomains: $d}')")"; then
       note "server response: $out"
       die "updating Auth authorized domains failed; nothing was written to the API key."
     fi
@@ -257,7 +262,7 @@ mutate() {
 
   if [[ "$refs_changed" == yes ]]; then
     local out
-    if ! out="$(http_patch "$API/$KEY_NAME?updateMask=restrictions.browserKeyRestrictions.allowedReferrers" "$ref_body")"; then
+    if ! out="$(req "$API/$KEY_NAME?updateMask=restrictions.browserKeyRestrictions.allowedReferrers" -X PATCH -H "Content-Type: application/json" -d "$ref_body")"; then
       note "server response: $out"
       die "the browser API key PATCH failed; Auth domains may already be updated. Revert with: preview-auth.sh remove $host --apply (backup: $backup)"
     fi

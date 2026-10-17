@@ -28,6 +28,7 @@ cat > "$STUB/curl" <<'EOF'
 echo "$*" >> "$CURL_LOG"
 case "$*" in
   *"/locations/global/keys?pageSize"*) printf '%s' "$CURL_LIST" ;;
+  *"/keyString")                        printf '%s' "$CURL_KEYSTRING" ;;
   *"/locations/global/keys/"*)          printf '%s' "$CURL_GET" ;;
   *) printf '%s' '{}' ;;
 esac
@@ -41,7 +42,9 @@ OPT="$(mktemp)"
 printf "static const FirebaseOptions web = FirebaseOptions(\n  apiKey: '%s',\n);\n" "$WEB_KEY" > "$OPT"
 export CURL_LOG; CURL_LOG="$(mktemp)"; : > "$CURL_LOG"
 export CURL_LIST='{"keys":[{"name":"projects/wish-together-project/locations/global/keys/k1"}]}'
-export CURL_GET="{\"keyString\":\"$WEB_KEY\",\"etag\":\"etag-1\",\"restrictions\":{\"browserKeyRestrictions\":{\"allowedReferrers\":[\"https://a/*\"]}}}"
+# GetKey does NOT return keyString (real API); it lives on the /keyString sub-resource.
+export CURL_GET="{\"etag\":\"etag-1\",\"restrictions\":{\"browserKeyRestrictions\":{\"allowedReferrers\":[\"https://a/*\"]}}}"
+export CURL_KEYSTRING="{\"keyString\":\"$WEB_KEY\"}"
 
 # ---- source the script for the pure-unit tests ----
 # shellcheck source=/dev/null
@@ -60,7 +63,7 @@ export TOKEN="stub-token"
 export FIREBASE_OPTIONS="$OPT"
 : > "$CURL_LOG"
 if find_key >/dev/null 2>&1; then
-  eq "$(jq -r '.keyString' <<<"$KEY_JSON")" "$WEB_KEY" "find_key matches the web key by keyString"
+  eq "$KEY_NAME" "projects/wish-together-project/locations/global/keys/k1" "find_key matched the web key by keyString"
 else
   no "find_key returned non-zero with a valid stub response"
 fi
@@ -70,6 +73,7 @@ else
   no "find_key URL is missing the API base: $(head -1 "$CURL_LOG")"
 fi
 if grep -q "keys/k1" "$CURL_LOG"; then ok "find_key GETs the candidate key"; else no "find_key did not GET the key"; fi
+if grep -q "keys/k1/keyString" "$CURL_LOG"; then ok "find_key reads keyString from the sub-resource"; else no "find_key did not request the keyString sub-resource"; fi
 
 # ---- guards (run the real script as a subprocess) ----
 expect_die() {

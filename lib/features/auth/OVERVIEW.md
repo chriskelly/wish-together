@@ -21,11 +21,17 @@ profile).
 ## Key types
 
 - `AuthService` — wraps `FirebaseAuth` and `GoogleSignIn`. Exposes `authStateChanges`,
-  `currentUserId` / `currentUserEmail` / `currentUserPhoneNumber`, `verifyPhoneNumber(...)`,
-  `signInWithPhoneCredential(...)`, `signOut()`, and the underlying `googleSignIn`
-  instance. Google sign-in is completed by subscribing to
+  `currentUserId` / `currentUserEmail` / `currentUserPhoneNumber`, `signOut()`, and the
+  underlying `googleSignIn` instance. Google sign-in is completed by subscribing to
   `_googleSignIn.onCurrentUserChanged` and exchanging the account for a Firebase
-  `GoogleAuthProvider` credential.
+  `GoogleAuthProvider` credential. Phone auth is **split by platform**: web uses
+  `startWebPhoneSignIn(...)` (which calls `FirebaseAuth.signInWithPhoneNumber` and keeps the
+  returned `ConfirmationResult`) and `confirmPhoneCode(...)` (which confirms it); native uses
+  `verifyPhoneNumber(...)` plus `signInWithPhoneCredential(...)`. `confirmPhoneCode(...)` is
+  platform-aware so callers do not branch. `AuthService` takes optional `auth` / `isWeb`
+  constructor arguments so the split is unit-testable.
+- `phoneAuthErrorMessage(...)` — maps a `FirebaseAuthException` to a short user-facing
+  message, including the "domain not authorized" case.
 - `UserRepository extends FirebaseRepository<User>` — collection `users`.
   `getOrCreateUser(uid, {email, displayName, phoneNumber})` returns the existing document
   or creates one. `streamUsersFromIds(ids)` feeds the group members list.
@@ -48,11 +54,27 @@ profile).
 
 ## Data flow
 
-Logged out: `LoginPage` calls `AuthService.verifyPhoneNumber`; the `codeSent` callback
-navigates to `VerificationPage` with the `verificationId` as `extra` (carrying `redirect_to`
-forward). The code is exchanged via `signInWithPhoneCredential`. On web, the Google button
-is rendered by `google_sign_in_web` and `AuthService` handles the credential. Either path
-triggers the router redirect: no name → `/profile`, otherwise `redirect_to` or `/`.
+Logged out: `LoginPage` requests an SMS code; the flow branches once on `kIsWeb`.
+- **Web:** `AuthService.startWebPhoneSignIn` calls `FirebaseAuth.signInWithPhoneNumber`
+  (the documented web API, which manages the reCAPTCHA challenge) and returns a verification
+  id. `LoginPage` navigates to `VerificationPage` with that id as `extra` (carrying
+  `redirect_to` forward). `VerificationPage` calls `AuthService.confirmPhoneCode`, which
+  confirms the stashed `ConfirmationResult` with the SMS code.
+- **Native:** `AuthService.verifyPhoneNumber` reports progress through callbacks; the
+  `codeSent` callback navigates to `VerificationPage`, and `confirmPhoneCode` builds a
+  `PhoneAuthProvider` credential and signs in with it.
+
+On web, the Google button is rendered by `google_sign_in_web` and `AuthService` handles the
+credential. Either path triggers the router redirect: no name → `/profile`, otherwise
+`redirect_to` or `/`.
+
+## Platform prerequisites
+
+Web phone auth requires the app's host to be listed in **Firebase Auth → Settings →
+Authorized domains** — the reCAPTCHA check fails with `unauthorized-domain` otherwise.
+Preview-channel hosts and `localhost` are separate cases: preview hosts are not covered by a
+wildcard, and Firebase does not allow `localhost` as a host for real phone auth (local testing
+is limited to test numbers).
 
 ## How it is tested
 
@@ -61,5 +83,8 @@ triggers the router redirect: no name → `/profile`, otherwise `redirect_to` or
   "new user gets a default wishlist" and "signed-out throws" cases).
 - `test/features/auth/data/user_repository_test.dart` — `streamUsersFromIds` against
   `FakeFirebaseFirestore`.
+- `test/features/auth/data/auth_service_test.dart` — the phone-auth platform split with
+  mocked `FirebaseAuth` / `ConfirmationResult` (web uses `signInWithPhoneNumber` + `confirm`;
+  native uses `signInWithCredential`).
+- `test/features/auth/data/phone_auth_error_test.dart` — the error-code → message mapper.
 - `test/core/router_test.dart` covers the auth redirect matrix.
-- `AuthService` itself (Firebase calls) has no unit tests.

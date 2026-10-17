@@ -170,8 +170,7 @@ class AuthService {
   ///
   /// Does not check the platform: `SignInWithApple.getAppleIDCredential` throws
   /// where Sign in with Apple is unavailable (web/Android without web auth
-  /// options), so callers must gate this by platform — see
-  /// `shouldShowAppleSignInButton` in `login_page.dart`.
+  /// options), so callers must gate this by platform.
   ///
   /// A per-attempt nonce guards against replay: Apple receives the SHA-256 of
   /// the raw nonce (which it embeds in the identity token), and Firebase

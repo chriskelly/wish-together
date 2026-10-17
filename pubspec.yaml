@@ -20,6 +20,9 @@ version: 1.0.0+1
 
 environment:
   sdk: ^3.13.0
+  # sign_in_with_apple 8.2.0 requires Flutter >= 3.44.0. Recorded explicitly so
+  # the floor is intentional and visible, not just implied by pubspec.lock.
+  flutter: ">=3.44.0"
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions

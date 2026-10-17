@@ -1,7 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'
-    show kIsWeb, defaultTargetPlatform, TargetPlatform, visibleForTesting;
+    show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:go_router/go_router.dart';
 
 import 'dart:developer' as developer;
@@ -28,7 +28,6 @@ import 'package:wishtogether/features/auth/presentation/verification_page.dart';
 /// `isWeb` is required in addition to [platform] because on web
 /// `defaultTargetPlatform` resolves to the *browser's* OS, so iOS Safari would
 /// otherwise show the button.
-@visibleForTesting
 bool shouldShowAppleSignInButton({
   required bool isWeb,
   required TargetPlatform platform,

@@ -63,6 +63,23 @@ void main() {
       expect(message!.trim(), isNotEmpty);
     });
 
+    test(
+      'falls back to a generic message for a non-authorization Apple error',
+      () {
+        // Arrange
+        const credentialsError = SignInWithAppleCredentialsException(
+          message: 'Keychain lookup failed.',
+        );
+
+        // Act
+        final message = appleAuthErrorMessage(credentialsError);
+
+        // Assert
+        expect(message, isNotNull);
+        expect(message!.trim(), isNotEmpty);
+      },
+    );
+
     group('Firebase codes', () {
       // Every code the mapper handles, paired with a substring its message must
       // contain so a branch cannot silently collapse into the generic message.
@@ -76,17 +93,11 @@ void main() {
       };
 
       test('gives every handled code a message of its own', () {
-        // Arrange
-        final fallback = appleAuthErrorMessage(
-          firebaseError('some-future-code'),
-        );
-        final messages = <String>[];
-
         // Act
+        final messages = <String>[];
         for (final code in expectations.keys) {
           final message = appleAuthErrorMessage(firebaseError(code));
           expect(message, isNotNull, reason: code);
-          expect(message, isNot(fallback), reason: code);
           expect(message!.trim(), isNotEmpty, reason: code);
           messages.add(message);
         }

@@ -22,9 +22,6 @@ void main() {
         smsCode: '000000',
       ),
     );
-    registerFallbackValue(
-      OAuthProvider('apple.com').credential(idToken: 'fallback-identity-token'),
-    );
   });
 
   late MockFirebaseAuth mockAuth;

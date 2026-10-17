@@ -32,3 +32,7 @@ Runner/GeneratedPluginRegistrant.*
 !default.mode2v3
 !default.pbxuser
 !default.perspectivev3
+
+# Swift Package Manager resolved versions — regenerated per environment.
+# A stale checked-in copy crashes Xcode 26 package registration on CI.
+**/xcshareddata/swiftpm/Package.resolved

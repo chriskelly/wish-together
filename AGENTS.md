@@ -56,6 +56,7 @@ per-area `OVERVIEW.md` next to the code you are touching.
 | How is the app wired? | `lib/main.dart` → `core/service_locator.dart` → `core/router.dart` |
 | How is data accessed? | Repositories extending `core/data/firebase_repository.dart` |
 | Where are the Firestore rules? | `firestore.rules` (root) |
+| How does iOS ship to TestFlight? | `.github/workflows/testflight-release.yml` + `fastlane/Fastfile` (see CI) |
 
 ## Commands
 
@@ -90,6 +91,45 @@ deletes the preview channel when the PR closes. Both authenticate with the
 workflow `env`. Coverage is uploaded as the `coverage-lcov` artifact and is **report-only**
 (no threshold). Preview deploys are skipped for pull requests from forks, which do not
 receive secrets.
+
+iOS has its own pipeline, all on `macos-26` runners with the same pinned Flutter version:
+
+- `.github/workflows/ci-ios.yml` — the only PR-triggered iOS check: `flutter test` +
+  `flutter build ios --simulator` (compile gate, no signing).
+- `.github/workflows/testflight-release.yml` — chained after **iOS CI** succeeds on a PR
+  (`workflow_run`, so it never shows up as a permanently-Skipped check) and uploads an
+  internal TestFlight build. **Opt out** per PR by adding the `no-deploy` label. It comments
+  the build number on the PR.
+- `.github/workflows/app-store-release.yml` — on a `v*` tag or manual dispatch, uploads and
+  submits for App Store review.
+
+Signing uses fastlane [`match`](https://docs.fastlane.tools/actions/match/) against the
+private certificate repo `chriskelly/ios-match-certs`; uploads use an App Store Connect API
+key. Secrets: `MATCH_GIT_URL`, `MATCH_PASSWORD`, `MATCH_GIT_PRIVATE_KEY`,
+`APP_STORE_CONNECT_API_KEY_KEY_ID`, `APP_STORE_CONNECT_API_KEY_ISSUER_ID`, and
+`APP_STORE_CONNECT_API_KEY_CONTENT` (base64 of the `.p8`). `fastlane/` holds the `Appfile`,
+`Matchfile`, and the `Fastfile` lanes (`testflight_release`, `app_store_release`); the same
+workflows pin Ruby `3.3`. The release lanes run `flutter build ipa` and switch the project to
+manual signing with the match profile. `aps-environment` is `production` in
+`Runner.entitlements` (Release/Profile, used by TestFlight) and `development` in
+`Runner-Debug.entitlements` (Debug).
+
+Build numbers are resolved from App Store Connect (highest already uploaded + 1), never from
+the per-workflow run number, so the TestFlight and App Store lanes cannot collide.
+
+Security posture: `testflight-release.yml` runs the *PR's* `fastlane/Fastfile` and app code
+with the `match` signing key and the App Store Connect API key in the environment. It is
+restricted to same-repo pull requests and the `no-deploy` label opts a PR out — but anyone
+who can push a branch reaches those secrets' effects. Add a GitHub `environment` with
+required reviewers if that needs a human gate.
+
+One-time local setup (on a Mac with Xcode): `bundle install`, then
+`bundle exec fastlane match appstore` to create or renew the signing assets in the cert repo
+(add a read-only deploy key to the cert repo and set `MATCH_GIT_PRIVATE_KEY`). Before the
+first `app-store-release`, the App Store Connect listing (description, screenshots, privacy)
+must be complete — precheck validates the live listing, not the PR. The lane creates or
+updates the editable App Store version for the tag; App Store metadata is maintained in App
+Store Connect, not in git.
 
 ## Testing policy
 

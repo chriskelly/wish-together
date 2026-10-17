@@ -50,3 +50,12 @@ app.*.map.json
 # Local working docs (never committed)
 docs/specs/
 docs/plans/
+
+# fastlane / Ruby
+/.bundle/
+/vendor/bundle/
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output/
+ios/ExportOptions.plist

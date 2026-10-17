@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 // Always use the real `google_sign_in` package on the platforms it supports:
@@ -10,6 +12,19 @@ import 'package:flutter/foundation.dart';
 // `null` from `signIn()`, which silently no-ops the native Google button in
 // `login_page.dart`.
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:wishtogether/features/auth/data/apple_auth_error.dart';
+
+/// Fetches an Apple ID credential.
+///
+/// Injectable because the production implementation — the static
+/// `SignInWithApple.getAppleIDCredential` — cannot be mocked directly, so
+/// [AuthService.signInWithApple] would otherwise be untestable.
+typedef AppleCredentialFetcher =
+    Future<AuthorizationCredentialAppleID> Function({
+      required List<AppleIDAuthorizationScopes> scopes,
+      String? nonce,
+    });
 
 class AuthService {
   /// The web OAuth client id. Used by the web build and as the server client id.
@@ -29,17 +44,27 @@ class AuthService {
   /// Whether the app is running on the web platform. Injectable for tests.
   final bool _isWeb;
 
+  /// Fetches the Apple ID credential. Injectable for tests; defaults to the
+  /// real [SignInWithApple.getAppleIDCredential].
+  final AppleCredentialFetcher _fetchAppleCredential;
+
   /// The pending web phone sign-in, set by [startWebPhoneSignIn] and consumed by
   /// [confirmPhoneCode]. Web only.
   ConfirmationResult? _webConfirmation;
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
-  /// [auth] and [isWeb] are injectable so the phone-auth platform split can be
-  /// unit tested; production callers use the defaults.
-  AuthService({FirebaseAuth? auth, bool? isWeb})
-    : _auth = auth ?? FirebaseAuth.instance,
-      _isWeb = isWeb ?? kIsWeb {
+  /// [auth], [isWeb] and [appleCredentialFetcher] are injectable so the
+  /// platform-specific sign-in flows can be unit tested; production callers use
+  /// the defaults.
+  AuthService({
+    FirebaseAuth? auth,
+    bool? isWeb,
+    AppleCredentialFetcher? appleCredentialFetcher,
+  }) : _auth = auth ?? FirebaseAuth.instance,
+       _isWeb = isWeb ?? kIsWeb,
+       _fetchAppleCredential =
+           appleCredentialFetcher ?? SignInWithApple.getAppleIDCredential {
     // Listen to Google Sign-In user changes
     _googleSignIn.onCurrentUserChanged.listen((
       GoogleSignInAccount? account,
@@ -137,6 +162,43 @@ class AuthService {
       PhoneAuthProvider.credential(
         verificationId: verificationId,
         smsCode: smsCode,
+      ),
+    );
+  }
+
+  /// Signs in with Apple and exchanges the credential for a Firebase session.
+  ///
+  /// Does not check the platform: `SignInWithApple.getAppleIDCredential` throws
+  /// where Sign in with Apple is unavailable (web/Android without web auth
+  /// options), so callers must gate this by platform.
+  ///
+  /// A per-attempt nonce guards against replay: Apple receives the SHA-256 of
+  /// the raw nonce (which it embeds in the identity token), and Firebase
+  /// receives the raw nonce to compare against that claim.
+  Future<UserCredential> signInWithApple() async {
+    final rawNonce = generateNonce();
+    final nonce = sha256.convert(utf8.encode(rawNonce)).toString();
+
+    final appleCredential = await _fetchAppleCredential(
+      scopes: const [AppleIDAuthorizationScopes.email],
+      nonce: nonce,
+    );
+
+    final idToken = appleCredential.identityToken;
+    if (idToken == null) {
+      throw FirebaseAuthException(
+        code: appleMissingIdTokenCode,
+        message: 'Apple did not return an identity token.',
+      );
+    }
+
+    return _auth.signInWithCredential(
+      OAuthProvider('apple.com').credential(
+        idToken: idToken,
+        // Apple's authorization code goes in `accessToken`: Firebase expects it
+        // here for the native iOS exchange.
+        accessToken: appleCredential.authorizationCode,
+        rawNonce: rawNonce,
       ),
     );
   }

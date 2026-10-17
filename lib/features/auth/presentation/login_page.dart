@@ -1,19 +1,37 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:go_router/go_router.dart';
 
 import 'dart:developer' as developer;
 
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:wishtogether/core/router.dart';
 import 'package:wishtogether/core/service_locator.dart';
+import 'package:wishtogether/features/auth/data/apple_auth_error.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
 import 'package:wishtogether/features/auth/data/phone_auth_error.dart';
 import 'package:wishtogether/features/auth/data/google_sign_in_stub.dart'
     if (dart.library.html) 'package:google_sign_in_web/web_only.dart'
     as web_only;
 import 'package:wishtogether/features/auth/presentation/verification_page.dart';
+
+/// Whether the Sign in with Apple button should be shown.
+///
+/// App Store guideline 4.8 requires an equivalent privacy-focused option on
+/// iOS, where Google sign-in is offered; web and Android (and macOS, which has
+/// no target here) show nothing. Extracted so this platform gate — the whole
+/// point of the feature — is unit-testable without a widget test.
+///
+/// `isWeb` is required in addition to [platform] because on web
+/// `defaultTargetPlatform` resolves to the *browser's* OS, so iOS Safari would
+/// otherwise show the button.
+bool shouldShowAppleSignInButton({
+  required bool isWeb,
+  required TargetPlatform platform,
+}) => !isWeb && platform == TargetPlatform.iOS;
 
 class LoginPage extends StatefulWidget {
   static const String route = '/login';
@@ -86,6 +104,11 @@ class _LoginPageState extends State<LoginPage>
                               ),
                               const SizedBox(height: 40),
                               _googleSignInButton(),
+                              if (shouldShowAppleSignInButton(
+                                isWeb: kIsWeb,
+                                platform: defaultTargetPlatform,
+                              ))
+                                _appleSignInButton(),
                               const SizedBox(height: 20),
                               _dividerBetweenOAuthAndPhone(),
                               const SizedBox(height: 20),
@@ -145,6 +168,31 @@ class _LoginPageState extends State<LoginPage>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Google sign-in failed: $error')),
         );
+      }
+    }
+  }
+
+  /// Renders the Sign in with Apple button.
+  ///
+  /// Only built when [shouldShowAppleSignInButton] is true; see that predicate
+  /// for the platform gate.
+  Widget _appleSignInButton() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 20),
+      child: SignInWithAppleButton(onPressed: _signInWithApple),
+    );
+  }
+
+  Future<void> _signInWithApple() async {
+    try {
+      await _authService.signInWithApple();
+    } catch (error) {
+      developer.log('Apple sign-in failed', name: 'auth.apple', error: error);
+      final message = appleAuthErrorMessage(error);
+      // A null message means the user canceled the sheet — stay silent.
+      if (message != null && mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(message)));
       }
     }
   }

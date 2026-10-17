@@ -24,7 +24,7 @@ jobs:
     name: Delete preview channel
     # Fork PRs never created a channel and receive no secrets.
     if: github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout
         # Firebase resolves the project from .firebaserc, keeping one source of truth.

@@ -6,36 +6,43 @@ description: Enable real phone and Google sign-in on ONE Firebase Hosting previe
 # Preview auth
 
 Make **one** preview host work for real sign-in — phone OTP and Google — then
-undo it. This is the local answer to the "previews are UI-only" rule: preview
-channels cannot be allowlisted in CI without widening a shared public API key, so
-the operator does it here, by hand, for a single host.
+undo it. CI never allowlists a preview host; an operator may do it here, locally,
+for one host at a time, and revert afterwards. The persistent, always-authorized
+host is the staging site (see `AGENTS.md` → "Staging environment").
 
-> **This mutates production Firebase config** (Auth authorized domains and the
-> browser API key's HTTP referrers). It is a **local, human-invoked** action.
-> **Never run it in CI**, never commit its output, and never add a wildcard
-> referrer. Use the staging site (`docs`/`AGENTS.md` → "Staging environment")
-> when you want a persistent, always-authorized host instead.
+> **This mutates production Firebase config** for the project in `.firebaserc`
+> (Auth authorized domains and the browser API key's HTTP referrers). It is a
+> **local, human-invoked** action. **Never run it in CI**, never commit its
+> output, and never add a wildcard referrer.
+
+The script only accepts hosts of this project (`<project>--<channel>-<id>.web.app`
+or `wish-together-staging.web.app`), refuses to remove the live or staging host,
+refuses to create a referrer restriction on an unrestricted key, and refuses to
+write an empty referrer list — each of those would cause a production outage for
+a "safe" helper.
 
 ## The three lists
 
 Real sign-in on a non-live host needs all three; each is independent, and the
-mechanism (`hosting:channel:deploy`) only auto-fills the first.
+mechanism (`hosting:channel:deploy`) only auto-fills the first. **The script
+automates lists 1 and 2; list 3 has no public API, so it prints the exact manual
+steps.**
 
-| # | List | Where | Automated here? |
-|---|------|-------|-----------------|
-| 1 | **Auth → Authorized domains** | Firebase project, Identity Toolkit admin config | Yes (usually already set by the channel deploy) |
-| 2 | **Browser API key → HTTP referrers** | Google Cloud API Keys API | Yes (exact host, no wildcard) |
-| 3 | **Google OAuth web client → Authorized JavaScript origins** | Google Cloud Console | **No** — no public API; the script prints the exact steps |
+| # | List | Where | Handled here? |
+|---|------|-------|---------------|
+| 1 | **Auth → Authorized domains** | Firebase project, Identity Toolkit admin config | Automated (usually already set by the channel deploy) |
+| 2 | **Browser API key → HTTP referrers** | Google Cloud API Keys API | Automated (exact host, no wildcard) |
+| 3 | **Google OAuth web client → Authorized JavaScript origins** | Google Cloud Console | **Manual** — the script prints the add/remove steps |
 
 ## Prerequisites
 
-- Run from the repo root (the script reads the web `apiKey` from
-  `lib/firebase_options.dart`).
+- Run from anywhere inside the repo (the script finds the repo root and reads the
+  web `apiKey` from `lib/firebase_options.dart`).
 - `curl`, `jq`, and an authenticated `gcloud` (`gcloud auth login`) whose account
   can update the project's API key (`apikeys.keys.update`) and Auth config
   (`firebaseauth.configs.update`). If a call returns 403, you lack that role.
 - The preview host from `firebase hosting:channel:list --json` (or the URL that
-  `ci-web.yml` commented on the PR), e.g.
+  `ci-web.yml` commented on the PR) — **copy the exact host**, e.g.
   `wish-together-project--pr-12-abcde.web.app`.
 
 ## Usage
@@ -46,21 +53,30 @@ scripts=.agents/skills/preview-auth/scripts/preview-auth.sh
 # 1. See the current state of lists 1 and 2 (read-only).
 "$scripts" list
 
-# 2. Dry run: print the exact change and write a backup. Writes nothing else.
+# 2. Dry run: print the exact change. Firebase is not modified.
 "$scripts" add wish-together-project--pr-12-abcde.web.app
 
-# 3. Apply it, then do the Google step the script prints (list 3).
+# 3. Apply it, then do the Google step (list 3) the script prints.
 "$scripts" add wish-together-project--pr-12-abcde.web.app --apply
 
-# 4. Afterwards, remove the host again (reversible).
+# 4. Afterwards, remove the host again (lists 1 and 2), and delete the Google
+#    origin the removal step prints (list 3).
 "$scripts" remove wish-together-project--pr-12-abcde.web.app --apply
 ```
 
-The script preserves `apiTargets` and **every** existing referrer, adds or
-removes only the exact `https://<host>/*` entry, sends the key's `etag` so a
-concurrent change fails closed, and backs the old key JSON up to
-`$PREVIEW_AUTH_BACKUP_DIR` (default `~/.cache/wishtogether-preview-auth`). Read
-the backup before retrying if a PATCH fails.
+The script preserves `apiTargets` and **every** existing referrer, changes only
+the exact `https://<host>/*` entry (no wildcard, no reordering), sends the key's
+`etag` so a concurrent change fails closed, skips the API call when nothing would
+change, and backs the current key JSON up (on `--apply`) to
+`$PREVIEW_AUTH_BACKUP_DIR` (default `~/.cache/wishtogether-preview-auth`). If a
+PATCH fails, read the backup and the printed revert command before retrying.
+
+The pure logic (set math, the host guard, and URL construction) is covered by
+`scripts/preview-auth.test.sh` — stubbed `curl`/`gcloud`, no network:
+
+```sh
+bash .agents/skills/preview-auth/scripts/preview-auth.test.sh
+```
 
 ## Validating the preview
 
@@ -78,7 +94,8 @@ the backup before retrying if a PATCH fails.
 
 ## Scope
 
-This is for **one-off, reversible** preview validation. The persistent staging
-site and its committed workflow are separate. The browser-key referrer *scope*
-decision (a broad `https://*.web.app/*`) is deliberately **not** taken here — no
-wildcard — and remains a PR 8 security call.
+This is for **one-off, reversible** preview validation, per host. The persistent
+staging site and its committed workflow are separate. The broad
+`https://*.web.app/*` referrer — which would cover every preview but widens a
+public key — is deliberately **not** used here; widening the browser key is a
+security decision that needs review, not a convenience.

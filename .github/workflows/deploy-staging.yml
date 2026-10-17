@@ -64,19 +64,28 @@ jobs:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
       # Separate config so the default `firebase.json` (live + preview channels)
-      # is untouched. `firebase.staging.json` carries `"target": "staging"`,
-      # bound to site `wish-together-staging` in `.firebaserc`.
+      # is untouched. `firebase.staging.json` carries `"target": "staging"`.
+      # Pin the target and project explicitly so a stale/edited ref cannot bind
+      # `staging` to the live site.
+      - name: Pin the staging target
+        run: |
+          npx --yes firebase-tools@"$FIREBASE_TOOLS_VERSION" \
+            target:apply hosting staging wish-together-staging --project wish-together-project
+
       - name: Deploy to staging site
         run: |
           npx --yes firebase-tools@"$FIREBASE_TOOLS_VERSION" \
-            deploy --only hosting:staging --config firebase.staging.json
+            deploy --only hosting:staging --config firebase.staging.json --project wish-together-project
 
       - name: Summarize
+        env:
+          # Passed via env, never interpolated into `run:` (expression injection).
+          REQUESTED_REF: ${{ inputs.ref }}
         run: |
           {
             echo "### Staging deploy"
             echo ""
-            echo "- Requested ref: \`${{ inputs.ref }}\`"
+            echo "- Requested ref: \`$REQUESTED_REF\`"
             echo "- Commit: \`$(git rev-parse --short HEAD)\`"
             echo "- URL: $STAGING_URL"
           } >> "$GITHUB_STEP_SUMMARY"

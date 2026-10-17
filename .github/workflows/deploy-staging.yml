@@ -1,0 +1,82 @@
+name: Deploy staging
+
+# Manual deploy of a chosen ref to the pre-merge staging site (Firebase Hosting
+# site `wish-together-staging`). Real phone + Google sign-in are validated here
+# because per-PR preview channels cannot be fully allowlisted without widening
+# the public browser API key (see AGENTS.md, "Staging environment").
+#
+# This workflow only ever touches the staging site. Live (master -> the default
+# site) and per-PR preview channels are unchanged: `firebase.json` still defines
+# a single, untargeted hosting config, so `firebase deploy --only hosting` keeps
+# deploying only the default site.
+#
+# Deploy from Actions -> "Deploy staging" -> Run workflow, choosing a ref.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch, tag, or commit SHA to build and deploy to staging"
+        required: true
+        default: master
+        type: string
+
+permissions:
+  contents: read
+
+# One staging environment: a newer dispatch supersedes an in-flight deploy.
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: true
+
+env:
+  # Pinned to the toolchain this repo targets (see AGENTS.md / pubspec.yaml).
+  FLUTTER_VERSION: "3.47.7"
+  FIREBASE_TOOLS_VERSION: "15.34.0"
+  STAGING_URL: "https://wish-together-staging.web.app"
+
+jobs:
+  deploy:
+    name: Build & deploy to staging
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build web
+        run: flutter build web --release
+
+      - name: Authenticate to Firebase
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      # Separate config so the default `firebase.json` (live + preview channels)
+      # is untouched. `firebase.staging.json` carries `"target": "staging"`,
+      # bound to site `wish-together-staging` in `.firebaserc`.
+      - name: Deploy to staging site
+        run: |
+          npx --yes firebase-tools@"$FIREBASE_TOOLS_VERSION" \
+            deploy --only hosting:staging --config firebase.staging.json
+
+      - name: Summarize
+        run: |
+          {
+            echo "### Staging deploy"
+            echo ""
+            echo "- Requested ref: \`${{ inputs.ref }}\`"
+            echo "- Commit: \`$(git rev-parse --short HEAD)\`"
+            echo "- URL: $STAGING_URL"
+          } >> "$GITHUB_STEP_SUMMARY"

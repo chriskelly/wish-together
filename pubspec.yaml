@@ -46,6 +46,8 @@ dependencies:
   google_sign_in: ^6.3.0
   google_sign_in_web: ^0.12.4+4
   get_it: ^9.0.5
+  sign_in_with_apple: ^8.2.0
+  crypto: ^3.0.7
 
 dev_dependencies:
   flutter_test:

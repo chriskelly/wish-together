@@ -1,6 +1,10 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
 
 class MockFirebaseAuth extends Mock implements FirebaseAuth {}
@@ -16,6 +20,9 @@ void main() {
         verificationId: 'fallback-verification-id',
         smsCode: '000000',
       ),
+    );
+    registerFallbackValue(
+      OAuthProvider('apple.com').credential(idToken: 'fallback-identity-token'),
     );
   });
 
@@ -105,6 +112,153 @@ void main() {
               as PhoneAuthCredential;
       expect(credential.verificationId, verificationId);
       expect(credential.smsCode, smsCode);
+    });
+  });
+
+  group('AuthService.signInWithApple', () {
+    const identityToken = 'apple-identity-token';
+    const authorizationCode = 'apple-authorization-code';
+
+    AuthorizationCredentialAppleID appleCredential(String? token) =>
+        AuthorizationCredentialAppleID(
+          userIdentifier: 'apple-user-id',
+          givenName: null,
+          familyName: null,
+          authorizationCode: authorizationCode,
+          email: null,
+          identityToken: token,
+          state: null,
+        );
+
+    test('exchanges the Apple credential for a Firebase session', () async {
+      // Arrange
+      final userCredential = MockUserCredential();
+      when(() => mockAuth.signInWithCredential(any()))
+          .thenAnswer((_) async => userCredential);
+      final appleService = AuthService(
+        auth: mockAuth,
+        appleCredentialFetcher: ({
+          required List<AppleIDAuthorizationScopes> scopes,
+          String? nonce,
+        }) async => appleCredential(identityToken),
+      );
+
+      // Act
+      final result = await appleService.signInWithApple();
+
+      // Assert
+      expect(result, same(userCredential));
+      final credential =
+          verify(() => mockAuth.signInWithCredential(captureAny()))
+                  .captured
+                  .single
+              as OAuthCredential;
+      expect(credential.providerId, 'apple.com');
+      expect(credential.idToken, identityToken);
+    });
+
+    test(
+      'sends Apple the SHA-256 of the raw nonce it gives Firebase',
+      () async {
+        // Arrange
+        when(() => mockAuth.signInWithCredential(any()))
+            .thenAnswer((_) async => MockUserCredential());
+        String? nonceSentToApple;
+        final appleService = AuthService(
+          auth: mockAuth,
+          appleCredentialFetcher:
+              ({
+                required List<AppleIDAuthorizationScopes> scopes,
+                String? nonce,
+              }) async {
+                nonceSentToApple = nonce;
+                return appleCredential(identityToken);
+              },
+        );
+
+        // Act
+        await appleService.signInWithApple();
+
+        // Assert
+        final credential =
+            verify(() => mockAuth.signInWithCredential(captureAny()))
+                    .captured
+                    .single
+                as OAuthCredential;
+        final rawNonce = credential.rawNonce;
+        expect(rawNonce, isNotNull);
+        expect(
+          sha256.convert(utf8.encode(rawNonce!)).toString(),
+          nonceSentToApple,
+        );
+      },
+    );
+
+    test('requests only the email scope', () async {
+      // Arrange
+      when(() => mockAuth.signInWithCredential(any()))
+          .thenAnswer((_) async => MockUserCredential());
+      List<AppleIDAuthorizationScopes>? requestedScopes;
+      final appleService = AuthService(
+        auth: mockAuth,
+        appleCredentialFetcher:
+            ({
+              required List<AppleIDAuthorizationScopes> scopes,
+              String? nonce,
+            }) async {
+              requestedScopes = scopes;
+              return appleCredential(identityToken);
+            },
+      );
+
+      // Act
+      await appleService.signInWithApple();
+
+      // Assert
+      expect(requestedScopes, [AppleIDAuthorizationScopes.email]);
+    });
+
+    test('throws when Apple returns no identity token', () async {
+      // Arrange
+      final appleService = AuthService(
+        auth: mockAuth,
+        appleCredentialFetcher: ({
+          required List<AppleIDAuthorizationScopes> scopes,
+          String? nonce,
+        }) async => appleCredential(null),
+      );
+
+      // Act & Assert
+      await expectLater(
+        appleService.signInWithApple(),
+        throwsA(
+          isA<FirebaseAuthException>().having(
+            (e) => e.code,
+            'code',
+            'missing-apple-id-token',
+          ),
+        ),
+      );
+      verifyNever(() => mockAuth.signInWithCredential(any()));
+    });
+
+    test('propagates an error from the Apple sheet', () async {
+      // Arrange
+      final error = SignInWithAppleAuthorizationException(
+        code: AuthorizationErrorCode.failed,
+        message: 'nope',
+      );
+      final appleService = AuthService(
+        auth: mockAuth,
+        appleCredentialFetcher: ({
+          required List<AppleIDAuthorizationScopes> scopes,
+          String? nonce,
+        }) async => throw error,
+      );
+
+      // Act & Assert
+      await expectLater(appleService.signInWithApple(), throwsA(same(error)));
+      verifyNever(() => mockAuth.signInWithCredential(any()));
     });
   });
 }

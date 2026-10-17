@@ -1,0 +1,6 @@
+# frozen_string_literal: true
+
+# Bundle identifier and Apple Developer team. Overridable per environment —
+# CI sets APP_IDENTIFIER and DEVELOPMENT_TEAM explicitly.
+app_identifier(ENV["APP_IDENTIFIER"] || "gift.wishtogether")
+team_id(ENV["DEVELOPMENT_TEAM"] || "CD8XP2U645")

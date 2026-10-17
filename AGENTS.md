@@ -131,6 +131,11 @@ must be complete — precheck validates the live listing, not the PR. The lane c
 updates the editable App Store version for the tag; App Store metadata is maintained in App
 Store Connect, not in git.
 
+Running the lanes locally does not need Bundler: this repo's lockfile pins bundler 2.4.20,
+which may be absent for a newer Ruby — `fastlane match appstore` (without `bundle exec`)
+works with a globally installed fastlane. If fastlane reports an invalid Apple session,
+delete the stale cookie at `~/.fastlane/spaceship/<apple-id>/cookie` and log in again.
+
 ## Testing policy
 
 Follow TDD for every feature and bugfix.

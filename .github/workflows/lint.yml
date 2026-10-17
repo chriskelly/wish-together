@@ -1,0 +1,64 @@
+name: Lint
+
+# Fast, narrow gate for the CI plumbing itself: lints every workflow file and
+# loads the Fastlane/Bundler setup (which validates Gemfile/Gemfile.lock bumps,
+# e.g. Dependabot PRs). Scoped by `paths` so it is skipped for app-only changes.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/**'
+      - 'fastlane/**'
+      - 'Gemfile'
+      - 'Gemfile.lock'
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/**'
+      - 'fastlane/**'
+      - 'Gemfile'
+      - 'Gemfile.lock'
+
+permissions:
+  contents: read
+
+# Collapse superseded PR runs; never cancel a run on master.
+concurrency:
+  group: lint-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Pinned; bump together with the download script's tag below.
+  ACTIONLINT_VERSION: "1.7.12"
+
+jobs:
+  lint:
+    name: Workflows & Fastlane
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install actionlint
+        # The downloader is itself pinned (tag in the URL, version hardcoded in
+        # ACTIONLINT_VERSION) so this step is reproducible.
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          bash <(curl -sSfL "https://raw.githubusercontent.com/rhysd/actionlint/v${ACTIONLINT_VERSION}/scripts/download-actionlint.bash") \
+            "$ACTIONLINT_VERSION" "$RUNNER_TEMP/bin"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Lint workflows
+        run: actionlint .github/workflows/*.yml
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: Load the Fastlane setup
+        # Resolves the Gemfile/Gemfile.lock — a broken or conflicting dependency
+        # bump fails here rather than during a release.
+        run: bundle exec fastlane lanes

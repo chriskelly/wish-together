@@ -4,6 +4,9 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:wishtogether/features/auth/data/apple_auth_error.dart';
 
 void main() {
+  FirebaseAuthException firebaseError(String code) =>
+      FirebaseAuthException(code: code, message: 'raw-server-message');
+
   group('appleAuthErrorMessage', () {
     test('stays silent when the user cancels the Apple sheet', () {
       // Arrange
@@ -34,40 +37,6 @@ void main() {
       expect(message!.trim(), isNotEmpty);
     });
 
-    test('explains an account that already exists for the email', () {
-      // Arrange
-      final conflict = FirebaseAuthException(
-        code: 'account-exists-with-different-credential',
-        message: 'raw-server-message',
-      );
-      final fallback = appleAuthErrorMessage(
-        FirebaseAuthException(code: 'some-future-code'),
-      );
-
-      // Act
-      final message = appleAuthErrorMessage(conflict);
-
-      // Assert
-      expect(message, isNotNull);
-      expect(message!.toLowerCase(), contains('account'));
-      expect(message, isNot(fallback));
-    });
-
-    test('gives the "provider not enabled" code its own message', () {
-      // Arrange
-      final notEnabled = FirebaseAuthException(code: 'operation-not-allowed');
-      final fallback = appleAuthErrorMessage(
-        FirebaseAuthException(code: 'some-future-code'),
-      );
-
-      // Act
-      final message = appleAuthErrorMessage(notEnabled);
-
-      // Assert
-      expect(message, isNotNull);
-      expect(message, isNot(fallback));
-    });
-
     test('tells the user Apple sign-in is unavailable on this device', () {
       // Arrange
       const notSupported = SignInWithAppleNotSupportedException(
@@ -92,6 +61,54 @@ void main() {
       // Assert
       expect(message, isNotNull);
       expect(message!.trim(), isNotEmpty);
+    });
+
+    group('Firebase codes', () {
+      // Every code the mapper handles, paired with a substring its message must
+      // contain so a branch cannot silently collapse into the generic message.
+      const expectations = <String, String>{
+        'account-exists-with-different-credential': 'account',
+        'operation-not-allowed': 'not enabled',
+        'credential-already-in-use': 'already linked',
+        appleMissingIdTokenCode: 'token',
+        'missing-or-invalid-nonce': 'verify',
+        'network-request-failed': 'connection',
+      };
+
+      test('gives every handled code a message of its own', () {
+        // Arrange
+        final fallback = appleAuthErrorMessage(
+          firebaseError('some-future-code'),
+        );
+        final messages = <String>[];
+
+        // Act
+        for (final code in expectations.keys) {
+          final message = appleAuthErrorMessage(firebaseError(code));
+          expect(message, isNotNull, reason: code);
+          expect(message, isNot(fallback), reason: code);
+          expect(message!.trim(), isNotEmpty, reason: code);
+          messages.add(message);
+        }
+
+        // Assert
+        expect(
+          messages.toSet().length,
+          expectations.length,
+          reason: 'each handled code should read differently',
+        );
+      });
+
+      for (final entry in expectations.entries) {
+        test('explains ${entry.key}', () {
+          // Act
+          final message = appleAuthErrorMessage(firebaseError(entry.key));
+
+          // Assert
+          expect(message, isNotNull);
+          expect(message!.toLowerCase(), contains(entry.value));
+        });
+      }
     });
   });
 }

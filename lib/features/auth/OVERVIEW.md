@@ -57,8 +57,9 @@ profile).
   non-web platforms so its `web_only.renderButton()` reference still compiles there; the real
   web button comes from `google_sign_in_web`. `AuthService` always imports the real
   `google_sign_in` package, on native and web alike.
-- The Sign in with Apple button is rendered **only on iOS** (`!kIsWeb &&
-  defaultTargetPlatform == TargetPlatform.iOS`); web and Android show nothing. This satisfies
+- The Sign in with Apple button is rendered **only on iOS** — `LoginPage` gates it
+  with the pure `shouldShowAppleSignInButton(isWeb:, platform:)` predicate, which web
+  (where `defaultTargetPlatform` is the browser's OS) and Android both fail. This satisfies
   App Store guideline 4.8 on the iOS app without pulling in the Apple Service ID / web flow.
 
 ## Data flow
@@ -111,5 +112,7 @@ callback URL — those are only for the OAuth code flow (web/Android).
   identity token, and error propagation).
 - `test/features/auth/data/phone_auth_error_test.dart` — the phone error-code → message mapper.
 - `test/features/auth/data/apple_auth_error_test.dart` — the Apple error mapper, including the
-  silent-on-cancel case.
+  silent-on-cancel case and every handled Firebase code.
+- `test/features/auth/presentation/login_page_test.dart` — the
+  `shouldShowAppleSignInButton` platform-gate truth table (iOS shows; web, Android, macOS hide).
 - `test/core/router_test.dart` covers the auth redirect matrix.

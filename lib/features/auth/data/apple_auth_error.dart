@@ -4,6 +4,11 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 const String _genericMessage =
     'Sign in with Apple failed. Please try again, or use Google sign-in instead.';
 
+/// The `FirebaseAuthException` code raised by `AuthService.signInWithApple`
+/// when Apple returns no identity token. Shared so the throw site and this
+/// mapper cannot drift apart.
+const String appleMissingIdTokenCode = 'missing-apple-id-token';
+
 /// Maps an Apple sign-in failure to a short, user-facing message.
 ///
 /// Returns `null` when no message should be shown — the user simply backed out
@@ -33,8 +38,10 @@ String? appleAuthErrorMessage(Object error) {
             'use Google sign-in.';
       case 'credential-already-in-use':
         return 'This Apple ID is already linked to another account.';
-      case 'missing-apple-id-token':
+      case appleMissingIdTokenCode:
         return 'Apple did not return a sign-in token. Please try again.';
+      case 'missing-or-invalid-nonce':
+        return 'We could not verify this sign-in attempt. Please try again.';
       case 'network-request-failed':
         return 'Network problem. Check your connection and try again.';
       default:

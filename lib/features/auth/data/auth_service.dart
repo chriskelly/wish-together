@@ -13,6 +13,7 @@ import 'package:flutter/foundation.dart';
 // `login_page.dart`.
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:wishtogether/features/auth/data/apple_auth_error.dart';
 
 /// Fetches an Apple ID credential.
 ///
@@ -24,11 +25,6 @@ typedef AppleCredentialFetcher =
       required List<AppleIDAuthorizationScopes> scopes,
       String? nonce,
     });
-
-Future<AuthorizationCredentialAppleID> _getAppleIDCredential({
-  required List<AppleIDAuthorizationScopes> scopes,
-  String? nonce,
-}) => SignInWithApple.getAppleIDCredential(scopes: scopes, nonce: nonce);
 
 class AuthService {
   /// The web OAuth client id. Used by the web build and as the server client id.
@@ -67,7 +63,8 @@ class AuthService {
     AppleCredentialFetcher? appleCredentialFetcher,
   }) : _auth = auth ?? FirebaseAuth.instance,
        _isWeb = isWeb ?? kIsWeb,
-       _fetchAppleCredential = appleCredentialFetcher ?? _getAppleIDCredential {
+       _fetchAppleCredential =
+           appleCredentialFetcher ?? SignInWithApple.getAppleIDCredential {
     // Listen to Google Sign-In user changes
     _googleSignIn.onCurrentUserChanged.listen((
       GoogleSignInAccount? account,
@@ -169,11 +166,12 @@ class AuthService {
     );
   }
 
-  /// Signs in with Apple on Apple platforms.
+  /// Signs in with Apple and exchanges the credential for a Firebase session.
   ///
-  /// Fetches the Apple ID credential, then exchanges it for a Firebase session
-  /// via an `apple.com` OAuth credential. Callers gate the button by platform;
-  /// this method itself is platform-agnostic.
+  /// Does not check the platform: `SignInWithApple.getAppleIDCredential` throws
+  /// where Sign in with Apple is unavailable (web/Android without web auth
+  /// options), so callers must gate this by platform — see
+  /// `shouldShowAppleSignInButton` in `login_page.dart`.
   ///
   /// A per-attempt nonce guards against replay: Apple receives the SHA-256 of
   /// the raw nonce (which it embeds in the identity token), and Firebase
@@ -190,7 +188,7 @@ class AuthService {
     final idToken = appleCredential.identityToken;
     if (idToken == null) {
       throw FirebaseAuthException(
-        code: 'missing-apple-id-token',
+        code: appleMissingIdTokenCode,
         message: 'Apple did not return an identity token.',
       );
     }
@@ -198,6 +196,8 @@ class AuthService {
     return _auth.signInWithCredential(
       OAuthProvider('apple.com').credential(
         idToken: idToken,
+        // Apple's authorization code goes in `accessToken`: Firebase expects it
+        // here for the native iOS exchange.
         accessToken: appleCredential.authorizationCode,
         rawNonce: rawNonce,
       ),

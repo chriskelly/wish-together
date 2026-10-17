@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:wishtogether/features/auth/data/apple_auth_error.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
 
 class MockFirebaseAuth extends Mock implements FirebaseAuth {}
@@ -155,6 +156,9 @@ void main() {
               as OAuthCredential;
       expect(credential.providerId, 'apple.com');
       expect(credential.idToken, identityToken);
+      // Apple's authorization code is passed as the access token for the
+      // native iOS exchange — pin it so a "cleanup" cannot silently drop it.
+      expect(credential.accessToken, authorizationCode);
     });
 
     test(
@@ -235,7 +239,7 @@ void main() {
           isA<FirebaseAuthException>().having(
             (e) => e.code,
             'code',
-            'missing-apple-id-token',
+            appleMissingIdTokenCode,
           ),
         ),
       );

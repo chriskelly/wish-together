@@ -1,7 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'
-    show kIsWeb, defaultTargetPlatform, TargetPlatform;
+    show kIsWeb, defaultTargetPlatform, TargetPlatform, visibleForTesting;
 import 'package:go_router/go_router.dart';
 
 import 'dart:developer' as developer;
@@ -17,6 +17,22 @@ import 'package:wishtogether/features/auth/data/google_sign_in_stub.dart'
     if (dart.library.html) 'package:google_sign_in_web/web_only.dart'
     as web_only;
 import 'package:wishtogether/features/auth/presentation/verification_page.dart';
+
+/// Whether the Sign in with Apple button should be shown.
+///
+/// App Store guideline 4.8 requires an equivalent privacy-focused option on
+/// iOS, where Google sign-in is offered; web and Android (and macOS, which has
+/// no target here) show nothing. Extracted so this platform gate — the whole
+/// point of the feature — is unit-testable without a widget test.
+///
+/// `isWeb` is required in addition to [platform] because on web
+/// `defaultTargetPlatform` resolves to the *browser's* OS, so iOS Safari would
+/// otherwise show the button.
+@visibleForTesting
+bool shouldShowAppleSignInButton({
+  required bool isWeb,
+  required TargetPlatform platform,
+}) => !isWeb && platform == TargetPlatform.iOS;
 
 class LoginPage extends StatefulWidget {
   static const String route = '/login';
@@ -89,7 +105,11 @@ class _LoginPageState extends State<LoginPage>
                               ),
                               const SizedBox(height: 40),
                               _googleSignInButton(),
-                              _appleSignInButton(),
+                              if (shouldShowAppleSignInButton(
+                                isWeb: kIsWeb,
+                                platform: defaultTargetPlatform,
+                              ))
+                                _appleSignInButton(),
                               const SizedBox(height: 20),
                               _dividerBetweenOAuthAndPhone(),
                               const SizedBox(height: 20),
@@ -153,15 +173,11 @@ class _LoginPageState extends State<LoginPage>
     }
   }
 
-  /// Renders the Sign in with Apple button on Apple platforms.
+  /// Renders the Sign in with Apple button.
   ///
-  /// App Store guideline 4.8 requires an equivalent privacy-focused option
-  /// wherever a third-party sign-in (Google) is offered. Other platforms
-  /// (web, Android) render nothing, so this stays an iOS-only addition.
+  /// Only built when [shouldShowAppleSignInButton] is true; see that predicate
+  /// for the platform gate.
   Widget _appleSignInButton() {
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) {
-      return const SizedBox.shrink();
-    }
     return Padding(
       padding: const EdgeInsets.only(top: 20),
       child: SignInWithAppleButton(onPressed: _signInWithApple),

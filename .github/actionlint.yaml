@@ -1,0 +1,10 @@
+# actionlint project config.
+#
+# The workflows pin `runs-on: ubuntu-26.04`, ahead of GitHub's migration of the
+# `ubuntu-latest` label to that image (rollout starts 2026-10-19; see
+# actions/runner-images#14748). actionlint's built-in runner-label list ships with
+# each release and does not know `ubuntu-26.04` yet, so declare it here — the same
+# escape hatch actionlint documents for labels it cannot infer.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04

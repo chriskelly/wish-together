@@ -2,6 +2,14 @@
   "projects": {
     "default": "wish-together-project"
   },
-  "targets": {},
+  "targets": {
+    "wish-together-project": {
+      "hosting": {
+        "staging": [
+          "wish-together-staging"
+        ]
+      }
+    }
+  },
   "etags": {}
 }

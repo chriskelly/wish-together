@@ -27,7 +27,10 @@ per-area `OVERVIEW.md` next to the code you are touching.
 ├── README.md                  # user-facing product blurb
 ├── pubspec.yaml               # dependencies
 ├── analysis_options.yaml      # flutter_lints (default rule set)
-├── firebase.json              # Hosting + Firestore config
+├── .agents/skills/            # repo-local agent skills (see Local skills)
+├── .github/workflows/         # CI/CD (see CI)
+├── firebase.json              # Hosting (default site) + Firestore config
+├── firebase.staging.json      # Hosting config for the staging site (see CI)
 ├── firestore.rules            # Firestore security rules
 ├── firestore.indexes.json     # Firestore composite indexes
 ├── lib/
@@ -57,6 +60,7 @@ per-area `OVERVIEW.md` next to the code you are touching.
 | How is data accessed? | Repositories extending `core/data/firebase_repository.dart` |
 | Where are the Firestore rules? | `firestore.rules` (root) |
 | How does iOS ship to TestFlight? | `.github/workflows/testflight-release.yml` + `fastlane/Fastfile` (see CI) |
+| How do I test real auth on a preview? | `.agents/skills/preview-auth/` (run locally, never CI; see CI → Staging environment) |
 
 ## Commands
 
@@ -135,6 +139,50 @@ Running the lanes locally does not need Bundler: this repo's lockfile pins bundl
 which may be absent for a newer Ruby — `fastlane match appstore` (without `bundle exec`)
 works with a globally installed fastlane. If fastlane reports an invalid Apple session,
 delete the stale cookie at `~/.fastlane/spaceship/<apple-id>/cookie` and log in again.
+
+### Staging environment
+
+`https://wish-together-staging.web.app` is a persistent pre-merge environment where
+**real phone and Google sign-in work** (once the one-time allowlisting below is done). It
+exists because per-PR preview channels are
+short-lived, so CI cannot allowlist them without a wildcard (`https://*.web.app/*`) on the
+public browser API key; widening that key is an open security decision that needs review, not
+a convenience. **CI never allowlists a preview host.** An operator may allowlist ONE preview
+host locally and temporarily via `.agents/skills/preview-auth/`, then revert. Staging is the
+one stable, authorized host.
+
+Staging is a **second site in the production Firebase project** (`wish-together-project`) — it
+uses the production Auth and the production Firestore. Validate with designated test accounts
+and groups; anything created or claimed on staging is real data.
+
+- `.github/workflows/deploy-staging.yml` — manual (`workflow_dispatch`). Actions →
+  **Deploy staging** → *Run workflow*, choose a ref (branch, tag, or SHA). It builds web and
+  deploys that ref to the `wish-together-staging` site; each run **overwrites** the site, so
+  only the latest dispatch matters.
+- It deploys from `firebase.staging.json` (a `"target": "staging"` hosting config bound in
+  `.firebaserc`), **not** `firebase.json`. `firebase.json` keeps a single untargeted hosting
+  config, so live (`master` → `firebase deploy --only hosting`) and the PR preview channels
+  are unchanged.
+- One-time setup: the site must exist (`firebase hosting:sites:create wish-together-staging`,
+  or Console → Hosting → Add site); the committed `.firebaserc` already binds the `staging`
+  target to it. Then allowlist the staging host, with the **exact** host (no wildcard), in each:
+  1. Firebase Console → **Authentication → Settings → Authorized domains** →
+     `wish-together-staging.web.app`
+  2. Google Cloud Console → **APIs & Services → Credentials → the browser API key →
+     Application restrictions → HTTP referrers** → `https://wish-together-staging.web.app/*`
+  3. Google Cloud Console → **Credentials → the web OAuth 2.0 client → Authorized JavaScript
+     origins** → `https://wish-together-staging.web.app` (needed for Google sign-in)
+
+  If App Check enforcement is enabled for the project, the staging host must also be
+  registered with App Check before sign-in works.
+
+## Local skills
+
+`.agents/skills/` holds repo-local agent skills. **`preview-auth`** allowlists ONE preview
+host for a one-off, reversible real-auth validation on a preview channel: Auth authorized
+domains and the browser API-key referrers automatically, and the Google OAuth origin as a
+printed manual step (`remove` prints the matching deletion). Run it **locally, never in CI** —
+it mutates production Firebase config.
 
 ## Testing policy
 

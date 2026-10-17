@@ -1,0 +1,17 @@
+{
+  "hosting": {
+    "target": "staging",
+    "public": "build/web",
+    "ignore": ["firebase.json", "firebase.staging.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [
+      {
+        "source": "/privacy",
+        "destination": "/privacy.html"
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

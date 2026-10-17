@@ -1,8 +1,11 @@
+import 'dart:developer' as developer;
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
+import 'package:wishtogether/features/auth/data/phone_auth_error.dart';
 
 class VerificationPage extends StatefulWidget {
   static const String route = '/verify';
@@ -64,20 +67,23 @@ class _VerificationPageState extends State<VerificationPage> {
 
   ElevatedButton _verifyButton() => ElevatedButton(
     onPressed: () async {
-      final credential = PhoneAuthProvider.credential(
-        verificationId: widget.verificationId,
-        smsCode: _codeController.text,
-      );
       try {
-        await _authService.signInWithPhoneCredential(credential);
+        await _authService.confirmPhoneCode(
+          verificationId: widget.verificationId,
+          smsCode: _codeController.text,
+        );
         if (mounted) {
           context.go(widget.redirectTo ?? '/');
         }
       } on FirebaseAuthException catch (e) {
+        developer.log(
+          'Phone code confirmation failed (code=${e.code})',
+          name: 'auth.phone.confirm',
+          error: e,
+        );
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(e.message ?? 'Sign-in failed')),
-          );
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(phoneAuthErrorMessage(e))));
         }
       }
     },

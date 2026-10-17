@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:go_router/go_router.dart';
@@ -8,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:wishtogether/core/router.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
+import 'package:wishtogether/features/auth/data/phone_auth_error.dart';
 import 'package:wishtogether/features/auth/data/google_sign_in_stub.dart'
     if (dart.library.html) 'package:google_sign_in_web/web_only.dart'
     as web_only;
@@ -167,55 +169,102 @@ class _LoginPageState extends State<LoginPage>
     keyboardType: TextInputType.phone,
   );
 
-  ElevatedButton _requestVerificationCodeButton(
-    BuildContext context,
-  ) => ElevatedButton(
-    onPressed: () async {
-      // Automatically prepend the US country code
-      final phoneNumber = '+1${_phoneController.text}';
-
-      final redirectTo = GoRouterState.of(context)
-          .uri
-          .queryParameters[redirectToParam];
-      await _authService.verifyPhoneNumber(
-        phoneNumber: phoneNumber,
-        verificationCompleted: (credential) async {
-          await _authService.signInWithPhoneCredential(credential);
-          // ignore: use_build_context_synchronously
-          if (context.mounted) {
-            context.go(redirectTo ?? '/');
-          }
-        },
-        verificationFailed: (e) {
-          developer.log('Phone verification failed', error: e);
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Phone verification failed: ${e.message}'),
-              ),
-            );
-          }
-        },
-        codeSent: (verificationId, forceResendingToken) {
-          if (mounted) {
-            final redirectTo = GoRouterState.of(context)
-                .uri
-                .queryParameters[redirectToParam];
-            final verifyUri = redirectTo != null
-                ? '${VerificationPage.route}?$redirectToParam=${Uri.encodeComponent(redirectTo)}'
-                : VerificationPage.route;
-            context.go(verifyUri, extra: verificationId);
-          }
-        },
-        codeAutoRetrievalTimeout: (verificationId) {
-          developer.log(
-            'Auto-retrieval timeout for verification ID: $verificationId',
-          );
-        },
+  ElevatedButton _requestVerificationCodeButton(BuildContext context) =>
+      ElevatedButton(
+        onPressed: () => _requestVerificationCode(context),
+        child: const Text('Send Verification Code'),
       );
-    },
-    child: const Text('Send Verification Code'),
-  );
+
+  /// Requests an SMS code. Web and native use different Firebase APIs, so the
+  /// flow splits by platform here; everything else is shared.
+  Future<void> _requestVerificationCode(BuildContext context) async {
+    // Automatically prepend the US country code
+    final phoneNumber = '+1${_phoneController.text}';
+    final redirectTo = GoRouterState.of(context)
+        .uri
+        .queryParameters[redirectToParam];
+
+    if (kIsWeb) {
+      await _requestWebVerificationCode(context, phoneNumber, redirectTo);
+    } else {
+      await _requestNativeVerificationCode(context, phoneNumber, redirectTo);
+    }
+  }
+
+  /// Web: `signInWithPhoneNumber` manages reCAPTCHA and returns a verification
+  /// id for the code-entry page.
+  Future<void> _requestWebVerificationCode(
+    BuildContext context,
+    String phoneNumber,
+    String? redirectTo,
+  ) async {
+    try {
+      final verificationId = await _authService.startWebPhoneSignIn(
+        phoneNumber,
+      );
+      if (!context.mounted) return;
+      _openVerificationPage(context, verificationId, redirectTo);
+    } on FirebaseAuthException catch (e) {
+      developer.log(
+        'Web phone verification failed (code=${e.code})',
+        name: 'auth.phone.send',
+        error: e,
+      );
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(phoneAuthErrorMessage(e))));
+    }
+  }
+
+  /// Native: `verifyPhoneNumber` reports progress through callbacks.
+  Future<void> _requestNativeVerificationCode(
+    BuildContext context,
+    String phoneNumber,
+    String? redirectTo,
+  ) async {
+    await _authService.verifyPhoneNumber(
+      phoneNumber: phoneNumber,
+      verificationCompleted: (credential) async {
+        await _authService.signInWithPhoneCredential(credential);
+        // ignore: use_build_context_synchronously
+        if (context.mounted) {
+          context.go(redirectTo ?? '/');
+        }
+      },
+      verificationFailed: (e) {
+        developer.log(
+          'Phone verification failed (code=${e.code})',
+          name: 'auth.phone.send',
+          error: e,
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(phoneAuthErrorMessage(e))));
+        }
+      },
+      codeSent: (verificationId, forceResendingToken) {
+        if (mounted) {
+          _openVerificationPage(context, verificationId, redirectTo);
+        }
+      },
+      codeAutoRetrievalTimeout: (verificationId) {
+        developer.log(
+          'Auto-retrieval timeout for verification ID: $verificationId',
+        );
+      },
+    );
+  }
+
+  void _openVerificationPage(
+    BuildContext context,
+    String verificationId,
+    String? redirectTo,
+  ) {
+    final verifyUri = redirectTo != null
+        ? '${VerificationPage.route}?$redirectToParam=${Uri.encodeComponent(redirectTo)}'
+        : VerificationPage.route;
+    context.go(verifyUri, extra: verificationId);
+  }
 
   List<Widget> _buildAppInfoSection(BuildContext context) {
     return [

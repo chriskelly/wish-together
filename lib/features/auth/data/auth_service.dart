@@ -16,7 +16,7 @@ class AuthService {
   static String clientId =
       "1063002805065-eobumao8o4tk4s54ea41jogjvls62pu5.apps.googleusercontent.com";
 
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseAuth _auth;
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     // On iOS the plugin reads the iOS OAuth client (CLIENT_ID) from the bundled
     // GoogleService-Info.plist. Passing the web client id here would not match
@@ -26,9 +26,20 @@ class AuthService {
         : clientId,
   );
 
+  /// Whether the app is running on the web platform. Injectable for tests.
+  final bool _isWeb;
+
+  /// The pending web phone sign-in, set by [startWebPhoneSignIn] and consumed by
+  /// [confirmPhoneCode]. Web only.
+  ConfirmationResult? _webConfirmation;
+
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
-  AuthService() {
+  /// [auth] and [isWeb] are injectable so the phone-auth platform split can be
+  /// unit tested; production callers use the defaults.
+  AuthService({FirebaseAuth? auth, bool? isWeb})
+    : _auth = auth ?? FirebaseAuth.instance,
+      _isWeb = isWeb ?? kIsWeb {
     // Listen to Google Sign-In user changes
     _googleSignIn.onCurrentUserChanged.listen((
       GoogleSignInAccount? account,
@@ -91,5 +102,42 @@ class AuthService {
     PhoneAuthCredential credential,
   ) async {
     return await _auth.signInWithCredential(credential);
+  }
+
+  /// Starts a phone sign-in on the web platform.
+  ///
+  /// Web uses the documented `signInWithPhoneNumber` API, which manages the
+  /// reCAPTCHA challenge and returns a [ConfirmationResult]. The result is kept
+  /// so [confirmPhoneCode] can finish the flow with the SMS code. Returns the
+  /// verification id to route to the code-entry page.
+  Future<String> startWebPhoneSignIn(String phoneNumber) async {
+    final confirmationResult = await _auth.signInWithPhoneNumber(phoneNumber);
+    _webConfirmation = confirmationResult;
+    return confirmationResult.verificationId;
+  }
+
+  /// Finishes a phone sign-in with the SMS code sent to the user.
+  ///
+  /// On web the stashed [ConfirmationResult] is confirmed; on native a
+  /// [PhoneAuthProvider] credential is built from the verification id and code.
+  Future<UserCredential> confirmPhoneCode({
+    required String verificationId,
+    required String smsCode,
+  }) async {
+    if (_isWeb) {
+      final confirmationResult = _webConfirmation;
+      if (confirmationResult == null) {
+        throw StateError(
+          'No web phone sign-in in progress. Call startWebPhoneSignIn first.',
+        );
+      }
+      return confirmationResult.confirm(smsCode);
+    }
+    return _auth.signInWithCredential(
+      PhoneAuthProvider.credential(
+        verificationId: verificationId,
+        smsCode: smsCode,
+      ),
+    );
   }
 }

@@ -2,15 +2,29 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
-import 'package:wishtogether/features/auth/data/google_sign_in_stub.dart'
-    if (dart.library.html) 'package:google_sign_in/google_sign_in.dart';
+// Always use the real `google_sign_in` package on the platforms it supports:
+// native (iOS/Android) and web. On web the plugin shares
+// `GoogleSignInPlatform.instance` with `google_sign_in_web`'s rendered button,
+// so subscribing to `onCurrentUserChanged` here completes the Firebase
+// credential exchange on both web and native. The compile-time stub returns
+// `null` from `signIn()`, which silently no-ops the native Google button in
+// `login_page.dart`.
+import 'package:google_sign_in/google_sign_in.dart';
 
 class AuthService {
+  /// The web OAuth client id. Used by the web build and as the server client id.
   static String clientId =
       "1063002805065-eobumao8o4tk4s54ea41jogjvls62pu5.apps.googleusercontent.com";
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn(clientId: clientId);
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    // On iOS the plugin reads the iOS OAuth client (CLIENT_ID) from the bundled
+    // GoogleService-Info.plist. Passing the web client id here would not match
+    // the reversed-client-ID URL scheme configured in Info.plist.
+    clientId: (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS)
+        ? null
+        : clientId,
+  );
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 

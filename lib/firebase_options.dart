@@ -26,10 +26,7 @@ class DefaultFirebaseOptions {
           'you can reconfigure this by running the FlutterFire CLI again.',
         );
       case TargetPlatform.iOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for ios - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return ios;
       case TargetPlatform.macOS:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for macos - '
@@ -59,5 +56,15 @@ class DefaultFirebaseOptions {
     projectId: 'wish-together-project',
     authDomain: 'wish-together-project.firebaseapp.com',
     storageBucket: 'wish-together-project.firebasestorage.app',
+  );
+
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyDu-xNqX4p6mUcit2rO_zoGaXljrocdfzA',
+    appId: '1:1063002805065:ios:932498daa47afaf4e08098',
+    messagingSenderId: '1063002805065',
+    projectId: 'wish-together-project',
+    storageBucket: 'wish-together-project.firebasestorage.app',
+    iosClientId: '1063002805065-9jl5jrc8vr6bfcd16gce7u60ham75uas.apps.googleusercontent.com',
+    iosBundleId: 'gift.wishtogether',
   );
 }

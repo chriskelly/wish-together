@@ -184,9 +184,10 @@ Rules:
 
 ## Hard guardrails
 
-- NEVER commit secrets or credential files (service-account JSON, API keys, keystores,
-  `GoogleService-Info.plist` secrets). `lib/firebase_options.dart` is committed by design;
-  its API keys are public client keys.
+- NEVER commit secrets or credential files (service-account JSON, APNs `.p8` keys,
+  keystores). `lib/firebase_options.dart` and `ios/Runner/GoogleService-Info.plist` are
+  committed by design; they hold only public client identifiers (API keys, app ids, OAuth
+  client ids), not secrets.
 - NEVER hand-edit `pubspec.lock`; use `flutter pub add` and `flutter pub get`.
 - NEVER disable or downgrade lint rules to make `flutter analyze` pass — fix the
   underlying issue.

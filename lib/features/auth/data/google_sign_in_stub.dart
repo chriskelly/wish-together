@@ -2,9 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-// This is a stub implementation of the google_sign_in package. It provides
-// the necessary classes and methods for the AuthService to compile and run in a
-// non-web environment (like the test runner) without causing platform errors.
+// This is a stub for `google_sign_in`'s `renderButton`. `login_page.dart` falls
+// back to it on non-web platforms so its `web_only.renderButton()` reference
+// still compiles there; the web build resolves `web_only` to `google_sign_in_web`.
+// `AuthService` uses the real `google_sign_in` package on every platform.
 
 /// A stub for the `GoogleSignInAuthentication` class.
 /// It provides fake token values.

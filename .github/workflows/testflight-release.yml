@@ -53,13 +53,17 @@ jobs:
       - name: Resolve PR context
         id: pr
         uses: actions/github-script@v9
+        env:
+          # Passed via env, never interpolated into the script (dispatch inputs
+          # are attacker-influenced text).
+          PR_NUMBER_INPUT: ${{ inputs.pr_number }}
         with:
           script: |
             const { owner, repo } = context.repo;
             let prNumber;
 
             if (context.eventName === 'workflow_dispatch') {
-              prNumber = Number('${{ inputs.pr_number }}');
+              prNumber = Number(process.env.PR_NUMBER_INPUT);
             } else {
               const prs = context.payload.workflow_run.pull_requests || [];
               if (prs.length) {
@@ -95,9 +99,12 @@ jobs:
             core.setOutput('no_deploy', String(labels.includes('no-deploy')));
 
       - name: Checkout
+        if: steps.pr.outputs.no_deploy != 'true'
         uses: actions/checkout@v7
         with:
-          ref: ${{ steps.pr.outputs.head_ref }}
+          # Build exactly the commit iOS CI validated — the branch head may have
+          # moved on since. Manual runs have no workflow_run, so fall back to the ref.
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || steps.pr.outputs.head_ref }}
 
       - name: Set up Flutter
         if: steps.pr.outputs.no_deploy != 'true'
@@ -139,13 +146,14 @@ jobs:
           PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
           SKIPPED: ${{ steps.pr.outputs.no_deploy == 'true' }}
           JOB_STATUS: ${{ job.status }}
-          BUILD_NUMBER: ${{ env.BUILD_NUMBER }}
+          # The lane resolves a build number from App Store Connect and republishes it here.
+          BUILD_NUMBER: ${{ env.RESOLVED_BUILD_NUMBER || env.BUILD_NUMBER }}
         with:
           script: |
             const marker = '<!-- testflight-release -->';
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
             const skipped = process.env.SKIPPED === 'true';
-            const failed = process.env.JOB_STATUS === 'failure';
+            const uploaded = process.env.JOB_STATUS === 'success';
 
             let body;
             if (skipped) {
@@ -158,16 +166,7 @@ jobs:
                 '',
                 `[View workflow run](${runUrl})`,
               ].join('\n');
-            } else if (failed) {
-              body = [
-                marker,
-                '### TestFlight — failed',
-                '',
-                'The TestFlight upload did not complete. Check the workflow log.',
-                '',
-                `[View workflow run](${runUrl})`,
-              ].join('\n');
-            } else {
+            } else if (uploaded) {
               body = [
                 marker,
                 '### TestFlight — build uploaded',
@@ -175,6 +174,15 @@ jobs:
                 `Build number: **${process.env.BUILD_NUMBER}**`,
                 '',
                 'Install from TestFlight once Apple finishes processing (usually 10–20 minutes).',
+                '',
+                `[View workflow run](${runUrl})`,
+              ].join('\n');
+            } else {
+              body = [
+                marker,
+                '### TestFlight — not uploaded',
+                '',
+                'The TestFlight upload did not complete (failed or cancelled). Check the workflow log.',
                 '',
                 `[View workflow run](${runUrl})`,
               ].join('\n');

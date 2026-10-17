@@ -52,6 +52,7 @@ docs/specs/
 docs/plans/
 
 # fastlane / Ruby
+/.bundle/
 /vendor/bundle/
 fastlane/report.xml
 fastlane/Preview.html

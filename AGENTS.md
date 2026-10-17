@@ -114,10 +114,22 @@ manual signing with the match profile. `aps-environment` is `production` in
 `Runner.entitlements` (Release/Profile, used by TestFlight) and `development` in
 `Runner-Debug.entitlements` (Debug).
 
+Build numbers are resolved from App Store Connect (highest already uploaded + 1), never from
+the per-workflow run number, so the TestFlight and App Store lanes cannot collide.
+
+Security posture: `testflight-release.yml` runs the *PR's* `fastlane/Fastfile` and app code
+with the `match` signing key and the App Store Connect API key in the environment. It is
+restricted to same-repo pull requests and the `no-deploy` label opts a PR out — but anyone
+who can push a branch reaches those secrets' effects. Add a GitHub `environment` with
+required reviewers if that needs a human gate.
+
 One-time local setup (on a Mac with Xcode): `bundle install`, then
-`bundle exec fastlane match appstore` to create or renew the signing assets in the cert
-repo. The App Store Connect listing (description, screenshots, privacy) must be complete
-before the first `app-store-release` run — precheck validates the live listing, not the PR.
+`bundle exec fastlane match appstore` to create or renew the signing assets in the cert repo
+(add a read-only deploy key to the cert repo and set `MATCH_GIT_PRIVATE_KEY`). Before the
+first `app-store-release`, the App Store Connect listing (description, screenshots, privacy)
+must be complete — precheck validates the live listing, not the PR. The lane creates or
+updates the editable App Store version for the tag; App Store metadata is maintained in App
+Store Connect, not in git.
 
 ## Testing policy
 

@@ -287,11 +287,14 @@ class AuthService {
 
   /// Starts a phone verification for [phoneNumber].
   ///
-  /// Web manages the reCAPTCHA flow itself. Native reports progress through
-  /// callbacks, and the platform may verify the device on its own (Android
-  /// instant verification, which sends no SMS) — so the outcome says which
-  /// route to take rather than assuming a code was sent. [timeout] bounds the
-  /// wait so a platform that reports nothing cannot hang the caller.
+  /// Native reports progress through callbacks, and the platform may verify the
+  /// device on its own (Android instant verification, which sends no SMS) — so
+  /// the outcome says which route to take rather than assuming a code was sent.
+  /// [timeout] bounds that callback wait so a platform that never reports cannot
+  /// hang the caller.
+  ///
+  /// The web path is the SDK's reCAPTCHA challenge, which is interactive and is
+  /// deliberately not capped: a user solving a challenge must not be timed out.
   Future<PhoneVerification> startPhoneVerification(
     String phoneNumber, {
     Duration timeout = const Duration(seconds: 60),
@@ -301,37 +304,51 @@ class AuthService {
     }
 
     final result = Completer<PhoneVerification>();
-    // The platform's callbacks can fire before the caller awaits the future.
-    // Mark the completer's future as observed now, so a failure is not *also*
-    // reported as an unhandled async error; the caller's await still sees it.
-    final verification = result.future;
+    // Start the clock before calling the platform: a method channel that never
+    // returns must not defeat the bound.
+    final verification = result.future.timeout(timeout);
+    // The callbacks can fire before the caller awaits the future. Mark it as
+    // observed now, so a failure is not *also* reported as an unhandled async
+    // error; the caller's await still sees it.
     verification.ignore();
 
-    await verifyPhoneNumber(
-      phoneNumber: phoneNumber,
-      verificationCompleted: (credential) {
-        if (!result.isCompleted) {
-          result.complete(PhoneVerificationAutoVerified(credential));
-        }
-      },
-      verificationFailed: (error) {
-        if (!result.isCompleted) {
-          result.completeError(error);
-        }
-      },
-      codeSent: (verificationId, resendToken) {
-        if (!result.isCompleted) {
-          result.complete(PhoneVerificationCodeSent(verificationId));
-        }
-      },
-      codeAutoRetrievalTimeout: (verificationId) {
-        // Auto-retrieval gave up, but the code route is still open.
-        if (!result.isCompleted) {
-          result.complete(PhoneVerificationCodeSent(verificationId));
-        }
-      },
+    // Deliberately not awaited: the timeout above has to cover the platform call
+    // itself, so its error is forwarded into the completer instead.
+    unawaited(
+      verifyPhoneNumber(
+        phoneNumber: phoneNumber,
+        verificationCompleted: (credential) {
+          if (!result.isCompleted) {
+            result.complete(PhoneVerificationAutoVerified(credential));
+          }
+        },
+        verificationFailed: (error) {
+          if (!result.isCompleted) {
+            result.completeError(error);
+          }
+        },
+        codeSent: (verificationId, resendToken) {
+          if (!result.isCompleted) {
+            result.complete(PhoneVerificationCodeSent(verificationId));
+          }
+        },
+        codeAutoRetrievalTimeout: (verificationId) {
+          // Auto-retrieval gave up, but the code route is still open.
+          if (!result.isCompleted) {
+            result.complete(PhoneVerificationCodeSent(verificationId));
+          }
+        },
+      ).then(
+        (_) {},
+        onError: (Object error, StackTrace stackTrace) {
+          if (!result.isCompleted) {
+            result.completeError(error, stackTrace);
+          }
+        },
+      ),
     );
-    return verification.timeout(timeout);
+
+    return verification;
   }
 
   /// Deletes the signed-in user's account, then revokes the Google grant.
@@ -353,9 +370,11 @@ class AuthService {
     await user.delete();
     try {
       await _googleSignIn.disconnect();
-    } catch (_) {
+    } catch (error) {
       // The account is already gone, so a failed revocation must not be
-      // reported as a failed deletion.
+      // reported as a failed deletion — but it must not vanish either: it is
+      // the only signal that the Google grant is still active.
+      debugPrint('Google revocation failed after account deletion: $error');
     }
   }
 

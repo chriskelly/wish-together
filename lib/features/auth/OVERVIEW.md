@@ -105,12 +105,16 @@ profile).
   the deleted account.
 - **Sign in with Apple is only manually revoked.** Programmatic revocation needs the
   Apple refresh token (or authorization code) plus a client secret signed with the
-  Apple private key — both server-side — and sign-in does not retain the
-  authorization code. So when the account has an `apple.com` link, the flow ends with
-  TN3194's fallback: the user is told to remove the app under Settings → Apple ID →
-  Sign in with Apple. The programmatic revoke needs the authorization code and the
-  user identifier kept at sign-in, plus a Cloud Function; until then App Store
-  submission relies on the manual step.
+  Apple private key — both server-side. The authorization code is available during
+  sign-in and re-authentication, but is deliberately not retained because no server
+  endpoint exists to consume it yet. So when the account has an `apple.com` link, the
+  flow ends with TN3194's fallback: the user is told to remove the app under
+  Settings → Apple ID → Sign in with Apple. Programmatic revocation needs the
+  authorization code and the user identifier kept at sign-in (or captured from the
+  re-authentication step), plus a Cloud Function; until then App Store submission
+  relies on the manual step. TN3194's third step — handling the credential-revoked
+  notification — is a no-op for this client: `user.delete()` has already left it
+  unauthenticated and no Apple refresh token is stored.
 
 ## Data flow
 
@@ -180,9 +184,12 @@ validate it on the **staging** site (or live) with a throwaway account for each 
   account deleted **last**, the unauthenticated throw, and "a failed cascade never
   deletes the auth account".
 - `test/features/auth/data/auth_service_test.dart` — as above, plus `deleteAccount`
-  (delete then Google sign-out, and the signed-out no-op), the three
-  re-authentication flows (native Google credential, web Google popup, Apple
-  credential, phone code), `signInProvider`, and `providerIds`.
+  (delete then revoke the Google grant, the signed-out no-op, and a failed revocation
+  still counting as success), every re-authentication path (native Google credential,
+  web Google popup, Apple credential, phone code, platform-verified phone credential),
+  `startPhoneVerification` (instant verification, code sent, auto-retrieval timeout,
+  failure, double-fire, timeout, and the web path), `signInProvider`, and
+  `providerIds`.
 - `test/features/auth/data/reauth_provider_test.dart` — the provider-preference truth
   table, including the token-over-linked-providers preference and Apple being skipped
   on web.

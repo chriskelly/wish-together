@@ -100,11 +100,24 @@ class _DeleteAccountSectionState extends State<DeleteAccountSection> {
       }
 
       await _deleteAccountUseCase.execute();
+    } catch (error) {
+      final message = deleteAccountErrorMessage(error);
+      if (message != null) {
+        _showMessage(message);
+      }
+      return;
+    } finally {
+      if (mounted) {
+        setState(() => _isDeleting = false);
+      }
+    }
 
+    // The account is gone from here on, so nothing below can be a deletion
+    // failure — and must never be reported as one.
+    try {
       if (hasAppleLink) {
         await _explainAppleRevocation(navigator);
       }
-
       messenger.showSnackBar(
         const SnackBar(content: Text('Your account has been deleted.')),
       );
@@ -112,14 +125,7 @@ class _DeleteAccountSectionState extends State<DeleteAccountSection> {
         context.go(LoginPage.route);
       }
     } catch (error) {
-      final message = deleteAccountErrorMessage(error);
-      if (message != null) {
-        _showMessage(message);
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isDeleting = false);
-      }
+      debugPrint('Delete-account follow-up failed: $error');
     }
   }
 

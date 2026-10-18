@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
@@ -560,6 +561,7 @@ void main() {
       String? codeSentId,
       String? verificationIdOnTimeout,
       FirebaseAuthException? failure,
+      String? thenCodeSentId,
     }) {
       when(
         () => mockAuth.verifyPhoneNumber(
@@ -583,6 +585,12 @@ void main() {
         } else if (failure != null) {
           (callbacks[#verificationFailed]
               as void Function(FirebaseAuthException))(failure);
+        }
+        if (thenCodeSentId != null) {
+          (callbacks[#codeSent] as void Function(String, int?))(
+            thenCodeSentId,
+            null,
+          );
         }
       });
     }
@@ -670,6 +678,46 @@ void main() {
       await expectLater(
         service.startPhoneVerification(phoneNumber),
         throwsA(same(failure)),
+      );
+    });
+
+    test('keeps the first result when the platform reports twice', () async {
+      // ARRANGE: instant verification fires, then a code is reported as sent.
+      final credential = PhoneAuthProvider.credential(
+        verificationId: 'instant-verification-id',
+        smsCode: '123456',
+      );
+      simulatePlatform(autoVerified: credential, thenCodeSentId: 'late-code');
+
+      final service = AuthService(auth: mockAuth, isWeb: false);
+
+      // ACT
+      final result = await service.startPhoneVerification(phoneNumber);
+
+      // ASSERT: the second report must not try to complete the future again.
+      expect(
+        result,
+        isA<PhoneVerificationAutoVerified>().having(
+          (verification) => verification.credential,
+          'credential',
+          same(credential),
+        ),
+      );
+    });
+
+    test('times out when the platform never reports', () async {
+      // ARRANGE: the platform invokes no callback at all.
+      simulatePlatform();
+
+      final service = AuthService(auth: mockAuth, isWeb: false);
+
+      // ACT & ASSERT
+      await expectLater(
+        service.startPhoneVerification(
+          phoneNumber,
+          timeout: const Duration(milliseconds: 10),
+        ),
+        throwsA(isA<TimeoutException>()),
       );
     });
 

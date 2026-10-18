@@ -15,7 +15,9 @@ final class PhoneVerificationCodeSent extends PhoneVerification {
 /// The platform verified the device itself, so no code is needed.
 ///
 /// Android instant verification completes this way when Play Services can
-/// confirm the SIM without sending an SMS.
+/// confirm the SIM without sending an SMS. The credential is opaque to the
+/// caller: it exists only to be handed back to the service's
+/// re-authentication method.
 final class PhoneVerificationAutoVerified extends PhoneVerification {
   const PhoneVerificationAutoVerified(this.credential);
 

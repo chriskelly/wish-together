@@ -5,7 +5,12 @@ import {
   assertSucceeds,
   assertFails,
 } from '@firebase/rules-unit-testing';
-import { setLogLevel, Timestamp } from 'firebase/firestore';
+import {
+  arrayRemove,
+  arrayUnion,
+  setLogLevel,
+  Timestamp,
+} from 'firebase/firestore';
 
 // Denied writes are expected here; keep the client from logging each one.
 setLogLevel('silent');
@@ -117,7 +122,7 @@ test('a member lists their own groups', async () => {
   );
 });
 
-test('a non-member cannot list groups', async () => {
+test('a non-member cannot list a group they are not in', async () => {
   await seed((s) =>
     s
       .collection('groups')
@@ -125,7 +130,12 @@ test('a non-member cannot list groups', async () => {
       .set({ name: 'Hidden', ownerId: OWNER, members: [OWNER] }),
   );
 
-  await assertFails(db(OUTSIDER).collection('groups').get());
+  await assertFails(
+    db(OUTSIDER)
+      .collection('groups')
+      .where('members', 'array-contains', OWNER)
+      .get(),
+  );
 });
 
 test('any signed-in user can get a group by its id', async () => {
@@ -176,6 +186,23 @@ test('the owner renames the group', async () => {
   );
 });
 
+test('the owner renames the group by writing its whole map', async () => {
+  await seed((s) =>
+    s
+      .collection('groups')
+      .doc('group-rename-map')
+      .set({ name: 'Old', ownerId: OWNER, members: [OWNER, MEMBER] }),
+  );
+
+  await assertSucceeds(
+    db(OWNER).collection('groups').doc('group-rename-map').update({
+      name: 'New',
+      ownerId: OWNER,
+      members: [OWNER, MEMBER],
+    }),
+  );
+});
+
 test('a non-owner cannot rename the group', async () => {
   await seed((s) =>
     s
@@ -221,6 +248,54 @@ test('joining a group with a different uid is denied', async () => {
       .collection('groups')
       .doc('group-join-other')
       .update({ members: [OWNER, OUTSIDER] }),
+  );
+});
+
+test('a signed-in user joins a group by adding themselves with arrayUnion', async () => {
+  await seed((s) =>
+    s
+      .collection('groups')
+      .doc('group-join-union')
+      .set({ name: 'Join', ownerId: OWNER, members: [OWNER] }),
+  );
+
+  await assertSucceeds(
+    db(MEMBER)
+      .collection('groups')
+      .doc('group-join-union')
+      .update({ members: arrayUnion(MEMBER) }),
+  );
+});
+
+test('joining a group with an arrayUnion of a different uid is denied', async () => {
+  await seed((s) =>
+    s
+      .collection('groups')
+      .doc('group-join-union-other')
+      .set({ name: 'Join', ownerId: OWNER, members: [OWNER] }),
+  );
+
+  await assertFails(
+    db(MEMBER)
+      .collection('groups')
+      .doc('group-join-union-other')
+      .update({ members: arrayUnion(OUTSIDER) }),
+  );
+});
+
+test('a member leaves a group by removing themselves with arrayRemove', async () => {
+  await seed((s) =>
+    s
+      .collection('groups')
+      .doc('group-leave-remove')
+      .set({ name: 'Leave', ownerId: OWNER, members: [OWNER, MEMBER] }),
+  );
+
+  await assertSucceeds(
+    db(MEMBER)
+      .collection('groups')
+      .doc('group-leave-remove')
+      .update({ members: arrayRemove(MEMBER) }),
   );
 });
 
@@ -479,6 +554,26 @@ test('a reader of a shared wishlist lists and reads items', async () => {
   await assertSucceeds(items.doc('item').get());
 });
 
+test('the owner lists the items of their own never-shared wishlist', async () => {
+  await seed(async (s) => {
+    await seedWishlist(s, 'wishlist-owner-list', { sharedWithGroups: [] });
+    await s
+      .collection('wishlists')
+      .doc('wishlist-owner-list')
+      .collection('items')
+      .doc('item')
+      .set({ name: 'Gift' });
+  });
+
+  await assertSucceeds(
+    db(OWNER)
+      .collection('wishlists')
+      .doc('wishlist-owner-list')
+      .collection('items')
+      .get(),
+  );
+});
+
 test('a non-reader cannot read or list items of a never-shared wishlist', async () => {
   await seed(async (s) => {
     await seedWishlist(s, 'wishlist-private-read', { sharedWithGroups: [] });
@@ -518,6 +613,80 @@ test('a reader claims an item', async () => {
 
   await assertSucceeds(
     item.update({ claimedBy: OUTSIDER, claimedAt: Timestamp.fromDate(new Date()) }),
+  );
+});
+
+test('a reader cannot claim an item without a timestamp', async () => {
+  await seed(async (s) => {
+    await seedWishlist(s, 'wishlist-claim-no-time', { sharedWithGroups: ['group-1'] });
+    await s
+      .collection('wishlists')
+      .doc('wishlist-claim-no-time')
+      .collection('items')
+      .doc('item')
+      .set({ name: 'Gift' });
+  });
+
+  const item = db(OUTSIDER)
+    .collection('wishlists')
+    .doc('wishlist-claim-no-time')
+    .collection('items')
+    .doc('item');
+
+  await assertFails(item.update({ claimedBy: OUTSIDER }));
+});
+
+test('a reader cannot stamp an item they have not claimed', async () => {
+  await seed(async (s) => {
+    await seedWishlist(s, 'wishlist-stamp-unclaimed', { sharedWithGroups: ['group-1'] });
+    await s
+      .collection('wishlists')
+      .doc('wishlist-stamp-unclaimed')
+      .collection('items')
+      .doc('item')
+      .set({ name: 'Gift' });
+  });
+
+  const item = db(OUTSIDER)
+    .collection('wishlists')
+    .doc('wishlist-stamp-unclaimed')
+    .collection('items')
+    .doc('item');
+
+  await assertFails(item.update({ claimedAt: Timestamp.fromDate(new Date()) }));
+});
+
+test('a reader claims an item by writing its whole map', async () => {
+  await seed(async (s) => {
+    await seedWishlist(s, 'wishlist-claim-map', { sharedWithGroups: ['group-1'] });
+    await s
+      .collection('wishlists')
+      .doc('wishlist-claim-map')
+      .collection('items')
+      .doc('item')
+      .set({
+        name: 'Gift',
+        description: 'Something they want',
+        url: 'https://example.com/gift',
+        claimedBy: null,
+        claimedAt: null,
+      });
+  });
+
+  const item = db(OUTSIDER)
+    .collection('wishlists')
+    .doc('wishlist-claim-map')
+    .collection('items')
+    .doc('item');
+
+  await assertSucceeds(
+    item.update({
+      name: 'Gift',
+      description: 'Something they want',
+      url: 'https://example.com/gift',
+      claimedBy: OUTSIDER,
+      claimedAt: Timestamp.fromDate(new Date()),
+    }),
   );
 });
 

@@ -116,6 +116,17 @@ service cloud.firestore {
                      && parent().sharedWithGroups.size() > 0);
         }
 
+        // A claim is a pair: `claimedBy` and its timestamp are set together, or
+        // neither is. A reader that sets only one half of the pair is denied,
+        // because a half-written claim reads as claimed with no date, which the
+        // wishlist page cannot render.
+        function claimIsWellFormed() {
+          return (request.resource.data.keys().hasAny(['claimedBy'])
+                  && request.resource.data.claimedBy != null)
+                 == (request.resource.data.keys().hasAny(['claimedAt'])
+                     && request.resource.data.claimedAt is timestamp);
+        }
+
         // Narrower than the wishlist read above: an item is readable only by its
         // wishlist's owner, or when that wishlist has been shared with a group.
         allow read: if canReadParent();
@@ -129,8 +140,8 @@ service cloud.firestore {
 
         // The owner edits content freely. A reader may change only the claim
         // fields, only for themselves, may not take over another's claim, and
-        // must write a timestamp or null. The key guards keep documents written
-        // before the claim fields existed from erroring instead of denying.
+        // must write the pair. The key guards keep documents written before the
+        // claim fields existed from erroring instead of denying.
         allow update: if isParentOwner()
                       || (canReadParent()
                           && changed().hasOnly(['claimedBy', 'claimedAt'])
@@ -140,9 +151,7 @@ service cloud.firestore {
                           && (!resource.data.keys().hasAny(['claimedBy'])
                               || resource.data.claimedBy == null
                               || resource.data.claimedBy == request.auth.uid)
-                          && (!request.resource.data.keys().hasAny(['claimedAt'])
-                              || request.resource.data.claimedAt == null
-                              || request.resource.data.claimedAt is timestamp));
+                          && claimIsWellFormed());
       }
     }
   }

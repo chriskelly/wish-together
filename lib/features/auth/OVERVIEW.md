@@ -16,7 +16,7 @@ profile).
 | Layer | Files |
 | ----- | ----- |
 | `domain/` | `user.dart` |
-| `data/` | `auth_service.dart`, `user_repository.dart`, `google_sign_in_stub.dart`, `phone_auth_error.dart`, `apple_auth_error.dart`, `reauth_provider.dart`, `delete_account_error.dart` |
+| `data/` | `auth_service.dart`, `user_repository.dart`, `google_sign_in_stub.dart`, `phone_auth_error.dart`, `apple_auth_error.dart`, `reauth_provider.dart`, `delete_account_error.dart`, `phone_verification.dart` |
 | `application/` | `load_user_profile_use_case.dart`, `save_user_profile_use_case.dart`, `delete_account_use_case.dart` |
 | `presentation/` | `login_page.dart`, `verification_page.dart`, `profile_page.dart`, `delete_account_section.dart`, `home_page.dart` |
 
@@ -40,7 +40,10 @@ profile).
   *session's* provider is recorded once Firebase has linked several providers to
   one account), `providerIds` (the account's linked providers),
   `reauthenticateWithGoogle()` / `reauthenticateWithApple()` /
-  `reauthenticateWithPhoneCode(...)`, and `deleteAccount()`.
+  `reauthenticateWithPhoneCode(...)` / `reauthenticateWithPhoneCredential(...)`,
+  `startPhoneVerification(...)` (returns a `PhoneVerification`: a sent SMS code, or
+  a credential the platform verified itself on Android), `isWeb`, and
+  `deleteAccount()`.
 - `reauthCancelledCode` — the `FirebaseAuthException` code the re-authentication
   helpers throw when the user dismisses a prompt; `deleteAccountErrorMessage`
   turns it into silence rather than an error.
@@ -96,9 +99,10 @@ profile).
   groups' membership arrays is written. A group the user owned passes to its
   first remaining member (one atomic `ownerId` + `members` update); a group is
   deleted only when the user was its last member.
-- The sign-out path clears the Google session as well as Firebase's
-  (`_googleSignIn.signOut()`), so the `onCurrentUserChanged` listener cannot
-  re-establish a session for a deleted account.
+- Deleting an account revokes the Google grant (`_googleSignIn.disconnect()`, not
+  merely `signOut()`), so the provider-side access is dropped as well as the local
+  session, and the `onCurrentUserChanged` listener cannot re-establish a session for
+  the deleted account.
 
 ## Data flow
 
@@ -122,12 +126,12 @@ On web, the Google button is rendered by `google_sign_in_web` and `AuthService` 
 credential. Either path triggers the router redirect: no name → `/profile`, otherwise
 `redirect_to` or `/`.
 
-Deleting an account starts on `ProfilePage` (only for an existing user) and never
-touches the router's redirect rules: `DeleteAccountSection` confirms, re-authenticates
-for the session's provider, runs `DeleteAccountUseCase`, and returns to `/login`.
-Because `user.delete()` clears the Firebase session, `AuthListenable` drops the
-signed-in state at the same moment; the `context.go('/login')` matches what the
-redirect would do anyway.
+Deleting an account starts on `ProfilePage` — reachable for any signed-in user, including one
+who has not chosen a display name yet — and never touches the router's redirect rules:
+`DeleteAccountSection` confirms, re-authenticates for the session's provider, runs
+`DeleteAccountUseCase`, and returns to `/login`. Because `user.delete()` clears the Firebase
+session, `AuthListenable` drops the signed-in state at the same moment; the
+`context.go('/login')` matches what the redirect would do anyway.
 
 ## Platform prerequisites
 

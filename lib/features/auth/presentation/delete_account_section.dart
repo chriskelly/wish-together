@@ -1,7 +1,4 @@
-import 'dart:async';
-
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wishtogether/common/widgets/confirmation_dialog.dart';
@@ -10,6 +7,7 @@ import 'package:wishtogether/features/auth/application/delete_account_use_case.d
 import 'package:wishtogether/features/auth/data/auth_service.dart';
 import 'package:wishtogether/features/auth/data/delete_account_error.dart';
 import 'package:wishtogether/features/auth/data/phone_auth_error.dart';
+import 'package:wishtogether/features/auth/data/phone_verification.dart';
 import 'package:wishtogether/features/auth/data/reauth_provider.dart';
 import 'package:wishtogether/features/auth/presentation/login_page.dart';
 
@@ -118,7 +116,7 @@ class _DeleteAccountSectionState extends State<DeleteAccountSection> {
     return preferredReauthProvider(
       signInProvider: signInProvider,
       providerIds: _authService.providerIds,
-      isWeb: kIsWeb,
+      isWeb: _authService.isWeb,
     );
   }
 
@@ -146,60 +144,31 @@ class _DeleteAccountSectionState extends State<DeleteAccountSection> {
       return false;
     }
 
-    final String verificationId;
+    final PhoneVerification verification;
     try {
-      verificationId = await _requestPhoneVerificationCode(phoneNumber);
+      verification = await _authService.startPhoneVerification(phoneNumber);
     } on FirebaseAuthException catch (error) {
       _showMessage(phoneAuthErrorMessage(error));
       return false;
     }
 
-    final smsCode = await _promptForSmsCode();
-    if (smsCode == null) {
-      return false;
+    switch (verification) {
+      case PhoneVerificationAutoVerified(:final credential):
+        // The platform proved possession of the phone itself (Android instant
+        // verification), so there is no code to type in.
+        await _authService.reauthenticateWithPhoneCredential(credential);
+        return true;
+      case PhoneVerificationCodeSent(:final verificationId):
+        final smsCode = await _promptForSmsCode();
+        if (smsCode == null) {
+          return false;
+        }
+        await _authService.reauthenticateWithPhoneCode(
+          verificationId: verificationId,
+          smsCode: smsCode,
+        );
+        return true;
     }
-
-    await _authService.reauthenticateWithPhoneCode(
-      verificationId: verificationId,
-      smsCode: smsCode,
-    );
-    return true;
-  }
-
-  /// Sends an SMS code to [phoneNumber] and returns its verification id.
-  Future<String> _requestPhoneVerificationCode(String phoneNumber) async {
-    if (kIsWeb) {
-      return _authService.startWebPhoneSignIn(phoneNumber);
-    }
-
-    final verificationId = Completer<String>();
-    await _authService.verifyPhoneNumber(
-      phoneNumber: phoneNumber,
-      // Auto-retrieval is ignored: the code is always typed in, so the user
-      // actively proves they still hold the phone.
-      verificationCompleted: (credential) {},
-      verificationFailed: (error) {
-        if (!verificationId.isCompleted) {
-          verificationId.completeError(error);
-        }
-      },
-      codeSent: (id, resendToken) {
-        if (!verificationId.isCompleted) {
-          verificationId.complete(id);
-        }
-      },
-      codeAutoRetrievalTimeout: (id) {
-        if (!verificationId.isCompleted) {
-          verificationId.completeError(
-            FirebaseAuthException(
-              code: 'code-expired',
-              message: 'The SMS code expired before it was entered.',
-            ),
-          );
-        }
-      },
-    );
-    return verificationId.future;
   }
 
   /// Asks for the SMS code. Returns `null` when the user cancels.

@@ -200,6 +200,38 @@ void main() {
     });
 
     test(
+      'deleteWithItems removes every item when they span more than one batch',
+      () async {
+        // ARRANGE: more items than a single Firestore batch can delete (500).
+        const itemCount = 501;
+        final wishlists = fakeFirestore.collection(Wishlist.collectionName);
+        await wishlists
+            .doc(testWishlistId)
+            .set(
+              wishlistRepository.toFirestore(
+                Wishlist(id: testWishlistId, name: 'Big', ownerId: 'owner'),
+              ),
+            );
+        final items = fakeFirestore.collection(itemsCollectionPath);
+        // Seeded in two batches because Firestore caps a batch at 500 writes.
+        for (var start = 0; start < itemCount; start += 500) {
+          final batch = fakeFirestore.batch();
+          for (var i = start; i < itemCount && i < start + 500; i++) {
+            batch.set(items.doc('item-$i'), {'name': 'Item $i'});
+          }
+          await batch.commit();
+        }
+
+        // ACT
+        await wishlistRepository.deleteWithItems(testWishlistId);
+
+        // ASSERT
+        expect((await items.get()).docs, isEmpty);
+        expect((await wishlists.doc(testWishlistId).get()).exists, isFalse);
+      },
+    );
+
+    test(
       'deleteWithItems leaves another wishlist and its items untouched',
       () async {
         // ARRANGE: a doomed wishlist and a survivor, each with an item.

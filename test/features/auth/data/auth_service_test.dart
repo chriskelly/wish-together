@@ -8,6 +8,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:wishtogether/features/auth/data/apple_auth_error.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
+import 'package:wishtogether/features/auth/data/phone_verification.dart';
 
 class MockFirebaseAuth extends Mock implements FirebaseAuth {}
 
@@ -43,6 +44,10 @@ void main() {
       ),
     );
     registerFallbackValue(GoogleAuthProvider());
+    registerFallbackValue((PhoneAuthCredential credential) {});
+    registerFallbackValue((FirebaseAuthException error) {});
+    registerFallbackValue((String verificationId, int? resendToken) {});
+    registerFallbackValue((String verificationId) {});
   });
 
   late MockFirebaseAuth mockAuth;
@@ -285,7 +290,7 @@ void main() {
   });
 
   group('AuthService.deleteAccount', () {
-    test('deletes the auth user and then signs out of Google', () async {
+    test('deletes the auth user and then revokes the Google grant', () async {
       // ARRANGE
       final user = MockUser();
       final googleSignIn = MockGoogleSignIn();
@@ -293,15 +298,17 @@ void main() {
       when(() => googleSignIn.onCurrentUserChanged)
           .thenAnswer((_) => const Stream<GoogleSignInAccount?>.empty());
       when(() => user.delete()).thenAnswer((_) async {});
-      when(() => googleSignIn.signOut()).thenAnswer((_) async => null);
+      when(() => googleSignIn.disconnect()).thenAnswer((_) async => null);
 
       final service = AuthService(auth: mockAuth, googleSignIn: googleSignIn);
 
       // ACT
       await service.deleteAccount();
 
-      // ASSERT
-      verifyInOrder([() => user.delete(), () => googleSignIn.signOut()]);
+      // ASSERT: disconnect revokes the provider grant; signOut only drops the
+      // local session and would leave the app listed on the Google account.
+      verifyInOrder([() => user.delete(), () => googleSignIn.disconnect()]);
+      verifyNever(() => googleSignIn.signOut());
     });
 
     test('completes without error when no user is signed in', () async {
@@ -313,15 +320,15 @@ void main() {
       await expectLater(service.deleteAccount(), completes);
     });
 
-    test('still succeeds when clearing the Google session fails', () async {
-      // ARRANGE: the account is deleted, but clearing the Google session fails.
+    test('still succeeds when revoking the Google grant fails', () async {
+      // ARRANGE: the account is deleted, but revoking fails.
       final user = MockUser();
       final googleSignIn = MockGoogleSignIn();
       when(() => mockAuth.currentUser).thenReturn(user);
       when(() => googleSignIn.onCurrentUserChanged)
           .thenAnswer((_) => const Stream<GoogleSignInAccount?>.empty());
       when(() => user.delete()).thenAnswer((_) async {});
-      when(() => googleSignIn.signOut())
+      when(() => googleSignIn.disconnect())
           .thenThrow(Exception('google unavailable'));
 
       final service = AuthService(auth: mockAuth, googleSignIn: googleSignIn);
@@ -541,6 +548,185 @@ void main() {
 
       // ACT & ASSERT
       expect(service.providerIds, ['google.com', 'apple.com']);
+    });
+  });
+
+  group('AuthService.startPhoneVerification', () {
+    const phoneNumber = '+15550001111';
+
+    /// Stubs `verifyPhoneNumber` and drives it the way [platform] describes.
+    void simulatePlatform({
+      PhoneAuthCredential? autoVerified,
+      String? codeSentId,
+      String? verificationIdOnTimeout,
+      FirebaseAuthException? failure,
+    }) {
+      when(
+        () => mockAuth.verifyPhoneNumber(
+          phoneNumber: any(named: 'phoneNumber'),
+          verificationCompleted: any(named: 'verificationCompleted'),
+          verificationFailed: any(named: 'verificationFailed'),
+          codeSent: any(named: 'codeSent'),
+          codeAutoRetrievalTimeout: any(named: 'codeAutoRetrievalTimeout'),
+        ),
+      ).thenAnswer((invocation) async {
+        final callbacks = invocation.namedArguments;
+        if (autoVerified != null) {
+          (callbacks[#verificationCompleted]
+              as void Function(PhoneAuthCredential))(autoVerified);
+        } else if (codeSentId != null) {
+          (callbacks[#codeSent] as void Function(String, int?))(codeSentId, 1);
+        } else if (verificationIdOnTimeout != null) {
+          (callbacks[#codeAutoRetrievalTimeout] as void Function(String))(
+            verificationIdOnTimeout,
+          );
+        } else if (failure != null) {
+          (callbacks[#verificationFailed]
+              as void Function(FirebaseAuthException))(failure);
+        }
+      });
+    }
+
+    test(
+      'returns the platform credential when the device verifies itself',
+      () async {
+        // ARRANGE: Android instant verification — no SMS is sent.
+        final credential = PhoneAuthProvider.credential(
+          verificationId: 'instant-verification-id',
+          smsCode: '123456',
+        );
+        simulatePlatform(autoVerified: credential);
+
+        final service = AuthService(auth: mockAuth, isWeb: false);
+
+        // ACT
+        final result = await service.startPhoneVerification(phoneNumber);
+
+        // ASSERT
+        expect(
+          result,
+          isA<PhoneVerificationAutoVerified>().having(
+            (verification) => verification.credential,
+            'credential',
+            same(credential),
+          ),
+        );
+      },
+    );
+
+    test('returns the verification id when a code was sent', () async {
+      // ARRANGE
+      const verificationId = 'sms-verification-id';
+      simulatePlatform(codeSentId: verificationId);
+
+      final service = AuthService(auth: mockAuth, isWeb: false);
+
+      // ACT
+      final result = await service.startPhoneVerification(phoneNumber);
+
+      // ASSERT
+      expect(
+        result,
+        isA<PhoneVerificationCodeSent>().having(
+          (verification) => verification.verificationId,
+          'verificationId',
+          verificationId,
+        ),
+      );
+    });
+
+    test('treats an auto-retrieval timeout as a code that was sent', () async {
+      // ARRANGE
+      const verificationId = 'timeout-verification-id';
+      simulatePlatform(verificationIdOnTimeout: verificationId);
+
+      final service = AuthService(auth: mockAuth, isWeb: false);
+
+      // ACT
+      final result = await service.startPhoneVerification(phoneNumber);
+
+      // ASSERT
+      expect(
+        result,
+        isA<PhoneVerificationCodeSent>().having(
+          (verification) => verification.verificationId,
+          'verificationId',
+          verificationId,
+        ),
+      );
+    });
+
+    test('propagates a verification failure', () async {
+      // ARRANGE
+      final failure = FirebaseAuthException(
+        code: 'invalid-phone-number',
+        message: 'bad number',
+      );
+      simulatePlatform(failure: failure);
+
+      final service = AuthService(auth: mockAuth, isWeb: false);
+
+      // ACT & ASSERT
+      await expectLater(
+        service.startPhoneVerification(phoneNumber),
+        throwsA(same(failure)),
+      );
+    });
+
+    test(
+      'on web, starts the reCAPTCHA flow and returns its verification id',
+      () async {
+        // ARRANGE
+        const verificationId = 'web-verification-id';
+        final confirmationResult = MockConfirmationResult();
+        when(() => mockAuth.signInWithPhoneNumber(any()))
+            .thenAnswer((_) async => confirmationResult);
+        when(() => confirmationResult.verificationId)
+            .thenReturn(verificationId);
+
+        final service = AuthService(auth: mockAuth, isWeb: true);
+
+        // ACT
+        final result = await service.startPhoneVerification(phoneNumber);
+
+        // ASSERT
+        expect(
+          result,
+          isA<PhoneVerificationCodeSent>().having(
+            (verification) => verification.verificationId,
+            'verificationId',
+            verificationId,
+          ),
+        );
+      },
+    );
+  });
+
+  group('AuthService.reauthenticateWithPhoneCredential', () {
+    test('reauthenticates with the credential the platform verified', () async {
+      // ARRANGE
+      final user = MockUser();
+      final credential = PhoneAuthProvider.credential(
+        verificationId: 'instant-verification-id',
+        smsCode: '123456',
+      );
+      when(() => mockAuth.currentUser).thenReturn(user);
+      when(() => user.reauthenticateWithCredential(any()))
+          .thenAnswer((_) async => MockUserCredential());
+
+      final service = AuthService(auth: mockAuth);
+
+      // ACT
+      await service.reauthenticateWithPhoneCredential(credential);
+
+      // ASSERT
+      final captured =
+          verify(() => user.reauthenticateWithCredential(captureAny()))
+                  .captured
+                  .single
+              as PhoneAuthCredential;
+      expect(captured.verificationId, credential.verificationId);
+      expect(captured.smsCode, credential.smsCode);
     });
   });
 }

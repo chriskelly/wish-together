@@ -48,26 +48,28 @@ class WishlistRepository extends FirebaseRepository<Wishlist> {
   }
 
   /// The wishlists owned by [ownerId].
-  Future<List<Wishlist>> listOwnedBy(String ownerId) async {
-    final snapshot = await instance
-        .collection(collectionPath)
-        .where('ownerId', isEqualTo: ownerId)
-        .get();
-    return snapshot.docs.map((doc) => fromFirestore(doc)).toList();
+  Future<List<Wishlist>> listOwnedBy(String ownerId) {
+    return listWhere('ownerId', isEqualTo: ownerId);
   }
 
   /// Deletes the wishlist and every item in its `items` sub-collection.
   ///
   /// Firestore does not remove a sub-collection when its parent document is
-  /// deleted, so the items go first (in batches), then the wishlist itself.
+  /// deleted, so the items are purged first, in pages, then the wishlist
+  /// itself. A concurrent write during the window is not covered — a
+  /// server-side cascade would be needed for that.
   Future<void> deleteWithItems(String wishlistId) async {
     final itemRepository = items(wishlistId);
-    final snapshot = await itemRepository.instance
-        .collection(itemRepository.collectionPath)
-        .get();
-    for (var start = 0; start < snapshot.docs.length; start += _batchLimit) {
+    while (true) {
+      final page = await itemRepository.instance
+          .collection(itemRepository.collectionPath)
+          .limit(_batchLimit)
+          .get();
+      if (page.docs.isEmpty) {
+        break;
+      }
       final batch = instance.batch();
-      for (final doc in snapshot.docs.skip(start).take(_batchLimit)) {
+      for (final doc in page.docs) {
         batch.delete(doc.reference);
       }
       await batch.commit();

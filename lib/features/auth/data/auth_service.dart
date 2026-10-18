@@ -14,6 +14,7 @@ import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:wishtogether/features/auth/data/apple_auth_error.dart';
+import 'package:wishtogether/features/auth/data/phone_verification.dart';
 
 /// Fetches an Apple ID credential.
 ///
@@ -272,12 +273,78 @@ class AuthService {
     );
   }
 
-  /// Deletes the signed-in user's account, then clears the Google session.
+  /// Re-authenticates the current user with a credential the platform verified
+  /// itself (Android instant verification).
+  Future<void> reauthenticateWithPhoneCredential(
+    PhoneAuthCredential credential,
+  ) async {
+    final user = _requireCurrentUser();
+    await user.reauthenticateWithCredential(credential);
+  }
+
+  /// Whether the app is running on web, per the injectable [isWeb] value.
+  bool get isWeb => _isWeb;
+
+  /// Starts a phone verification for [phoneNumber].
+  ///
+  /// Web manages the reCAPTCHA flow itself. Native reports progress through
+  /// callbacks, and the platform may verify the device on its own (Android
+  /// instant verification, which sends no SMS) — so the outcome says which
+  /// route to take rather than assuming a code was sent. [timeout] bounds the
+  /// wait so a platform that reports nothing cannot hang the caller.
+  Future<PhoneVerification> startPhoneVerification(
+    String phoneNumber, {
+    Duration timeout = const Duration(seconds: 60),
+  }) async {
+    if (_isWeb) {
+      return PhoneVerificationCodeSent(await startWebPhoneSignIn(phoneNumber));
+    }
+
+    final result = Completer<PhoneVerification>();
+    // The platform's callbacks can fire before the caller awaits the future.
+    // Mark the completer's future as observed now, so a failure is not *also*
+    // reported as an unhandled async error; the caller's await still sees it.
+    final verification = result.future;
+    verification.ignore();
+
+    await verifyPhoneNumber(
+      phoneNumber: phoneNumber,
+      verificationCompleted: (credential) {
+        if (!result.isCompleted) {
+          result.complete(PhoneVerificationAutoVerified(credential));
+        }
+      },
+      verificationFailed: (error) {
+        if (!result.isCompleted) {
+          result.completeError(error);
+        }
+      },
+      codeSent: (verificationId, resendToken) {
+        if (!result.isCompleted) {
+          result.complete(PhoneVerificationCodeSent(verificationId));
+        }
+      },
+      codeAutoRetrievalTimeout: (verificationId) {
+        // Auto-retrieval gave up, but the code route is still open.
+        if (!result.isCompleted) {
+          result.complete(PhoneVerificationCodeSent(verificationId));
+        }
+      },
+    );
+    return verification.timeout(timeout);
+  }
+
+  /// Deletes the signed-in user's account, then revokes the Google grant.
   ///
   /// Requires a recent login: `User.delete()` throws `requires-recent-login`
-  /// otherwise, which the caller resolves by re-authenticating first. Signing
-  /// out of Google afterwards stops the account listener from trying to
-  /// re-establish a session for the deleted account.
+  /// otherwise, which the caller resolves by re-authenticating first. Does
+  /// nothing when nobody is signed in — the delete-account use case requires a
+  /// session long before it gets here.
+  ///
+  /// The Google grant is revoked with `disconnect()`, not merely signed out:
+  /// deleting an account must also drop the app's access to the provider
+  /// account, and `disconnect()` stops the account listener from trying to
+  /// re-establish a session for the deleted account at the same time.
   Future<void> deleteAccount() async {
     final user = _auth.currentUser;
     if (user == null) {
@@ -285,9 +352,9 @@ class AuthService {
     }
     await user.delete();
     try {
-      await _googleSignIn.signOut();
+      await _googleSignIn.disconnect();
     } catch (_) {
-      // The account is already gone, so a failed Google sign-out must not be
+      // The account is already gone, so a failed revocation must not be
       // reported as a failed deletion.
     }
   }

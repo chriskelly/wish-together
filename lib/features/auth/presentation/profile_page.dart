@@ -86,8 +86,9 @@ class _ProfilePageState extends State<ProfilePage> {
         _nameTextFormField(),
         const SizedBox(height: 30),
         _saveButton(context),
-        // Deleting an account only makes sense once there is one to delete.
-        if (!_isNewUser) const DeleteAccountSection(),
+        // The account exists as soon as the user signs in — even before they
+        // have picked a display name — so deletion must always be reachable.
+        const DeleteAccountSection(),
       ],
     ),
   );

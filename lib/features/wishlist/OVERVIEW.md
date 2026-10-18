@@ -42,8 +42,9 @@ of the product.
 
 - Items are always scoped to a wishlist sub-collection; never query items globally.
 - Deleting a wishlist goes through `deleteWithItems`, because Firestore does not
-  remove a sub-collection when its parent document is deleted. Account deletion
-  uses it, so an orphaned `items` sub-collection cannot outlive its wishlist.
+  remove a sub-collection when its parent document is deleted. It pages through
+  the items first, then deletes the wishlist; a write landing inside that window
+  is not covered (only a server-side cascade could close it).
 - An `Item` must have an id before it can be updated;
   `WishlistRepository.updateItemInWishlist` throws `ArgumentError` otherwise.
 - `claimedAt` is stored as a Firestore `Timestamp` but modeled as a `DateTime`; the

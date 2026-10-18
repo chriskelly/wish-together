@@ -25,9 +25,9 @@ import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 /// the same gift to be bought twice. Nothing outside the user's own documents
 /// and groups is written.
 ///
-/// A server-side cascade (which could delete sub-collections and the auth
-/// account atomically) is tracked as a follow-up; see the Cloud Functions
-/// infrastructure issue.
+/// A server-side cascade (a Cloud Function) could delete the sub-collections
+/// and the auth account atomically; this one is a sequence of client writes, so
+/// a mid-way failure leaves a partially-deleted account that a rerun finishes.
 class DeleteAccountUseCase {
   Future<void> execute() async {
     final authService = getIt<AuthService>();
@@ -73,7 +73,6 @@ class DeleteAccountUseCase {
       await groupRepository.leaveGroup(group.id!, userId);
     }
 
-    // The profile document.
     await userRepository.delete(userId);
 
     // The auth account goes last: the writes above need the session, and

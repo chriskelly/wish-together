@@ -29,21 +29,13 @@ class GroupRepository extends FirebaseRepository<Group> {
   }
 
   /// The groups whose `members` array contains [userId].
-  Future<List<Group>> listForMember(String userId) async {
-    final snapshot = await instance
-        .collection(collectionPath)
-        .where('members', arrayContains: userId)
-        .get();
-    return snapshot.docs.map((doc) => fromFirestore(doc)).toList();
+  Future<List<Group>> listForMember(String userId) {
+    return listWhere('members', arrayContains: userId);
   }
 
   /// The groups owned by [ownerId].
-  Future<List<Group>> listOwnedBy(String ownerId) async {
-    final snapshot = await instance
-        .collection(collectionPath)
-        .where('ownerId', isEqualTo: ownerId)
-        .get();
-    return snapshot.docs.map((doc) => fromFirestore(doc)).toList();
+  Future<List<Group>> listOwnedBy(String ownerId) {
+    return listWhere('ownerId', isEqualTo: ownerId);
   }
 
   /// Moves a group to [newOwnerId] and records the [remainingMembers].

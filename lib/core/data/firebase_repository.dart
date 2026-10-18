@@ -53,6 +53,42 @@ abstract class FirebaseRepository<T> {
         );
   }
 
+  /// The one-shot counterpart to [streamWhere], for callers that need the
+  /// current matches and cannot wait on a stream.
+  Future<List<T>> listWhere(
+    String field, {
+    Object? isEqualTo,
+    Object? isNotEqualTo,
+    Object? isLessThan,
+    Object? isLessThanOrEqualTo,
+    Object? isGreaterThan,
+    Object? isGreaterThanOrEqualTo,
+    Object? arrayContains,
+    List<Object?>? arrayContainsAny,
+    List<Object?>? whereIn,
+    List<Object?>? whereNotIn,
+    bool? isNull,
+  }) async {
+    final snapshot = await instance
+        .collection(collectionPath)
+        .where(
+          field,
+          isEqualTo: isEqualTo,
+          isNotEqualTo: isNotEqualTo,
+          isLessThan: isLessThan,
+          isLessThanOrEqualTo: isLessThanOrEqualTo,
+          isGreaterThan: isGreaterThan,
+          isGreaterThanOrEqualTo: isGreaterThanOrEqualTo,
+          arrayContains: arrayContains,
+          arrayContainsAny: arrayContainsAny,
+          whereIn: whereIn,
+          whereNotIn: whereNotIn,
+          isNull: isNull,
+        )
+        .get();
+    return snapshot.docs.map((doc) => fromFirestore(doc)).toList();
+  }
+
   Stream<T> streamOne(String id) {
     return instance
         .collection(collectionPath)

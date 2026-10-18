@@ -72,6 +72,17 @@ void main() {
       );
     });
 
+    test('ignores an Apple session token on the web, where Apple cannot confirm it', () {
+      expect(
+        preferredReauthProvider(
+          signInProvider: 'apple.com',
+          providerIds: const ['apple.com'],
+          isWeb: true,
+        ),
+        ReauthProvider.unknown,
+      );
+    });
+
     test('falls through to Google on the web when Apple is linked', () {
       expect(
         preferredReauthProvider(

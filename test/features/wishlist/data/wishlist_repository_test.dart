@@ -136,5 +136,105 @@ void main() {
       expect(updatedWishlist.sharedWithGroups, contains(otherGroupId));
       expect(updatedWishlist.sharedWithGroups.length, 1);
     });
+
+    test(
+      'listOwnedBy returns only the wishlists whose owner matches',
+      () async {
+        // ARRANGE: two wishlists for the owner, one for somebody else.
+        const ownerId = 'owner';
+        const otherOwnerId = 'other-owner';
+        final wishlists = fakeFirestore.collection(Wishlist.collectionName);
+        await wishlists
+            .doc('mine-1')
+            .set(
+              wishlistRepository.toFirestore(
+                Wishlist(id: 'mine-1', name: 'Mine 1', ownerId: ownerId),
+              ),
+            );
+        await wishlists
+            .doc('mine-2')
+            .set(
+              wishlistRepository.toFirestore(
+                Wishlist(id: 'mine-2', name: 'Mine 2', ownerId: ownerId),
+              ),
+            );
+        await wishlists
+            .doc('theirs')
+            .set(
+              wishlistRepository.toFirestore(
+                Wishlist(id: 'theirs', name: 'Theirs', ownerId: otherOwnerId),
+              ),
+            );
+
+        // ACT
+        final owned = await wishlistRepository.listOwnedBy(ownerId);
+
+        // ASSERT
+        expect(
+          owned.map((wishlist) => wishlist.id),
+          unorderedEquals(['mine-1', 'mine-2']),
+        );
+      },
+    );
+
+    test('deleteWithItems removes the wishlist and every item in its sub-collection', () async {
+      // ARRANGE: a wishlist with two items.
+      final wishlists = fakeFirestore.collection(Wishlist.collectionName);
+      await wishlists
+          .doc(testWishlistId)
+          .set(
+            wishlistRepository.toFirestore(
+              Wishlist(id: testWishlistId, name: 'Doomed', ownerId: 'owner'),
+            ),
+          );
+      final items = fakeFirestore.collection(itemsCollectionPath);
+      await items.doc('item-1').set({'name': 'Item 1'});
+      await items.doc('item-2').set({'name': 'Item 2'});
+
+      // ACT
+      await wishlistRepository.deleteWithItems(testWishlistId);
+
+      // ASSERT
+      expect((await wishlists.doc(testWishlistId).get()).exists, isFalse);
+      expect((await items.get()).docs, isEmpty);
+    });
+
+    test(
+      'deleteWithItems leaves another wishlist and its items untouched',
+      () async {
+        // ARRANGE: a doomed wishlist and a survivor, each with an item.
+        const survivorId = 'survivor';
+        final wishlists = fakeFirestore.collection(Wishlist.collectionName);
+        await wishlists
+            .doc(testWishlistId)
+            .set(
+              wishlistRepository.toFirestore(
+                Wishlist(id: testWishlistId, name: 'Doomed', ownerId: 'owner'),
+              ),
+            );
+        await wishlists
+            .doc(survivorId)
+            .set(
+              wishlistRepository.toFirestore(
+                Wishlist(id: survivorId, name: 'Survivor', ownerId: 'owner'),
+              ),
+            );
+        await fakeFirestore
+            .collection(itemsCollectionPath)
+            .doc('doomed-item')
+            .set({'name': 'Doomed item'});
+        final survivorItems = fakeFirestore.collection(
+          '${Wishlist.collectionName}/$survivorId/${Item.collectionName}',
+        );
+        await survivorItems.doc('survivor-item').set({'name': 'Survivor item'});
+
+        // ACT
+        await wishlistRepository.deleteWithItems(testWishlistId);
+
+        // ASSERT
+        expect((await wishlists.doc(survivorId).get()).exists, isTrue);
+        expect((await survivorItems.get()).docs.length, 1);
+      },
+    );
   });
 }

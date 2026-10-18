@@ -46,4 +46,35 @@ class WishlistRepository extends FirebaseRepository<Wishlist> {
       wishlist.copyWith(sharedWithGroups: updatedGroups),
     );
   }
+
+  /// The wishlists owned by [ownerId].
+  Future<List<Wishlist>> listOwnedBy(String ownerId) async {
+    final snapshot = await instance
+        .collection(collectionPath)
+        .where('ownerId', isEqualTo: ownerId)
+        .get();
+    return snapshot.docs.map((doc) => fromFirestore(doc)).toList();
+  }
+
+  /// Deletes the wishlist and every item in its `items` sub-collection.
+  ///
+  /// Firestore does not remove a sub-collection when its parent document is
+  /// deleted, so the items go first (in batches), then the wishlist itself.
+  Future<void> deleteWithItems(String wishlistId) async {
+    final itemRepository = items(wishlistId);
+    final snapshot = await itemRepository.instance
+        .collection(itemRepository.collectionPath)
+        .get();
+    for (var start = 0; start < snapshot.docs.length; start += _batchLimit) {
+      final batch = instance.batch();
+      for (final doc in snapshot.docs.skip(start).take(_batchLimit)) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+    }
+    await delete(wishlistId);
+  }
+
+  /// The largest number of deletes Firestore accepts in one batch.
+  static const int _batchLimit = 500;
 }

@@ -28,7 +28,9 @@ of the product.
   `items` is **not** a top-level collection.
 - `WishlistRepository extends FirebaseRepository<Wishlist>` — `items(wishlistId)` returns
   an `ItemRepository` bound to the sub-collection (reusing the same Firestore instance),
-  plus `addItemToWishlist`, `updateItemInWishlist`, and `removeWishlistFromGroup`.
+  plus `addItemToWishlist`, `updateItemInWishlist`, `removeWishlistFromGroup`,
+  `listOwnedBy(ownerId)` (a one-shot query, for callers that cannot wait on a stream), and
+  `deleteWithItems(wishlistId)` (deletes every item, in batches, then the wishlist).
 - `ItemRepository extends FirebaseRepository<Item>` — path
   `wishlists/{wishlistId}/items`; converts `claimedAt` between an ISO-8601 string (model)
   and a Firestore `Timestamp` (storage); `unclaim(itemId)` nulls `claimedBy` and
@@ -39,6 +41,9 @@ of the product.
 ## Invariants
 
 - Items are always scoped to a wishlist sub-collection; never query items globally.
+- Deleting a wishlist goes through `deleteWithItems`, because Firestore does not
+  remove a sub-collection when its parent document is deleted. Account deletion
+  uses it, so an orphaned `items` sub-collection cannot outlive its wishlist.
 - An `Item` must have an id before it can be updated;
   `WishlistRepository.updateItemInWishlist` throws `ArgumentError` otherwise.
 - `claimedAt` is stored as a Firestore `Timestamp` but modeled as a `DateTime`; the
@@ -64,7 +69,8 @@ shared with a group appears in that group's details page because of
   registered in `getIt` (claim records uid + non-null timestamp, unauthenticated throw,
   exception propagation).
 - `test/features/wishlist/data/` — `WishlistRepository` (sub-collection wiring, item
-  update, the no-id `ArgumentError`, remove-from-group) and `ItemRepository`
-  (`claimedAt` `Timestamp` round-trip and `unclaim` nulling) against
-  `FakeFirebaseFirestore`.
+  update, the no-id `ArgumentError`, remove-from-group, `listOwnedBy`, and
+  `deleteWithItems` removing the items *and* the wishlist without touching a sibling)
+  and `ItemRepository` (`claimedAt` `Timestamp` round-trip and `unclaim` nulling)
+  against `FakeFirebaseFirestore`.
 - The wishlist pages have no widget tests.

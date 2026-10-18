@@ -23,7 +23,10 @@ members identified by Firebase Auth uid; wishlists are shared *into* a group.
 
 - `Group` — `id`, `name`, `ownerId`, `members: List<String>` (uids); collection `groups`.
 - `GroupRepository extends FirebaseRepository<Group>` — `joinGroup(groupId, userId)`
-  (`FieldValue.arrayUnion`) and `leaveGroup(groupId, userId)` (`FieldValue.arrayRemove`).
+  (`FieldValue.arrayUnion`) and `leaveGroup(groupId, userId)` (`FieldValue.arrayRemove`),
+  plus `listForMember(userId)` / `listOwnedBy(ownerId)` (one-shot queries for callers
+  that cannot wait on a stream) and `transferOwnership(groupId, newOwnerId,
+  remainingMembers)` (one atomic update of `ownerId` and `members`).
 - Use cases: `CreateGroupUseCase` (owner is also the first member),
   `JoinGroupUseCase`, `LeaveGroupUseCase`, `UpdateGroupUseCase` (rename),
   `ShareWishlistWithGroupUseCase`.
@@ -34,6 +37,10 @@ members identified by Firebase Auth uid; wishlists are shared *into* a group.
 
 - Membership is a `members` array of uids, mutated with atomic array operations — there is
   no membership sub-collection.
+- A group is never left without an owner. Account deletion hands an owned group to
+  its first remaining member with a single `transferOwnership` update (`ownerId` and
+  `members` change together, so a request that is still the old owner passes any
+  owner-only rule); only a group whose last member is leaving is deleted.
 - A group's owner is always a member; the creator is added as a member at creation.
 - Only the owner sees the edit and copy-invite actions; non-owners see the Leave action.
 - Sharing a wishlist writes the **group id into the wishlist's** `sharedWithGroups` array,
@@ -58,6 +65,7 @@ from `AuthService`; no uid is passed in from the UI.
   in `getIt` (owner-as-member, unauthenticated throw, exception propagation, and the
   idempotent share case).
 - `test/features/group/data/group_repository_test.dart` — join/leave array operations
-  against `FakeFirebaseFirestore`.
+  plus `listForMember`, `listOwnedBy`, and `transferOwnership` (both fields, and the
+  departing member gone) against `FakeFirebaseFirestore`.
 - `test/core/router_test.dart` covers the invite-link redirect matrix.
 - The group pages themselves have no widget tests.

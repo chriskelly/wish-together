@@ -1,4 +1,5 @@
 import 'package:get_it/get_it.dart';
+import 'package:wishtogether/features/auth/application/delete_account_use_case.dart';
 import 'package:wishtogether/features/auth/application/load_user_profile_use_case.dart';
 import 'package:wishtogether/features/auth/application/save_user_profile_use_case.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
@@ -32,6 +33,9 @@ void setupServiceLocator() {
   );
   getIt.registerLazySingleton<SaveUserProfileUseCase>(
     () => SaveUserProfileUseCase(),
+  );
+  getIt.registerLazySingleton<DeleteAccountUseCase>(
+    () => DeleteAccountUseCase(),
   );
 
   // Group Use Cases

@@ -75,7 +75,7 @@ Run every command from the repository root.
 | Run all tests | `flutter test` |
 | Run one area's tests | `flutter test test/features/auth` |
 | Run one test file | `flutter test test/features/wishlist/application/claim_item_use_case_test.dart` |
-| Run the Firestore rules tests | `cd rules_tests && npm ci && npm test` |
+| Run the Firestore rules tests | `cd rules_tests && npm ci && npm test` (needs Node 22+ and a JDK) |
 | Build for web | `flutter build web` |
 
 After substantive changes, run `dart format .`, `flutter analyze`, and `flutter test`.
@@ -291,9 +291,11 @@ if you own it. The owner is `ownerId` on a wishlist or a group, the parent wishl
   write. That is the only way `ownerId` changes, and it exists so a group survives its
   owner deleting their account.
 - On an item, a signed-in user who can read the parent wishlist may set the claim fields
-  (`claimedBy`, `claimedAt`) — for themselves only. A claim cannot be taken over: if
-  someone else has claimed the item, the write is denied until that person unclaims it.
-  An item also cannot be created already claimed.
+  (`claimedBy`, `claimedAt`) — for themselves only, and only as a pair: a claim carries a
+  timestamp, and an unclaimed item has neither. Another reader cannot take over a claim: if
+  someone else has claimed the item, their write is denied until that person unclaims it.
+  This bounds *other readers*, not the wishlist owner, whose edits the rules do not
+  constrain. An item also cannot be created already claimed.
 
 Group membership is the one other writable edge, and it is bounded to exactly that: a
 signed-in user who has a group's id may add themselves to the group or remove themselves
@@ -308,8 +310,10 @@ any signed-in user, and that includes **listing the whole `wishlists` collection
 app only queries the viewer's own wishlists and the wishlists shared with a group they
 belong to, but Firestore cannot express "shared with a group I belong to" as a provable
 list query, so a crafted client can enumerate every wishlist and read the group ids in it.
-Item reads and claim writes remain gated on the parent wishlist, which is narrower than
-the wishlist read.
+Enumeration alone is enough for the items: an item is readable and claimable whenever its
+parent wishlist has ever been shared with any group, so a crafted client reaches the items
+of every shared wishlist — no invite, group join or membership needed. Item reads and claim
+writes are still gated on the parent wishlist, which is narrower than the wishlist read.
 
 **Signing in is the only boundary the rules can see.** There is no allow-list, so "signed
 in" means any account that can register, not "family". Treat anything readably open to a
@@ -318,16 +322,18 @@ signed-in user as public.
 **Invariant — `users/{uid}` is a public document.** Every signed-in user can read every
 user document; the group member list and the "Owned by <name>" label depend on that.
 Rules cannot restrict fields on read, so **never add a non-public field to `users/{uid}`** —
-a read of the document returns all of it. Put private fields in a sub-collection with
-owner-only reads.
+a read of the document returns all of it. There is no owner-only rule under `users/{uid}`
+today, so a sub-collection placed there is closed to everyone, including its owner: to keep
+private fields, add that owner-only rule first, then store the fields there.
 
 ### How rules reach production
 
 `.github/workflows/ci-rules.yml` runs the emulator suite in `rules_tests/` when a pull
-request touches `firestore.rules`, and on a merge to `master` it runs the same suite and
-then publishes the rules to production. That suite is the **only** check in front of
-publication — a merge deploys, and no other job inspects the rules — so a rules change
-needs its tests (see Commands), and a case the suite does not cover is not covered at all.
+request or a merge to `master` touches `firestore.rules`, anything under `rules_tests/`, or
+that workflow file itself. On a merge it then runs the same suite and publishes the rules to
+production. That suite is the **only** check in front of publication — a merge deploys, and
+no other job inspects the rules — so a rules change needs its tests (see Commands), and a
+case the suite does not cover is not covered at all.
 
 To publish by hand:
 

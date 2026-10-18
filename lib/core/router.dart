@@ -58,10 +58,9 @@ Future<String?> handleRedirect(
 
   // --- User is Logged In ---
 
-  if (uri.path == LoginPage.route) {
-    return _redirectFromLogin(uri);
-  }
-
+  // The profile document has to exist before any route can decide what to show.
+  // The login redirect used to return before this, which sent a brand-new
+  // account to home with no `users/{uid}` document to render.
   final user = await (userRepo ?? UserRepository()).getOrCreateUser(
     authService.currentUserId!,
     email: authService.currentUserEmail,
@@ -69,6 +68,10 @@ Future<String?> handleRedirect(
   );
   final hasDisplayName =
       user.displayName != null && user.displayName!.isNotEmpty;
+
+  if (uri.path == LoginPage.route) {
+    return _redirectFromLogin(uri, hasDisplayName);
+  }
 
   if (uri.path == VerificationPage.route) {
     return _redirectFromVerify(uri, hasDisplayName);
@@ -100,9 +103,19 @@ String? _redirectIfNotLoggedIn(Uri uri, String originalUri) {
   return '${LoginPage.route}?$redirectToParam=${Uri.encodeComponent(originalUri)}';
 }
 
-/// Redirects away from the login page to the intended destination or home.
-String _redirectFromLogin(Uri uri) {
-  return uri.queryParameters[redirectToParam] ?? HomePage.route;
+/// Redirects a signed-in user away from the login page.
+///
+/// A user with no display name still needs onboarding first, so they go to the
+/// profile page (preserving any `redirect_to`); everyone else goes to the
+/// intended destination or home.
+String _redirectFromLogin(Uri uri, bool hasDisplayName) {
+  final redirectTo = uri.queryParameters[redirectToParam];
+  if (!hasDisplayName) {
+    return redirectTo == null
+        ? ProfilePage.route
+        : '${ProfilePage.route}?$redirectToParam=${Uri.encodeComponent(redirectTo)}';
+  }
+  return redirectTo ?? HomePage.route;
 }
 
 /// Redirects away from the verify page to the intended destination or home.

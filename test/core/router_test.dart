@@ -111,6 +111,31 @@ void main() {
           expect(result, expectedRedirect);
         });
 
+        test('should redirect to the profile page when signing in from the login page', () async {
+          // A brand-new account signs in on /login; home has no user document
+          // to render, so it must reach onboarding instead.
+          final result = await handleRedirect(
+            LoginPage.route,
+            mockAuthService,
+            userRepo: mockUserRepository,
+          );
+          expect(result, ProfilePage.route);
+        });
+
+        test('should send a new account to the profile page, preserving redirect_to', () async {
+          final joinUri = GroupDetailsPage.getInvitationLink('123');
+          final loginUriWithRedirect =
+              '${LoginPage.route}?$redirectToParam=${Uri.encodeComponent(joinUri)}';
+          final result = await handleRedirect(
+            loginUriWithRedirect,
+            mockAuthService,
+            userRepo: mockUserRepository,
+          );
+          final expectedRedirect =
+              '${ProfilePage.route}?$redirectToParam=${Uri.encodeComponent(joinUri)}';
+          expect(result, expectedRedirect);
+        });
+
         test('should redirect to profile page preserving the join link as redirect_to', () async {
           final joinUri = GroupDetailsPage.getInvitationLink('123');
           final result = await handleRedirect(

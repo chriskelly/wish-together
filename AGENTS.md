@@ -31,7 +31,7 @@ per-area `OVERVIEW.md` next to the code you are touching.
 ├── .github/workflows/         # CI/CD (see CI)
 ├── firebase.json              # Hosting (default site) + Firestore config
 ├── firebase.staging.json      # Hosting config for the staging site (see CI)
-├── firestore.rules            # Firestore security rules
+├── firestore.rules            # the enforcement point for all data access
 ├── firestore.indexes.json     # Firestore composite indexes
 ├── lib/
 │   ├── main.dart              # Firebase init → service locator → router
@@ -46,6 +46,7 @@ per-area `OVERVIEW.md` next to the code you are touching.
 │   ├── specs/                 # gitignored — open design specs (local only)
 │   └── plans/                 # gitignored — local implementation plans
 ├── test/                      # mirrors lib/ path-for-path: <file>_test.dart
+├── rules_tests/               # Firestore rules emulator suite (see Commands)
 └── web/                       # web host: index.html, manifest.json, privacy.html
 ```
 
@@ -74,6 +75,7 @@ Run every command from the repository root.
 | Run all tests | `flutter test` |
 | Run one area's tests | `flutter test test/features/auth` |
 | Run one test file | `flutter test test/features/wishlist/application/claim_item_use_case_test.dart` |
+| Run the Firestore rules tests | `cd rules_tests && npm ci && npm test` |
 | Build for web | `flutter build web` |
 
 After substantive changes, run `dart format .`, `flutter analyze`, and `flutter test`.
@@ -275,6 +277,68 @@ Rules:
   plans. They are never committed; promote lasting policy into `AGENTS.md` / `OVERVIEW.md`.
 - When a change makes an `OVERVIEW.md` inaccurate, update it in the same change.
 
+## Authorization model
+
+`firestore.rules` (root) is the enforcement point for all data access. The app is written
+to match it — it queries its own data and the data shared with a group the viewer belongs
+to — but the app is not the security boundary; the rules are.
+
+**Content writes are owner-only.** You can change a document's content or delete it only
+if you own it. The owner is `ownerId` on a wishlist or a group, the parent wishlist's
+`ownerId` for an item, and the `uid` on `users/{uid}`. Two exceptions exist:
+
+- A group owner may hand the group to another member and remove themselves in the same
+  write. That is the only way `ownerId` changes, and it exists so a group survives its
+  owner deleting their account.
+- On an item, a signed-in user who can read the parent wishlist may set the claim fields
+  (`claimedBy`, `claimedAt`) — for themselves only. A claim cannot be taken over: if
+  someone else has claimed the item, the write is denied until that person unclaims it.
+  An item also cannot be created already claimed.
+
+Group membership is the one other writable edge, and it is bounded to exactly that: a
+signed-in user who has a group's id may add themselves to the group or remove themselves
+from it, in a write that adds or removes precisely the caller. The owner cannot leave
+their own group. Only the owner may rename a group.
+
+**Reads are open to any signed-in user**, with two exceptions: listing groups is
+members-only (the group's members array must contain the caller), and items are readable
+only by their wishlist's owner or when that wishlist has been shared with a group. Note
+that the second exception constrains *item* reads only. A wishlist document is readable by
+any signed-in user, and that includes **listing the whole `wishlists` collection** — the
+app only queries the viewer's own wishlists and the wishlists shared with a group they
+belong to, but Firestore cannot express "shared with a group I belong to" as a provable
+list query, so a crafted client can enumerate every wishlist and read the group ids in it.
+Item reads and claim writes remain gated on the parent wishlist, which is narrower than
+the wishlist read.
+
+**Signing in is the only boundary the rules can see.** There is no allow-list, so "signed
+in" means any account that can register, not "family". Treat anything readably open to a
+signed-in user as public.
+
+**Invariant — `users/{uid}` is a public document.** Every signed-in user can read every
+user document; the group member list and the "Owned by <name>" label depend on that.
+Rules cannot restrict fields on read, so **never add a non-public field to `users/{uid}`** —
+a read of the document returns all of it. Put private fields in a sub-collection with
+owner-only reads.
+
+### How rules reach production
+
+`.github/workflows/ci-rules.yml` runs the emulator suite in `rules_tests/` when a pull
+request touches `firestore.rules`, and on a merge to `master` it runs the same suite and
+then publishes the rules to production. That suite is the **only** check in front of
+publication — a merge deploys, and no other job inspects the rules — so a rules change
+needs its tests (see Commands), and a case the suite does not cover is not covered at all.
+
+To publish by hand:
+
+```bash
+firebase deploy --only firestore:rules --project wish-together-project
+```
+
+To roll back, the Firebase console keeps a history of published rulesets (Firestore
+Database → Rules): a previous ruleset can be cloned or restored, which publishes it
+immediately.
+
 ## Hard guardrails
 
 - NEVER commit secrets or credential files (service-account JSON, APNs `.p8` keys,
@@ -286,8 +350,10 @@ Rules:
   underlying issue.
 - NEVER edit `firestore.rules` or `firestore.indexes.json` without explicit confirmation;
   they govern production data access.
-- Be aware: `firestore.rules` currently grants read/write on **all** documents to any
-  signed-in user. Per-user authorization is enforced in app code, not in the rules.
+- Be aware: authorization lives in `firestore.rules`, not in app code. Content writes are
+  owner-only, with two narrow exceptions — handing a group to another member, and setting
+  the claim fields on an item — while reads stay open to any signed-in user outside the
+  two documented cases (see Authorization model).
 - NEVER commit build output. `.dart_tool/`, `build/`, and similar paths are gitignored.
 - The Android application id `com.example.wishtogether` is a known placeholder; do not
   change platform ids opportunistically.

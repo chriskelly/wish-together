@@ -17,7 +17,11 @@ abstract class FirebaseRepository<T> {
         );
   }
 
-  Stream<List<T>> streamWhere(
+  /// Builds the query behind [streamWhere] and [listWhere].
+  ///
+  /// Single source for the query shape and the model projection, so a one-shot
+  /// caller cannot silently diverge from a streaming one.
+  Query<Map<String, dynamic>> _query(
     String field, {
     Object? isEqualTo,
     Object? isNotEqualTo,
@@ -46,11 +50,72 @@ abstract class FirebaseRepository<T> {
           whereIn: whereIn,
           whereNotIn: whereNotIn,
           isNull: isNull,
-        )
-        .snapshots()
-        .map(
-          (snapshot) => snapshot.docs.map((doc) => fromFirestore(doc)).toList(),
         );
+  }
+
+  Stream<List<T>> streamWhere(
+    String field, {
+    Object? isEqualTo,
+    Object? isNotEqualTo,
+    Object? isLessThan,
+    Object? isLessThanOrEqualTo,
+    Object? isGreaterThan,
+    Object? isGreaterThanOrEqualTo,
+    Object? arrayContains,
+    List<Object?>? arrayContainsAny,
+    List<Object?>? whereIn,
+    List<Object?>? whereNotIn,
+    bool? isNull,
+  }) {
+    return _query(
+      field,
+      isEqualTo: isEqualTo,
+      isNotEqualTo: isNotEqualTo,
+      isLessThan: isLessThan,
+      isLessThanOrEqualTo: isLessThanOrEqualTo,
+      isGreaterThan: isGreaterThan,
+      isGreaterThanOrEqualTo: isGreaterThanOrEqualTo,
+      arrayContains: arrayContains,
+      arrayContainsAny: arrayContainsAny,
+      whereIn: whereIn,
+      whereNotIn: whereNotIn,
+      isNull: isNull,
+    ).snapshots().map(
+      (snapshot) => snapshot.docs.map((doc) => fromFirestore(doc)).toList(),
+    );
+  }
+
+  /// The one-shot counterpart to [streamWhere], for callers that need the
+  /// current matches and cannot wait on a stream.
+  Future<List<T>> listWhere(
+    String field, {
+    Object? isEqualTo,
+    Object? isNotEqualTo,
+    Object? isLessThan,
+    Object? isLessThanOrEqualTo,
+    Object? isGreaterThan,
+    Object? isGreaterThanOrEqualTo,
+    Object? arrayContains,
+    List<Object?>? arrayContainsAny,
+    List<Object?>? whereIn,
+    List<Object?>? whereNotIn,
+    bool? isNull,
+  }) async {
+    final snapshot = await _query(
+      field,
+      isEqualTo: isEqualTo,
+      isNotEqualTo: isNotEqualTo,
+      isLessThan: isLessThan,
+      isLessThanOrEqualTo: isLessThanOrEqualTo,
+      isGreaterThan: isGreaterThan,
+      isGreaterThanOrEqualTo: isGreaterThanOrEqualTo,
+      arrayContains: arrayContains,
+      arrayContainsAny: arrayContainsAny,
+      whereIn: whereIn,
+      whereNotIn: whereNotIn,
+      isNull: isNull,
+    ).get();
+    return snapshot.docs.map((doc) => fromFirestore(doc)).toList();
   }
 
   Stream<T> streamOne(String id) {

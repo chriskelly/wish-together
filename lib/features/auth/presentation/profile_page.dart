@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/application/load_user_profile_use_case.dart';
 import 'package:wishtogether/features/auth/application/save_user_profile_use_case.dart';
+import 'package:wishtogether/features/auth/presentation/delete_account_section.dart';
 import 'package:wishtogether/features/auth/presentation/home_page.dart';
 
 import '../domain/user.dart';
@@ -54,12 +55,14 @@ class _ProfilePageState extends State<ProfilePage> {
       appBar: _profileAppBar(context),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 600),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: _profilePageForm(context),
+          : SingleChildScrollView(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 600),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: _profilePageForm(context),
+                  ),
                 ),
               ),
             ),
@@ -83,6 +86,9 @@ class _ProfilePageState extends State<ProfilePage> {
         _nameTextFormField(),
         const SizedBox(height: 30),
         _saveButton(context),
+        // The account exists as soon as the user signs in — even before they
+        // have picked a display name — so deletion must always be reachable.
+        const DeleteAccountSection(),
       ],
     ),
   );

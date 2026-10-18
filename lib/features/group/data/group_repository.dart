@@ -27,4 +27,29 @@ class GroupRepository extends FirebaseRepository<Group> {
       'members': FieldValue.arrayRemove([userId]),
     });
   }
+
+  /// The groups whose `members` array contains [userId].
+  Future<List<Group>> listForMember(String userId) {
+    return listWhere('members', arrayContains: userId);
+  }
+
+  /// The groups owned by [ownerId].
+  Future<List<Group>> listOwnedBy(String ownerId) {
+    return listWhere('ownerId', isEqualTo: ownerId);
+  }
+
+  /// Moves a group to [newOwnerId] and records the [remainingMembers].
+  ///
+  /// A single atomic update: the group never exists without an owner, and a
+  /// security rule can require both fields to change together.
+  Future<void> transferOwnership(
+    String groupId,
+    String newOwnerId,
+    List<String> remainingMembers,
+  ) {
+    return updateData(groupId, {
+      'ownerId': newOwnerId,
+      'members': remainingMembers,
+    });
+  }
 }

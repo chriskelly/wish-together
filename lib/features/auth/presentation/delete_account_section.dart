@@ -78,6 +78,13 @@ class _DeleteAccountSectionState extends State<DeleteAccountSection> {
       return;
     }
 
+    // Deleting the account also drops the session, which disposes this page.
+    // Hold on to what the closing messages need, and read the linked providers
+    // while the user still exists.
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context, rootNavigator: true);
+    final hasAppleLink = _authService.providerIds.contains('apple.com');
+
     setState(() => _isDeleting = true);
     try {
       final provider = await _resolveReauthProvider();
@@ -94,9 +101,16 @@ class _DeleteAccountSectionState extends State<DeleteAccountSection> {
 
       await _deleteAccountUseCase.execute();
 
-      if (!mounted) return;
-      _showMessage('Your account has been deleted.');
-      context.go(LoginPage.route);
+      if (hasAppleLink) {
+        await _explainAppleRevocation(navigator);
+      }
+
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Your account has been deleted.')),
+      );
+      if (mounted) {
+        context.go(LoginPage.route);
+      }
     } catch (error) {
       final message = deleteAccountErrorMessage(error);
       if (message != null) {
@@ -107,6 +121,35 @@ class _DeleteAccountSectionState extends State<DeleteAccountSection> {
         setState(() => _isDeleting = false);
       }
     }
+  }
+
+  /// TN3194's manual fallback for Sign in with Apple.
+  ///
+  /// Programmatic revocation needs the Apple refresh token (or authorization
+  /// code) and a server-held client secret, neither of which the app keeps.
+  /// Apple's documented fallback is to delete the account and then point the
+  /// user at the "Stop Using Apple ID" control, so this runs after the cascade
+  /// and the auth deletion.
+  Future<void> _explainAppleRevocation(NavigatorState navigator) {
+    return showDialog<void>(
+      context: navigator.context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove WishTogether from Apple'),
+        content: const Text(
+          'Your WishTogether account is deleted. You also signed in with Apple, '
+          'so remove the app from your Apple ID:\n\n'
+          'Settings → your name → Sign in with Apple → WishTogether → '
+          'Stop Using Apple ID.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
   }
 
   /// The provider that issued this session's token, or the account's linked

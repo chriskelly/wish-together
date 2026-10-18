@@ -103,6 +103,14 @@ profile).
   merely `signOut()`), so the provider-side access is dropped as well as the local
   session, and the `onCurrentUserChanged` listener cannot re-establish a session for
   the deleted account.
+- **Sign in with Apple is only manually revoked.** Programmatic revocation needs the
+  Apple refresh token (or authorization code) plus a client secret signed with the
+  Apple private key — both server-side — and sign-in does not retain the
+  authorization code. So when the account has an `apple.com` link, the flow ends with
+  TN3194's fallback: the user is told to remove the app under Settings → Apple ID →
+  Sign in with Apple. The programmatic revoke needs the authorization code and the
+  user identifier kept at sign-in, plus a Cloud Function; until then App Store
+  submission relies on the manual step.
 
 ## Data flow
 

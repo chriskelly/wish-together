@@ -60,9 +60,11 @@ from breaking quietly.
   re-enables both actions.
 - **No web build gate:** the web build number is not comparable with the iOS
   `CFBundleVersion`, so the service refuses to gate anywhere but iOS. Web gets
-  a `Cache-Control: no-cache` rule on `**` (revalidation, covering SPA deep
-  links; unchanged files still return 304), but a warm service-worker cache can
-  still run an old bundle until the page is reloaded.
+  a `Cache-Control: no-cache` rule on `**`, so every reload revalidates (deep
+  links included; unchanged files still return 304). The only residual is a tab
+  that is **already open**: it keeps running the bundle it loaded until it is
+  reloaded. Flutter 3.47's generated service worker is a self-unregistering
+  stub, so there is no service-worker cache to reason about.
 - **Maintainer bypass:** debug builds always bypass. A release build can bypass
   with `--dart-define=WT_DISABLE_UPDATE_GATE=true`. Neither is reachable from
   the UI. To exercise the blocking screen locally, run a release build (or the

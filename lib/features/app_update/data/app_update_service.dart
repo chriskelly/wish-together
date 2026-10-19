@@ -12,6 +12,16 @@ import 'package:wishtogether/features/app_update/domain/update_decision.dart';
 /// is a plugin call that cannot run in a unit test.
 typedef PackageInfoLoader = Future<PackageInfo> Function();
 
+/// Whether the update gate applies on a platform.
+///
+/// iOS only. A web build number comes from the build-generated `version.json`
+/// and is not comparable with the iOS `CFBundleVersion`, so gating web on the
+/// same integer would either be useless or lock every web user out. Pure so the
+/// exclusion can be pinned by a test — `kIsWeb` is a compile-time constant and
+/// cannot be faked in a VM test.
+bool gateAppliesOn({required bool isWeb, required TargetPlatform platform}) =>
+    !isWeb && platform == TargetPlatform.iOS;
+
 /// Reads the minimum supported build from Firebase Remote Config and compares
 /// it with the running build.
 ///
@@ -65,7 +75,7 @@ class AppUpdateService {
   /// The gate compares against the iOS build number only. A web build number
   /// is not comparable, so the gate never applies there. Injectable for tests.
   static bool get _defaultGateApplies =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+      gateAppliesOn(isWeb: kIsWeb, platform: defaultTargetPlatform);
 
   final FirebaseRemoteConfig? _remoteConfigOverride;
   final PackageInfoLoader _loadPackageInfo;

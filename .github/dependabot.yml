@@ -6,3 +6,11 @@ updates:
       interval: weekly
     labels:
       - no-deploy
+  # The Firestore rules emulator suite. Its lockfile is generated with the Node
+  # version that CI pins (22), so let Dependabot update it in place.
+  - package-ecosystem: npm
+    directory: "/rules_tests"
+    schedule:
+      interval: weekly
+    labels:
+      - no-deploy

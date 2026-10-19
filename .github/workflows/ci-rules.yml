@@ -44,7 +44,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
@@ -52,7 +52,7 @@ jobs:
 
       - name: Set up Java
         # The Firestore emulator is a JVM process and needs a JDK on PATH.
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "21"
@@ -60,7 +60,7 @@ jobs:
       - name: Cache the Firestore emulator
         # The `rules` job is the only gate in front of a production publish, so a
         # transient emulator download should not fail a merge.
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/firebase/emulators
           key: firebase-emulators-${{ runner.os }}-firebase-tools-${{ env.FIREBASE_TOOLS_VERSION }}
@@ -84,7 +84,7 @@ jobs:
 
       - name: Set up Node
         # Without this the `npx` below resolves against the runner's default Node.
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
 

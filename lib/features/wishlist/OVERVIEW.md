@@ -53,8 +53,19 @@ of the product.
 - Owner-only UI: the add-item FAB, item edit/delete actions, wishlist edit, and the spoiler
   toggle appear only when `wishlist.ownerId == currentUserId`.
 - Spoiler-free: the owner's details page defaults `_isSpoilerFree = true` and hides claimed
-  status until toggled. Non-owners always see the true status and can claim/unclaim.
-- Claiming is last-write-wins on the item document; there is no separate claim document.
+  status until toggled. A reader of a shared wishlist always sees the true status and can
+  claim any unclaimed item, or unclaim one they claimed themselves; the rules deny claim
+  writes when the wishlist has never been shared and deny taking over another reader's
+  claim.
+- Another reader cannot take a claim over: the current claimer must unclaim first
+  (`claimedBy` and `claimedAt` back to null), or the rules deny the write. The wishlist
+  owner is not bound by this and can still edit or clear a claim. There is no separate
+  claim document.
+- Item reads are gated on the parent wishlist: its owner can always read the items, while
+  everyone else can read them only once the wishlist has been shared with a group. A
+  non-owner opening a never-shared wishlist therefore gets a permission error from the
+  items query instead of an empty list, and `WishlistDetailsPage` shows its error state
+  rather than the items.
 
 ## Data flow
 

@@ -1,0 +1,118 @@
+name: Rules CI
+
+# PR  -> run the Firestore rules emulator suite in `rules_tests/`.
+# push to master -> the same suite, then publish the rules to production.
+#
+# Merging publishes the rules immediately: the emulator suite in the `rules` job
+# is the only gate in front of that deploy.
+#
+# This workflow file is itself in `paths`, so a merge that touches only this file
+# re-publishes the current rules unchanged.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'firestore.rules'
+      - 'firebase.json'
+      - 'rules_tests/**'
+      - '.github/workflows/ci-rules.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'firestore.rules'
+      - 'firebase.json'
+      - 'rules_tests/**'
+      - '.github/workflows/ci-rules.yml'
+
+permissions:
+  contents: read
+
+# Collapse superseded PR runs; never cancel a production rules deploy on master.
+concurrency:
+  group: rules-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Pinned to the toolchain this repo targets (see rules_tests/package.json).
+  FIREBASE_TOOLS_VERSION: "15.34.0"
+
+jobs:
+  rules:
+    name: Emulator suite
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: rules_tests/package-lock.json
+
+      - name: Check the deploy config publishes the tested rules
+        # The suite tests the repository-root `firestore.rules`; the deploy
+        # publishes whatever this key names. Refuse to publish an untested file.
+        run: |
+          node -e '
+            const { readFileSync } = require("node:fs");
+            const rulesPath = JSON.parse(readFileSync("firebase.json", "utf8")).firestore?.rules;
+            if (rulesPath !== "firestore.rules") {
+              console.error(
+                "firebase.json sets firestore.rules to " +
+                  JSON.stringify(rulesPath) +
+                  "; the suite only tests firestore.rules"
+              );
+              process.exit(1);
+            }
+            console.log("firebase.json publishes the tested rules: firestore.rules");
+          '
+
+      - name: Set up Java
+        # The Firestore emulator is a JVM process and needs a JDK on PATH.
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Cache the Firestore emulator
+        # The `rules` job is the only gate in front of a production publish, so a
+        # transient emulator download should not fail a merge.
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-${{ runner.os }}-firebase-tools-${{ env.FIREBASE_TOOLS_VERSION }}
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: rules_tests
+
+      - name: Test the rules
+        run: npm test
+        working-directory: rules_tests
+
+  deploy:
+    name: Deploy rules
+    needs: rules
+    if: github.event_name == 'push'
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        # Without this the `npx` below resolves against the runner's default Node.
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      - name: Authenticate to Firebase
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      # Pin the project explicitly rather than relying on `.firebaserc`'s default.
+      - name: Deploy rules
+        run: npx --yes firebase-tools@"$FIREBASE_TOOLS_VERSION" deploy --only firestore:rules --project wish-together-project

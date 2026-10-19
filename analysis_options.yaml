@@ -13,6 +13,9 @@ analyzer:
     - android/**
     - ios/**
     - web/**
+    # Dart files vendored inside npm packages the Firestore rules suite installs.
+    # That is third-party code shipped with firebase-tools, not part of this project.
+    - rules_tests/node_modules/**
 include: package:flutter_lints/flutter.yaml
 
 linter:

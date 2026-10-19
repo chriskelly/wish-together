@@ -38,6 +38,10 @@ service cloud.firestore {
       // groups without exposing the whole collection.
       allow list: if signedIn() && request.auth.uid in resource.data.members;
 
+      // Groups this caller owns. A list query must be provable before any document is
+      // read, and the membership rule above cannot prove a query filtered on `ownerId`.
+      allow list: if signedIn() && request.auth.uid == resource.data.ownerId;
+
       allow create: if signedIn()
                     && request.resource.data.ownerId == request.auth.uid
                     && request.resource.data.members == [request.auth.uid];

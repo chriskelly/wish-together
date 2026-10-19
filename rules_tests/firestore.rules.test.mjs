@@ -106,8 +106,9 @@ test('an unauthenticated visitor cannot read a profile', async () => {
 });
 
 // ── groups / reads ───────────────────────────────────────────────────────────
-// Listing is members-only; a single group is readable by any signed-in user so
-// the invite page can preview it before the visitor joins.
+// Listing is allowed only for the caller's own groups — the ones they are a
+// member of, or the ones they own; a single group is readable by any signed-in
+// user so the invite page can preview it before the visitor joins.
 
 test('a member lists their own groups', async () => {
   await seed((s) =>
@@ -119,6 +120,32 @@ test('a member lists their own groups', async () => {
 
   await assertSucceeds(
     db(MEMBER).collection('groups').where('members', 'array-contains', MEMBER).get(),
+  );
+});
+
+test('the owner can list the groups they own', async () => {
+  await seed((s) =>
+    s
+      .collection('groups')
+      .doc('group-owned')
+      .set({ name: 'Owned', ownerId: OWNER, members: [OWNER, MEMBER] }),
+  );
+
+  await assertSucceeds(
+    db(OWNER).collection('groups').where('ownerId', '==', OWNER).get(),
+  );
+});
+
+test("a user cannot list another user's groups", async () => {
+  await seed((s) =>
+    s
+      .collection('groups')
+      .doc('group-owned-elsewhere')
+      .set({ name: 'Owned', ownerId: OWNER, members: [OWNER, MEMBER] }),
+  );
+
+  await assertFails(
+    db(MEMBER).collection('groups').where('ownerId', '==', OWNER).get(),
   );
 });
 
@@ -337,6 +364,19 @@ test('a non-owner cannot delete the group', async () => {
   );
 
   await assertFails(db(MEMBER).collection('groups').doc('group-delete-denied').delete());
+});
+
+test('the owner can delete their own group', async () => {
+  await seed((s) =>
+    s
+      .collection('groups')
+      .doc('group-owner-delete')
+      .set({ name: 'Delete', ownerId: OWNER, members: [OWNER] }),
+  );
+
+  await assertSucceeds(
+    db(OWNER).collection('groups').doc('group-owner-delete').delete(),
+  );
 });
 
 // ── groups / owner transfer ──────────────────────────────────────────────────

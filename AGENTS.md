@@ -75,7 +75,7 @@ Run every command from the repository root.
 | Run all tests | `flutter test` |
 | Run one area's tests | `flutter test test/features/auth` |
 | Run one test file | `flutter test test/features/wishlist/application/claim_item_use_case_test.dart` |
-| Run the Firestore rules tests | `cd rules_tests && npm ci && npm test` (needs Node 22+ and a JDK) |
+| Run the Firestore rules tests | `cd rules_tests && npm ci && npm test` (needs Node 22+ and a JDK; regenerate its lockfile with that Node's npm, or `npm ci` fails in CI) |
 | Build for web | `flutter build web` |
 
 After substantive changes, run `dart format .`, `flutter analyze`, and `flutter test`.

@@ -290,12 +290,13 @@ if you own it. The owner is `ownerId` on a wishlist or a group, the parent wishl
 - A group owner may hand the group to another member and remove themselves in the same
   write. That is the only way `ownerId` changes, and it exists so a group survives its
   owner deleting their account.
-- On an item, a signed-in user who can read the parent wishlist may set the claim fields
-  (`claimedBy`, `claimedAt`) — for themselves only, and only as a pair: a claim carries a
-  timestamp, and an unclaimed item has neither. Another reader cannot take over a claim: if
-  someone else has claimed the item, their write is denied until that person unclaims it.
-  This bounds *other readers*, not the wishlist owner, whose edits the rules do not
-  constrain. An item also cannot be created already claimed.
+- On an item, the gate is: the parent wishlist's owner, or a reader of a wishlist that has
+  been shared with a group. That reader may set the claim fields (`claimedBy`,
+  `claimedAt`) for themselves, and only as a pair: a claim carries a timestamp, and an
+  unclaimed item has neither. Another reader cannot take over a claim: if someone else has
+  claimed the item, their write is denied until that person unclaims it. This bounds *other
+  readers*, not the wishlist owner, whose edits the rules do not constrain. An item also
+  cannot be created already claimed.
 
 Group membership is the one other writable edge, and it is bounded to exactly that: a
 signed-in user who has a group's id may add themselves to the group or remove themselves
@@ -314,6 +315,9 @@ Enumeration alone is enough for the items: an item is readable and claimable whe
 parent wishlist has ever been shared with any group, so a crafted client reaches the items
 of every shared wishlist — no invite, group join or membership needed. Item reads and claim
 writes are still gated on the parent wishlist, which is narrower than the wishlist read.
+Because another reader cannot take a claim over, any signed-in user can claim every
+unclaimed item in every shared wishlist, and those claims persist until the wishlist owner
+edits each item — genuine gift-givers are locked out until they do.
 
 **Signing in is the only boundary the rules can see.** There is no allow-list, so "signed
 in" means any account that can register, not "family". Treat anything readably open to a
@@ -325,6 +329,10 @@ Rules cannot restrict fields on read, so **never add a non-public field to `user
 a read of the document returns all of it. There is no owner-only rule under `users/{uid}`
 today, so a sub-collection placed there is closed to everyone, including its owner: to keep
 private fields, add that owner-only rule first, then store the fields there.
+
+**Invariant — a wishlist document is public to signed-in users.** It is readable and
+listable by every signed-in user, so never put a private field on it (a share token, a
+private note) without accepting that it is public to signed-in users.
 
 ### How rules reach production
 
@@ -356,10 +364,8 @@ immediately.
   underlying issue.
 - NEVER edit `firestore.rules` or `firestore.indexes.json` without explicit confirmation;
   they govern production data access.
-- Be aware: authorization lives in `firestore.rules`, not in app code. Content writes are
-  owner-only, with two narrow exceptions — handing a group to another member, and setting
-  the claim fields on an item — while reads stay open to any signed-in user outside the
-  two documented cases (see Authorization model).
+- Be aware: authorization lives in `firestore.rules`, not in app code (see Authorization
+  model).
 - NEVER commit build output. `.dart_tool/`, `build/`, and similar paths are gitignored.
 - The Android application id `com.example.wishtogether` is a known placeholder; do not
   change platform ids opportunistically.

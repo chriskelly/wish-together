@@ -39,6 +39,7 @@ per-area `OVERVIEW.md` next to the code you are touching.
 │   ├── common/widgets/        # shared presentational widgets
 │   ├── core/                  # shared infra + composition roots — see lib/core/OVERVIEW.md
 │   └── features/              # feature-first: domain / data / application / presentation
+│       ├── app_update/        # see lib/features/app_update/OVERVIEW.md
 │       ├── auth/              # see lib/features/auth/OVERVIEW.md
 │       ├── group/             # see lib/features/group/OVERVIEW.md
 │       └── wishlist/          # see lib/features/wishlist/OVERVIEW.md
@@ -226,7 +227,8 @@ specific integration smoke test is called for.
   `firestore:` constructor argument.
 - **Router logic** is tested as the pure `handleRedirect` function with a mocked
   `AuthService` and `UserRepository`.
-- There are no widget or golden tests yet; adding them is post-ship backlog.
+- Widget tests exist for the login page and the app-update screen; broader widget/golden
+  coverage is post-ship backlog.
 
 ## Architecture and dependency direction
 

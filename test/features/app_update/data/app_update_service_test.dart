@@ -170,6 +170,24 @@ void main() {
       expect(loads, 1);
     });
 
+    test('caches a zero build number', () async {
+      // Arrange
+      var loads = 0;
+      final service = serviceWith(
+        packageInfoLoader: () async {
+          loads++;
+          return packageInfoWith(buildNumber: '0');
+        },
+      );
+
+      // Act
+      await service.check();
+      await service.check();
+
+      // Assert
+      expect(loads, 1);
+    });
+
     test('retries the build read after a failure', () async {
       // Arrange
       var loads = 0;
@@ -275,13 +293,22 @@ void main() {
 
     test('honours the maintainer bypass', () async {
       // Arrange
-      final service = serviceWith(bypassGate: true);
+      var loads = 0;
+      final service = serviceWith(
+        bypassGate: true,
+        packageInfoLoader: () async {
+          loads++;
+          return packageInfoWith();
+        },
+      );
 
       // Act
       final decision = await service.check();
 
       // Assert
       expect(decision.isBlocked, isFalse);
+      expect(decision.isConclusive, isTrue);
+      expect(loads, 0);
       verifyNever(() => remoteConfig.fetchAndActivate());
     });
 
@@ -300,10 +327,11 @@ void main() {
       expect(decision.message, defaultUpdateMessage);
     });
 
-    test('fails open when a block has no usable update URL', () async {
+    test('fails open and logs when a block has no usable update URL', () async {
       // Arrange
       when(() => remoteConfig.getInt(AppUpdateService.minSupportedBuildKey))
           .thenReturn(20);
+      final messages = captureDebugPrints();
       final service = serviceWith(buildNumber: '19');
 
       // Act
@@ -312,6 +340,12 @@ void main() {
       // Assert
       expect(decision.isBlocked, isFalse);
       expect(decision.isConclusive, isFalse);
+      expect(
+        messages.any(
+          (message) => message?.contains('update_url is missing') ?? false,
+        ),
+        isTrue,
+      );
     });
 
     test('fails open when the update URL is not a store URL', () async {

@@ -199,8 +199,9 @@ class AppUpdateService {
     try {
       final packageInfo = await _loadPackageInfo();
       final build = int.tryParse(packageInfo.buildNumber);
-      // Cache only a successful read. A null result must be retried so a
-      // transient PackageInfo failure does not strand a blocked user.
+      // Cache only a parsed build. A null result (loader failure or a
+      // malformed build number) is re-read on the next check; the gate fails
+      // open until a parse succeeds, so retrying is harmless.
       _cachedRunningBuild = build;
       return build;
     } catch (error) {

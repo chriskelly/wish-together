@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:wishtogether/core/service_locator.dart';
+import 'package:wishtogether/features/app_update/application/check_for_update.dart';
 import 'package:wishtogether/features/app_update/application/retry_update_gate.dart';
 import 'package:wishtogether/features/app_update/data/app_update_service.dart';
 import 'package:wishtogether/features/app_update/domain/update_decision.dart';
@@ -43,14 +44,8 @@ void main() async {
 }
 
 /// Runs the gate, treating any unexpected failure as "do not block".
-Future<UpdateDecision> _checkForUpdate() async {
-  try {
-    return await getIt<AppUpdateService>().check();
-  } catch (error) {
-    debugPrint('App update gate: unexpected failure, failing open: $error');
-    return const UpdateDecision.allowed();
-  }
-}
+Future<UpdateDecision> _checkForUpdate() =>
+    checkForUpdate(getIt<AppUpdateService>().check);
 
 bool _appStarted = false;
 
@@ -58,9 +53,9 @@ void _startApp() {
   if (_appStarted) {
     return;
   }
-  _appStarted = true;
   final authService = getIt<AuthService>();
   runApp(WishTogetherApp(router: createRouter(authService)));
+  _appStarted = true;
 }
 
 /// Re-runs the gate and, when it is conclusively satisfied, replaces the

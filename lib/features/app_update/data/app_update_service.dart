@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart'
     show debugPrint, defaultTargetPlatform, kDebugMode, kIsWeb, TargetPlatform;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:wishtogether/features/app_update/domain/update_decision.dart';
-import 'package:wishtogether/features/app_update/domain/update_url.dart';
 
 /// Loads the running app's package metadata.
 ///
@@ -81,8 +80,9 @@ class AppUpdateService {
   /// How long the Remote Config SDK waits for a response.
   final Duration fetchTimeout;
 
-  /// Upper bound for the whole check, so a hung plugin cannot stop the first
-  /// frame from rendering.
+  /// Upper bound for the whole check, so a hung plugin cannot delay startup
+  /// indefinitely. The gate runs before the first Flutter frame, so a slow
+  /// check delays that frame up to this bound.
   final Duration totalTimeout;
 
   /// Returns whether the running build must be blocked.
@@ -124,10 +124,7 @@ class AppUpdateService {
       conclusive: conclusive,
     );
 
-    if (conclusive &&
-        minSupportedBuild > 0 &&
-        runningBuild < minSupportedBuild &&
-        parseUpdateUrl(updateUrl) == null) {
+    if (decision.blockedForMissingUpdateUrl) {
       // The policy wanted to block, but there is no update action to offer.
       // Refuse to lock the user out; the maintainer sees this in the logs.
       debugPrint(

@@ -8,18 +8,21 @@ class UpdateDecision {
   const UpdateDecision._({
     required this.isBlocked,
     required this.isConclusive,
+    required this.blockedForMissingUpdateUrl,
     required this.message,
     required this.updateUrl,
   });
 
   /// The gate is inert: nothing is shown and the app starts normally.
   ///
-  /// [isConclusive] defaults to false because most allowances come from failing
-  /// open. A caller that completed a check must pass `true` explicitly.
-  const UpdateDecision.allowed({this.isConclusive = false})
-    : isBlocked = false,
-      message = '',
-      updateUrl = '';
+  /// [isConclusive] defaults to false as a fail-safe: a caller that forgets to
+  /// state that a check completed must not be able to unlock a retry.
+  const UpdateDecision.allowed({
+    this.isConclusive = false,
+    this.blockedForMissingUpdateUrl = false,
+  }) : isBlocked = false,
+       message = '',
+       updateUrl = '';
 
   /// The running build is below the minimum and must be replaced.
   const UpdateDecision.blocked({
@@ -28,6 +31,7 @@ class UpdateDecision {
   }) : this._(
          isBlocked: true,
          isConclusive: true,
+         blockedForMissingUpdateUrl: false,
          message: message,
          updateUrl: updateUrl,
        );
@@ -37,6 +41,10 @@ class UpdateDecision {
   /// Whether the result is based on a completed check. An allowed but
   /// inconclusive result means "could not determine", not "confirmed current".
   final bool isConclusive;
+
+  /// True when the policy would have blocked but no usable update URL was
+  /// configured, so the decision failed open instead. Used only for logging.
+  final bool blockedForMissingUpdateUrl;
 
   final String message;
   final String updateUrl;
@@ -83,7 +91,7 @@ UpdateDecision evaluateUpdate({
     return const UpdateDecision.allowed(isConclusive: true);
   }
   if (parseUpdateUrl(updateUrl) == null) {
-    return const UpdateDecision.allowed();
+    return const UpdateDecision.allowed(blockedForMissingUpdateUrl: true);
   }
   return UpdateDecision.blocked(
     message: message.isEmpty ? defaultUpdateMessage : message,

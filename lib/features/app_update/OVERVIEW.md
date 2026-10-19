@@ -20,7 +20,9 @@ from breaking quietly.
 | Type | File | What it is |
 | ---- | ---- | ---------- |
 | `evaluateUpdate(...)` / `UpdateDecision` / `canStartFromRetry` | `domain/update_decision.dart` | Pure policy: given the running and minimum builds, blocked or not, and whether the answer is conclusive. |
-| `parseUpdateUrl(...)` | `domain/update_url.dart` | Pure allowlist for store URLs (`https` / `itms-apps`, non-empty host). |
+| `parseUpdateUrl(...)` | `domain/update_url.dart` | Pure allowlist for store URLs (`https` / `itms-apps` on `apps.apple.com` / `itunes.apple.com`). |
+| `checkForUpdate(...)` | `application/check_for_update.dart` | Composition-root wrapper that turns any unexpected throw into an inconclusive allowance. |
+| `retryUpdateGate(...)` | `application/retry_update_gate.dart` | Re-checks and starts the app only on a conclusive allowance. |
 | `AppUpdateService` | `data/app_update_service.dart` | Remote Config + `PackageInfo`; injectable; fails open; bounds the whole check. |
 | `UpdateRequiredPage` / `UpdateRequiredApp` | `presentation/update_required_page.dart` | The blocking screen (scrollable, so a long message cannot hide the action) and the `MaterialApp` that hosts it. |
 
@@ -38,14 +40,17 @@ from breaking quietly.
   maintainer deliberately raises the key.
 - **Fail open:** a Remote Config fetch that throws or exceeds the 3-second
   timeout is treated as "no minimum". A missing or unparseable build number
-  also never blocks. The update check itself is bounded (5 seconds) so a hung
-  plugin cannot stop the first frame; Firebase initialization and App Check
-  activation run before it and are not part of that bound.
+  also never blocks. The update check is bounded (5 seconds) so a hung plugin
+  cannot delay startup indefinitely; it runs before the first Flutter frame, so
+  a slow check delays that frame up to the bound. Firebase initialization and
+  App Check activation are not part of that bound.
 - **A confirmed block stays blocked:** "Check again" may only replace the
   blocker with the app when the retry is both allowed *and* conclusive. A retry
   that merely fails open (offline, timeout) must not let a stale user through.
-  The screen disables the retry while it is in flight and says "Still not
-  available" when it did not help.
+  The screen disables both actions while one is in flight, reports the result,
+  and re-checks automatically when the app resumes (returning from the App
+  Store). It keeps the message and URL it started with, so relaunch after
+  correcting a Remote Config value.
 - **No dead-end blocks:** the gate refuses to block when `update_url` is empty
   or is not a usable Apple App Store URL, and logs why. Set `update_url` before
   raising the minimum. If the store still cannot be opened on the device, the

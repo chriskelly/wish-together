@@ -120,6 +120,35 @@ void main() {
       expect(decision.isConclusive, isFalse);
     });
 
+    test(
+      'starts the Remote Config fetch without waiting for the build',
+      () async {
+        // Arrange
+        final packageInfoCompleter = Completer<PackageInfo>();
+        final service = serviceWith(
+          packageInfoLoader: () => packageInfoCompleter.future,
+        );
+
+        // Act
+        final decisionFuture = service.check();
+        await Future<void>.delayed(Duration.zero);
+
+        // Assert
+        verify(() => remoteConfig.fetchAndActivate()).called(1);
+
+        packageInfoCompleter.complete(
+          PackageInfo(
+            appName: 'WishTogether',
+            packageName: 'gift.wishtogether',
+            version: '1.0.0',
+            buildNumber: '1',
+          ),
+        );
+        final decision = await decisionFuture;
+        expect(decision.isBlocked, isFalse);
+      },
+    );
+
     test('blocks when the running build is below the minimum', () async {
       // Arrange
       const minSupportedBuild = 20;

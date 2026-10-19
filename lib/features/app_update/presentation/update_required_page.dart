@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:wishtogether/core/theme.dart';
 
@@ -17,8 +19,10 @@ class UpdateRequiredPage extends StatefulWidget {
   /// The message from Remote Config (or the hard-coded fallback).
   final String message;
 
-  /// Opens the store listing and reports whether it opened. Null when no
-  /// usable update URL is configured, which disables the button.
+  /// Opens the store listing and reports whether it opened.
+  ///
+  /// Null is defensive: the gate never blocks without a usable URL, so a
+  /// reachable screen always has this action.
   final Future<bool> Function()? onUpdate;
 
   /// Re-runs the gate and reports whether the app may start. Null hides the
@@ -29,12 +33,34 @@ class UpdateRequiredPage extends StatefulWidget {
   State<UpdateRequiredPage> createState() => _UpdateRequiredPageState();
 }
 
-class _UpdateRequiredPageState extends State<UpdateRequiredPage> {
+class _UpdateRequiredPageState extends State<UpdateRequiredPage>
+    with WidgetsBindingObserver {
   bool _isUpdating = false;
   bool _isChecking = false;
   String? _feedback;
 
   bool get _isBusy => _isUpdating || _isChecking;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Returning from the App Store is the expected post-update moment, so
+      // re-check automatically instead of leaving the user on a stale screen.
+      unawaited(_handleCheckAgain());
+    }
+  }
 
   Future<void> _handleUpdate() async {
     final onUpdate = widget.onUpdate;
@@ -45,18 +71,24 @@ class _UpdateRequiredPageState extends State<UpdateRequiredPage> {
       _isUpdating = true;
       _feedback = null;
     });
-    final opened = await onUpdate();
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _isUpdating = false;
-      if (!opened) {
-        _feedback =
-            "Couldn't open the App Store. Please open it manually and update "
-            'WishTogether.';
+
+    var opened = false;
+    try {
+      opened = await onUpdate();
+    } catch (error) {
+      debugPrint('App update gate: update action failed: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUpdating = false;
+          if (!opened) {
+            _feedback =
+                "Couldn't open the App Store. Please open it manually and "
+                'update WishTogether.';
+          }
+        });
       }
-    });
+    }
   }
 
   Future<void> _handleCheckAgain() async {
@@ -68,16 +100,22 @@ class _UpdateRequiredPageState extends State<UpdateRequiredPage> {
       _isChecking = true;
       _feedback = null;
     });
-    final started = await onCheckAgain();
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _isChecking = false;
-      if (!started) {
-        _feedback = 'Still not available. Try again later.';
+
+    var started = false;
+    try {
+      started = await onCheckAgain();
+    } catch (error) {
+      debugPrint('App update gate: retry failed: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isChecking = false;
+          if (!started) {
+            _feedback = 'Still not available. Try again later.';
+          }
+        });
       }
-    });
+    }
   }
 
   @override

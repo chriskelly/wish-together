@@ -51,5 +51,31 @@ void main() {
       expect(result, isTrue);
       expect(started, isTrue);
     });
+
+    test('stays blocked when the check throws', () async {
+      // Arrange
+      var started = false;
+
+      // Act
+      final result = await retryUpdateGate(
+        check: () async => throw Exception('unavailable'),
+        start: () => started = true,
+      );
+
+      // Assert
+      expect(result, isFalse);
+      expect(started, isFalse);
+    });
+
+    test('reports failure when starting the app throws', () async {
+      // Act
+      final result = await retryUpdateGate(
+        check: () async => const UpdateDecision.allowed(isConclusive: true),
+        start: () => throw Exception('cannot start'),
+      );
+
+      // Assert
+      expect(result, isFalse);
+    });
   });
 }

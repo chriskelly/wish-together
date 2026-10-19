@@ -55,6 +55,48 @@ void main() {
       expect(parseUpdateUrl(raw), isNull);
     });
 
+    test('accepts a country path', () {
+      // Arrange
+      const raw = 'https://apps.apple.com/us/app/wish-together/id1234567890';
+
+      // Act
+      final uri = parseUpdateUrl(raw);
+
+      // Assert
+      expect(uri, isNotNull);
+      expect(uri?.host, 'apps.apple.com');
+    });
+
+    test('accepts the legacy itms-apps host', () {
+      // Arrange
+      const raw = 'itms-apps://itunes.apple.com/app/id1234567890';
+
+      // Act
+      final uri = parseUpdateUrl(raw);
+
+      // Assert
+      expect(uri, isNotNull);
+    });
+
+    test('accepts an upper-case host', () {
+      // Arrange
+      const raw = 'https://APPS.APPLE.COM/app/id1234567890';
+
+      // Act
+      final uri = parseUpdateUrl(raw);
+
+      // Assert
+      expect(uri, isNotNull);
+    });
+
+    test('rejects userinfo injection', () {
+      // Arrange
+      const raw = 'https://apps.apple.com@evil.example/app/id1234567890';
+
+      // Act & Assert
+      expect(parseUpdateUrl(raw), isNull);
+    });
+
     test('accepts an upper-case scheme', () {
       // Arrange
       const raw = 'HTTPS://apps.apple.com/app/id1234567890';

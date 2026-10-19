@@ -132,6 +132,7 @@ void main() {
       // Assert
       expect(decision.isBlocked, isFalse);
       expect(decision.isConclusive, isFalse);
+      expect(decision.blockedForMissingUpdateUrl, isTrue);
     });
 
     test('does not block when a maintainer bypass is active', () {

@@ -72,6 +72,10 @@ class AppUpdateService {
   final bool _bypassGate;
   final bool _gateApplies;
 
+  /// The running build cannot change for the life of the process, so a
+  /// successful read is reused across retries.
+  int? _cachedRunningBuild;
+
   /// Resolved lazily so constructing the service never touches the plugin; the
   /// only access happens inside [check]'s fail-open bounds.
   FirebaseRemoteConfig get _remoteConfig =>
@@ -109,24 +113,19 @@ class AppUpdateService {
     final runningBuild = await runningBuildFuture;
     final values = await valuesFuture;
 
-    final minSupportedBuild =
-        values?.minSupportedBuild ?? defaultMinSupportedBuild;
-    final message = values?.message ?? defaultUpdateMessage;
-    final updateUrl = values?.updateUrl ?? defaultUpdateUrl;
-    final conclusive = values != null && runningBuild != null;
+    if (values == null) {
+      return const UpdateDecision.allowed();
+    }
 
     final decision = evaluateUpdate(
       runningBuild: runningBuild,
-      minSupportedBuild: minSupportedBuild,
-      message: message,
-      updateUrl: updateUrl,
-      bypass: _bypassGate,
-      conclusive: conclusive,
+      minSupportedBuild: values.minSupportedBuild,
+      message: values.message,
+      updateUrl: values.updateUrl,
+      conclusive: runningBuild != null,
     );
 
     if (decision.blockedForMissingUpdateUrl) {
-      // The policy wanted to block, but there is no update action to offer.
-      // Refuse to lock the user out; the maintainer sees this in the logs.
       debugPrint(
         'App update gate: min_supported_build requires an update, but '
         'update_url is missing or is not a usable Apple App Store URL. '
@@ -193,9 +192,17 @@ class AppUpdateService {
   }
 
   Future<int?> _readRunningBuild() async {
+    final cached = _cachedRunningBuild;
+    if (cached != null) {
+      return cached;
+    }
     try {
       final packageInfo = await _loadPackageInfo();
-      return int.tryParse(packageInfo.buildNumber);
+      final build = int.tryParse(packageInfo.buildNumber);
+      // Cache only a successful read. A null result must be retried so a
+      // transient PackageInfo failure does not strand a blocked user.
+      _cachedRunningBuild = build;
+      return build;
     } catch (error) {
       debugPrint('App update gate: could not read the running build: $error');
       return null;

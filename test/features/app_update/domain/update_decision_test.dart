@@ -9,7 +9,6 @@ void main() {
     UpdateDecision evaluate({
       required int? runningBuild,
       required int minSupportedBuild,
-      bool bypass = false,
       bool conclusive = true,
       String message = customMessage,
       String updateUrl = customUrl,
@@ -19,7 +18,6 @@ void main() {
         minSupportedBuild: minSupportedBuild,
         message: message,
         updateUrl: updateUrl,
-        bypass: bypass,
         conclusive: conclusive,
       );
     }
@@ -133,22 +131,6 @@ void main() {
       expect(decision.isBlocked, isFalse);
       expect(decision.isConclusive, isFalse);
       expect(decision.blockedForMissingUpdateUrl, isTrue);
-    });
-
-    test('does not block when a maintainer bypass is active', () {
-      // Arrange
-      const minSupportedBuild = 12;
-      const runningBuild = minSupportedBuild - 1;
-
-      // Act
-      final decision = evaluate(
-        runningBuild: runningBuild,
-        minSupportedBuild: minSupportedBuild,
-        bypass: true,
-      );
-
-      // Assert
-      expect(decision.isBlocked, isFalse);
     });
 
     test('falls back to the default message when none is configured', () {

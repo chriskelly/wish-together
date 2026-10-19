@@ -16,6 +16,21 @@ class _FakeRemoteConfigValue extends RemoteConfigValue {
   _FakeRemoteConfigValue(super.value, super.source);
 }
 
+PackageInfo packageInfoWith({String buildNumber = '1'}) => PackageInfo(
+  appName: 'WishTogether',
+  packageName: 'gift.wishtogether',
+  version: '1.0.0',
+  buildNumber: buildNumber,
+);
+
+List<String?> captureDebugPrints() {
+  final messages = <String?>[];
+  final original = debugPrint;
+  debugPrint = (String? message, {int? wrapWidth}) => messages.add(message);
+  addTearDown(() => debugPrint = original);
+  return messages;
+}
+
 void main() {
   setUpAll(() {
     registerFallbackValue(
@@ -62,12 +77,7 @@ void main() {
         remoteConfig: remoteConfig,
         packageInfoLoader:
             packageInfoLoader ??
-            () async => PackageInfo(
-              appName: 'WishTogether',
-              packageName: 'gift.wishtogether',
-              version: '1.0.0',
-              buildNumber: buildNumber,
-            ),
+            () async => packageInfoWith(buildNumber: buildNumber),
         bypassGate: bypassGate,
         gateApplies: gateApplies,
         fetchTimeout: fetchTimeout,
@@ -136,18 +146,52 @@ void main() {
         // Assert
         verify(() => remoteConfig.fetchAndActivate()).called(1);
 
-        packageInfoCompleter.complete(
-          PackageInfo(
-            appName: 'WishTogether',
-            packageName: 'gift.wishtogether',
-            version: '1.0.0',
-            buildNumber: '1',
-          ),
-        );
+        packageInfoCompleter.complete(packageInfoWith());
         final decision = await decisionFuture;
         expect(decision.isBlocked, isFalse);
       },
     );
+
+    test('reuses a successful build read across checks', () async {
+      // Arrange
+      var loads = 0;
+      final service = serviceWith(
+        packageInfoLoader: () async {
+          loads++;
+          return packageInfoWith();
+        },
+      );
+
+      // Act
+      await service.check();
+      await service.check();
+
+      // Assert
+      expect(loads, 1);
+    });
+
+    test('retries the build read after a failure', () async {
+      // Arrange
+      var loads = 0;
+      final service = serviceWith(
+        packageInfoLoader: () async {
+          loads++;
+          if (loads == 1) {
+            throw Exception('unavailable');
+          }
+          return packageInfoWith();
+        },
+      );
+
+      // Act
+      final first = await service.check();
+      final second = await service.check();
+
+      // Assert
+      expect(first.isConclusive, isFalse);
+      expect(second.isConclusive, isTrue);
+      expect(loads, 2);
+    });
 
     test('blocks when the running build is below the minimum', () async {
       // Arrange
@@ -331,12 +375,7 @@ void main() {
 
     test('warns when min_supported_build is not an integer', () async {
       // Arrange
-      final messages = <String?>[];
-      final originalDebugPrint = debugPrint;
-      debugPrint = (String? message, {int? wrapWidth}) {
-        messages.add(message);
-      };
-      addTearDown(() => debugPrint = originalDebugPrint);
+      final messages = captureDebugPrints();
       when(() => remoteConfig.getValue(AppUpdateService.minSupportedBuildKey))
           .thenReturn(
             _FakeRemoteConfigValue(utf8.encode('v20'), ValueSource.valueRemote),
@@ -355,12 +394,7 @@ void main() {
 
     test('stays quiet when min_supported_build is an integer', () async {
       // Arrange
-      final messages = <String?>[];
-      final originalDebugPrint = debugPrint;
-      debugPrint = (String? message, {int? wrapWidth}) {
-        messages.add(message);
-      };
-      addTearDown(() => debugPrint = originalDebugPrint);
+      final messages = captureDebugPrints();
       when(() => remoteConfig.getValue(AppUpdateService.minSupportedBuildKey))
           .thenReturn(
             _FakeRemoteConfigValue(utf8.encode('20'), ValueSource.valueRemote),

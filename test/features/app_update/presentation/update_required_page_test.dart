@@ -4,6 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wishtogether/features/app_update/presentation/update_required_page.dart';
 
+const storeUnavailableMessage =
+    "Couldn't open the App Store. Please open it manually and update "
+    'WishTogether.';
+const stillBlockedMessage = 'Still not available. Try again later.';
+
 void main() {
   group('UpdateRequiredPage', () {
     testWidgets('shows the configured message', (tester) async {
@@ -78,10 +83,7 @@ void main() {
 
       // Assert
       expect(retries, 1);
-      expect(
-        find.text('Still not available. Try again later.'),
-        findsOneWidget,
-      );
+      expect(find.text(stillBlockedMessage), findsOneWidget);
     });
 
     testWidgets('hides the retry when onCheckAgain is absent', (tester) async {
@@ -110,13 +112,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Assert
-      expect(
-        find.text(
-          "Couldn't open the App Store. Please open it manually and update "
-          'WishTogether.',
-        ),
-        findsOneWidget,
-      );
+      expect(find.text(storeUnavailableMessage), findsOneWidget);
     });
 
     testWidgets('keeps the update action reachable with a long message', (
@@ -241,10 +237,7 @@ void main() {
 
       completer.complete(false);
       await tester.pumpAndSettle();
-      expect(
-        find.text('Still not available. Try again later.'),
-        findsOneWidget,
-      );
+      expect(find.text(stillBlockedMessage), findsOneWidget);
       expect(
         tester.widget<TextButton>(find.byType(TextButton)).onPressed,
         isNotNull,
@@ -267,13 +260,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Assert
-      expect(
-        find.text(
-          "Couldn't open the App Store. Please open it manually and update "
-          'WishTogether.',
-        ),
-        findsOneWidget,
-      );
+      expect(find.text(storeUnavailableMessage), findsOneWidget);
       expect(
         tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
         isNotNull,
@@ -320,10 +307,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Assert
-      expect(
-        find.text('Still not available. Try again later.'),
-        findsOneWidget,
-      );
+      expect(find.text(stillBlockedMessage), findsOneWidget);
       expect(
         tester.widget<TextButton>(find.byType(TextButton)).onPressed,
         isNotNull,
@@ -347,13 +331,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Assert
-      expect(
-        find.text(
-          "Couldn't open the App Store. Please open it manually and update "
-          'WishTogether.',
-        ),
-        findsOneWidget,
-      );
+      expect(find.text(storeUnavailableMessage), findsOneWidget);
       expect(
         tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
         isNotNull,
@@ -382,7 +360,7 @@ void main() {
       // Act
       await tester.tap(find.text('Check again'));
       await tester.pump();
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pump();
 

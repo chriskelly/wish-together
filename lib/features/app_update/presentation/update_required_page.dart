@@ -42,89 +42,88 @@ class UpdateRequiredPage extends StatefulWidget {
   State<UpdateRequiredPage> createState() => _UpdateRequiredPageState();
 }
 
-class _UpdateRequiredPageState extends State<UpdateRequiredPage>
-    with WidgetsBindingObserver {
-  bool _isUpdating = false;
-  bool _isChecking = false;
-  String? _feedback;
+enum _Action { idle, updating, checking }
 
-  bool get _isBusy => _isUpdating || _isChecking;
+class _UpdateRequiredPageState extends State<UpdateRequiredPage> {
+  _Action _action = _Action.idle;
+  String? _feedback;
+  late final AppLifecycleListener _lifecycle;
+
+  bool get _isBusy => _action != _Action.idle;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
+    _lifecycle = AppLifecycleListener(
+      // Returning from the App Store is the expected post-update moment, so
+      // re-check automatically instead of leaving the user on a stale screen.
+      onResume: () => unawaited(_handleCheckAgain()),
+    );
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
+    _lifecycle.dispose();
     super.dispose();
   }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      // Returning from the App Store is the expected post-update moment, so
-      // re-check automatically instead of leaving the user on a stale screen.
-      unawaited(_handleCheckAgain());
+  Future<void> _run(
+    Future<bool> Function() action, {
+    required _Action kind,
+    required String logLabel,
+    required String failureFeedback,
+  }) async {
+    if (_isBusy) {
+      return;
+    }
+    setState(() {
+      _action = kind;
+      _feedback = null;
+    });
+
+    var succeeded = false;
+    try {
+      succeeded = await action();
+    } catch (error) {
+      debugPrint('App update gate: $logLabel failed: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _action = _Action.idle;
+          if (!succeeded) {
+            _feedback = failureFeedback;
+          }
+        });
+      }
     }
   }
 
-  Future<void> _handleUpdate() async {
+  Future<void> _handleUpdate() {
     final onUpdate = widget.onUpdate;
-    if (onUpdate == null || _isBusy) {
-      return;
+    if (onUpdate == null) {
+      return Future.value();
     }
-    setState(() {
-      _isUpdating = true;
-      _feedback = null;
-    });
-
-    var opened = false;
-    try {
-      opened = await onUpdate().timeout(widget.updateTimeout);
-    } catch (error) {
-      debugPrint('App update gate: update action failed: $error');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isUpdating = false;
-          if (!opened) {
-            _feedback =
-                "Couldn't open the App Store. Please open it manually and "
-                'update WishTogether.';
-          }
-        });
-      }
-    }
+    return _run(
+      () => onUpdate().timeout(widget.updateTimeout),
+      kind: _Action.updating,
+      logLabel: 'update action',
+      failureFeedback:
+          "Couldn't open the App Store. Please open it manually and update "
+          'WishTogether.',
+    );
   }
 
-  Future<void> _handleCheckAgain() async {
+  Future<void> _handleCheckAgain() {
     final onCheckAgain = widget.onCheckAgain;
-    if (onCheckAgain == null || _isBusy) {
-      return;
+    if (onCheckAgain == null) {
+      return Future.value();
     }
-    setState(() {
-      _isChecking = true;
-      _feedback = null;
-    });
-
-    var started = false;
-    try {
-      started = await onCheckAgain();
-    } catch (error) {
-      debugPrint('App update gate: retry failed: $error');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isChecking = false;
-          if (!started) {
-            _feedback = 'Still not available. Try again later.';
-          }
-        });
-      }
-    }
+    return _run(
+      onCheckAgain,
+      kind: _Action.checking,
+      logLabel: 'retry',
+      failureFeedback: 'Still not available. Try again later.',
+    );
   }
 
   @override
@@ -174,14 +173,20 @@ class _UpdateRequiredPageState extends State<UpdateRequiredPage>
                       onPressed: widget.onUpdate == null || _isBusy
                           ? null
                           : _handleUpdate,
-                      child: Text(_isUpdating ? 'Opening…' : 'Update now'),
+                      child: Text(
+                        _action == _Action.updating ? 'Opening…' : 'Update now',
+                      ),
                     ),
                   ),
                   if (widget.onCheckAgain != null) ...[
                     const SizedBox(height: 8),
                     TextButton(
                       onPressed: _isBusy ? null : _handleCheckAgain,
-                      child: Text(_isChecking ? 'Checking…' : 'Check again'),
+                      child: Text(
+                        _action == _Action.checking
+                            ? 'Checking…'
+                            : 'Check again',
+                      ),
                     ),
                   ],
                 ],

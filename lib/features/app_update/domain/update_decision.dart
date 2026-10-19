@@ -63,7 +63,6 @@ const String defaultUpdateMessage =
 /// Decides whether the running build must be blocked.
 ///
 /// Fails open in every uncertain case:
-/// - [bypass] (debug build or maintainer override) never blocks.
 /// - An inconclusive check is allowed but marked inconclusive, so a retry
 ///   cannot downgrade a confirmed block.
 /// - A non-positive [minSupportedBuild] is the kill switch, so the gate is
@@ -72,17 +71,16 @@ const String defaultUpdateMessage =
 ///   because a platform failed to report its build number.
 /// - A block is only produced when [updateUrl] is a usable store URL; a block
 ///   with no action would be a dead end.
+///
+/// The maintainer bypass lives in `AppUpdateService.check`, before this policy
+/// runs, so it also skips the network work.
 UpdateDecision evaluateUpdate({
   required int? runningBuild,
   required int minSupportedBuild,
   required String message,
   required String updateUrl,
-  required bool bypass,
   required bool conclusive,
 }) {
-  if (bypass) {
-    return const UpdateDecision.allowed(isConclusive: true);
-  }
   if (!conclusive) {
     return const UpdateDecision.allowed();
   }

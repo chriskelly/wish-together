@@ -163,7 +163,7 @@ and groups; anything created or claimed on staging is real data.
 - It deploys from `firebase.staging.json` (a `"target": "staging"` hosting config bound in
   `.firebaserc`), **not** `firebase.json`. `firebase.json` keeps a single untargeted hosting
   config, so live (`master` → `firebase deploy --only hosting`) and the PR preview channels
-  are unchanged.
+  are unchanged. Hosting `headers` are duplicated in both files; change them together.
 - One-time setup: the site must exist (`firebase hosting:sites:create wish-together-staging`,
   or Console → Hosting → Add site); the committed `.firebaserc` already binds the `staging`
   target to it. Then allowlist the staging host, with the **exact** host (no wildcard), in each:

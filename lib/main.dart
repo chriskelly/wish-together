@@ -26,8 +26,8 @@ void main() async {
   await _activateAppCheck();
   setupServiceLocator();
 
-  // The update gate runs once at startup, after Firebase is ready. It fails
-  // open: only an explicit minimum from Remote Config can block the app.
+  // The update gate runs at startup, after Firebase is ready. It fails open:
+  // only an explicit minimum from Remote Config can block the app.
   final updateDecision = await _checkForUpdate();
   if (updateDecision.isBlocked) {
     runApp(

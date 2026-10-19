@@ -14,12 +14,14 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - 'firestore.rules'
+      - 'firebase.json'
       - 'rules_tests/**'
       - '.github/workflows/ci-rules.yml'
   push:
     branches: [master]
     paths:
       - 'firestore.rules'
+      - 'firebase.json'
       - 'rules_tests/**'
       - '.github/workflows/ci-rules.yml'
 
@@ -49,6 +51,24 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: rules_tests/package-lock.json
+
+      - name: Check the deploy config publishes the tested rules
+        # The suite tests the repository-root `firestore.rules`; the deploy
+        # publishes whatever this key names. Refuse to publish an untested file.
+        run: |
+          node -e '
+            const { readFileSync } = require("node:fs");
+            const rulesPath = JSON.parse(readFileSync("firebase.json", "utf8")).firestore?.rules;
+            if (rulesPath !== "firestore.rules") {
+              console.error(
+                "firebase.json sets firestore.rules to " +
+                  JSON.stringify(rulesPath) +
+                  "; the suite only tests firestore.rules"
+              );
+              process.exit(1);
+            }
+            console.log("firebase.json publishes the tested rules: firestore.rules");
+          '
 
       - name: Set up Java
         # The Firestore emulator is a JVM process and needs a JDK on PATH.

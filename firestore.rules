@@ -1,7 +1,7 @@
 rules_version = '2';
 
 // Content writes are owner-only. The one exception is the claim fields on an
-// item, which any reader of that wishlist may update for themselves.
+// item, which any reader of that wishlist's items may update for themselves.
 //
 // Reads are open to any signed-in user, except listing groups (members only)
 // and any item whose wishlist has never been shared. Anything finer needs a

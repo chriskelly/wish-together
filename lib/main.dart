@@ -52,12 +52,14 @@ class WishTogetherApp extends StatelessWidget {
       darkTheme: darkTheme,
       themeMode: ThemeMode.system,
       builder: (context, child) {
-        return Container(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1000),
-              child: child,
+        return SelectionArea(
+          child: Container(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1000),
+                child: child,
+              ),
             ),
           ),
         );

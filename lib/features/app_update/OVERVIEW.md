@@ -19,9 +19,10 @@ from breaking quietly.
 
 | Type | File | What it is |
 | ---- | ---- | ---------- |
-| `evaluateUpdate(...)` / `UpdateDecision` | `domain/update_decision.dart` | Pure decision: given the running and minimum builds, blocked or not. |
-| `AppUpdateService` | `data/app_update_service.dart` | Remote Config + `PackageInfo`; injectable; fails open. |
-| `UpdateRequiredPage` / `UpdateRequiredApp` | `presentation/update_required_page.dart` | The blocking screen and the `MaterialApp` that hosts it. |
+| `evaluateUpdate(...)` / `UpdateDecision` / `canStartFromRetry` | `domain/update_decision.dart` | Pure policy: given the running and minimum builds, blocked or not, and whether the answer is conclusive. |
+| `parseUpdateUrl(...)` | `domain/update_url.dart` | Pure allowlist for store URLs (`https` / `itms-apps`, non-empty host). |
+| `AppUpdateService` | `data/app_update_service.dart` | Remote Config + `PackageInfo`; injectable; fails open; bounds the whole check. |
+| `UpdateRequiredPage` / `UpdateRequiredApp` | `presentation/update_required_page.dart` | The blocking screen (scrollable, so a long message cannot hide the action) and the `MaterialApp` that hosts it. |
 
 ## Remote Config keys
 
@@ -29,7 +30,7 @@ from breaking quietly.
 | --- | ---- | ------- | ------- |
 | `min_supported_build` | int | `0` | Minimum iOS build (`CFBundleVersion`). `0` leaves the gate inert. |
 | `update_message` | string | code default | Message shown on the blocking screen. |
-| `update_url` | string | empty | App Store URL opened by "Update now". The button is disabled while empty. |
+| `update_url` | string | empty | Store URL for "Update now". Must be `https` or `itms-apps` with a host. |
 
 ## Behaviour
 
@@ -37,12 +38,19 @@ from breaking quietly.
   maintainer deliberately raises the key.
 - **Fail open:** a Remote Config fetch that throws or exceeds the 3-second
   timeout is treated as "no minimum". A missing or unparseable build number
-  also never blocks.
+  also never blocks. The whole check is bounded (5 seconds) so a hung plugin
+  cannot stop the first frame from rendering.
+- **A confirmed block stays blocked:** "Check again" may only replace the
+  blocker with the app when the retry is both allowed *and* conclusive. A retry
+  that merely fails open (offline, timeout) must not let a stale user through.
+- **No dead-end blocks:** the gate refuses to block when `update_url` is empty
+  or not a usable store URL, and logs why. Set `update_url` before raising the
+  minimum. A check that fails open reports itself as inconclusive.
 - **No web build gate:** the web build number is not comparable with the iOS
   `CFBundleVersion`, so the service refuses to gate anywhere but iOS. Web gets
-  cache-busting headers instead (`firebase.json` / `firebase.staging.json`), but
-  a warm service-worker cache can still run an old bundle until the page is
-  reloaded.
+  a `Cache-Control: no-cache` rule on `**` (revalidation, covering SPA deep
+  links), but a warm service-worker cache can still run an old bundle until the
+  page is reloaded.
 - **Maintainer bypass:** debug builds always bypass. A release build can bypass
   with `--dart-define=WT_DISABLE_UPDATE_GATE=true`. Neither is reachable from
   the UI. To exercise the blocking screen locally, run a release build (or the
@@ -55,8 +63,9 @@ from breaking quietly.
 2. Confirm that build is actually available to users (App Store release is
    live, or the TestFlight group can update).
 3. In Firebase Console → Remote Config for `wish-together-project`, set
-   `min_supported_build` to that integer, and set `update_url` to the App Store
-   listing. Adjust `update_message` if needed.
+   `min_supported_build` to that integer, set `update_url` to the App Store
+   listing (`https://apps.apple.com/app/id…`), and adjust `update_message` if
+   needed. A block is refused unless `update_url` is a usable store URL.
 4. Publish the changes.
 5. Verify on a device: a build below the minimum shows the blocking screen; a
    build at or above it starts normally.

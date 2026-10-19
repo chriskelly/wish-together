@@ -10,6 +10,7 @@ void main() {
       required int? runningBuild,
       required int minSupportedBuild,
       bool bypass = false,
+      bool conclusive = true,
       String message = customMessage,
       String updateUrl = customUrl,
     }) {
@@ -19,6 +20,7 @@ void main() {
         message: message,
         updateUrl: updateUrl,
         bypass: bypass,
+        conclusive: conclusive,
       );
     }
 
@@ -78,6 +80,7 @@ void main() {
 
       // Assert
       expect(decision.isBlocked, isTrue);
+      expect(decision.isConclusive, isTrue);
       expect(decision.message, customMessage);
       expect(decision.updateUrl, customUrl);
     });
@@ -94,6 +97,7 @@ void main() {
 
       // Assert
       expect(decision.isBlocked, isFalse);
+      expect(decision.isConclusive, isFalse);
     });
 
     test('does not block when a maintainer bypass is active', () {
@@ -142,6 +146,51 @@ void main() {
 
       // Assert
       expect(decision.isBlocked, isFalse);
+    });
+
+    test('marks an allowance from a completed check as conclusive', () {
+      // Arrange
+      const runningBuild = 5;
+
+      // Act
+      final decision = evaluate(
+        runningBuild: runningBuild,
+        minSupportedBuild: 0,
+        conclusive: true,
+      );
+
+      // Assert
+      expect(decision.isBlocked, isFalse);
+      expect(decision.isConclusive, isTrue);
+    });
+  });
+
+  group('canStartFromRetry', () {
+    test('refuses to unlock a confirmed block', () {
+      // Arrange
+      const decision = UpdateDecision.blocked(
+        message: 'Update',
+        updateUrl: 'https://apps.apple.com/app/id123',
+      );
+
+      // Act & Assert
+      expect(canStartFromRetry(decision), isFalse);
+    });
+
+    test('refuses to unlock an inconclusive allowance', () {
+      // Arrange
+      const decision = UpdateDecision.allowed(isConclusive: false);
+
+      // Act & Assert
+      expect(canStartFromRetry(decision), isFalse);
+    });
+
+    test('unlocks a conclusive allowance', () {
+      // Arrange
+      const decision = UpdateDecision.allowed();
+
+      // Act & Assert
+      expect(canStartFromRetry(decision), isTrue);
     });
   });
 }

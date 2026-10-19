@@ -79,5 +79,29 @@ void main() {
       // Assert
       expect(find.text('Check again'), findsNothing);
     });
+
+    testWidgets('keeps the update action reachable with a long message', (
+      tester,
+    ) async {
+      // Arrange
+      await tester.binding.setSurfaceSize(const Size(320, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final longMessage = List.filled(
+        40,
+        'A very long update message.',
+      ).join(' ');
+      await tester.pumpWidget(
+        MaterialApp(
+          home: UpdateRequiredPage(message: longMessage, onUpdate: () {}),
+        ),
+      );
+
+      // Act
+      await tester.ensureVisible(find.text('Update now'));
+      await tester.pumpAndSettle();
+
+      // Assert
+      expect(find.text('Update now'), findsOneWidget);
+    });
   });
 }

@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/foundation.dart'
     show debugPrint, defaultTargetPlatform, kDebugMode, kIsWeb, TargetPlatform;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:wishtogether/features/app_update/domain/update_decision.dart';
+import 'package:wishtogether/features/app_update/domain/update_url.dart';
 
 /// Loads the running app's package metadata.
 ///
@@ -23,6 +26,7 @@ class AppUpdateService {
     bool? bypassGate,
     bool? gateApplies,
     this.fetchTimeout = defaultFetchTimeout,
+    this.totalTimeout = defaultTotalTimeout,
   }) : _remoteConfigOverride = remoteConfig,
        _loadPackageInfo = packageInfoLoader ?? PackageInfo.fromPlatform,
        _bypassGate = bypassGate ?? _defaultBypass,
@@ -44,8 +48,12 @@ class AppUpdateService {
   /// set [updateUrlKey] in Remote Config once it does.
   static const String defaultUpdateUrl = '';
 
-  /// How long startup waits for Remote Config before failing open.
+  /// How long the Remote Config SDK waits for a response.
   static const Duration defaultFetchTimeout = Duration(seconds: 3);
+
+  /// Upper bound for the whole check, including the plugin calls that
+  /// [defaultFetchTimeout] does not cover.
+  static const Duration defaultTotalTimeout = Duration(seconds: 5);
 
   /// `--dart-define=WT_DISABLE_UPDATE_GATE=true` produces a maintainer build
   /// that never blocks. It is intentionally not reachable from the UI.
@@ -66,46 +74,41 @@ class AppUpdateService {
   final bool _gateApplies;
 
   /// Resolved lazily so constructing the service never touches the plugin; the
-  /// only access happens inside [_fetchRemoteConfig]'s fail-open try block.
+  /// only access happens inside [check]'s fail-open bounds.
   FirebaseRemoteConfig get _remoteConfig =>
       _remoteConfigOverride ?? FirebaseRemoteConfig.instance;
 
-  /// How long startup waits for Remote Config before failing open.
+  /// How long the Remote Config SDK waits for a response.
   final Duration fetchTimeout;
+
+  /// Upper bound for the whole check, so a hung plugin cannot stop the first
+  /// frame from rendering.
+  final Duration totalTimeout;
 
   /// Returns whether the running build must be blocked.
   ///
-  /// Never throws and never blocks on uncertainty: a failed, timed-out, or
-  /// unconfigured Remote Config leaves the gate inert.
+  /// Never throws: any failure to determine the answer resolves to an allowed,
+  /// inconclusive decision, so the app starts.
   Future<UpdateDecision> check() async {
-    if (!_gateApplies) {
+    if (!_gateApplies || _bypassGate) {
       return const UpdateDecision.allowed();
     }
+    try {
+      return await _check().timeout(totalTimeout);
+    } catch (error) {
+      debugPrint('App update gate: check failed, failing open: $error');
+      return const UpdateDecision.allowed(isConclusive: false);
+    }
+  }
 
+  Future<UpdateDecision> _check() async {
     final runningBuild = await _readRunningBuild();
 
     var minSupportedBuild = defaultMinSupportedBuild;
     var message = defaultUpdateMessage;
     var updateUrl = defaultUpdateUrl;
+    var fetched = false;
 
-    if (!_bypassGate && await _fetchRemoteConfig()) {
-      minSupportedBuild = _remoteConfig.getInt(minSupportedBuildKey);
-      message = _remoteConfig.getString(updateMessageKey);
-      updateUrl = _remoteConfig.getString(updateUrlKey);
-    }
-
-    return evaluateUpdate(
-      runningBuild: runningBuild,
-      minSupportedBuild: minSupportedBuild,
-      message: message,
-      updateUrl: updateUrl,
-      bypass: _bypassGate,
-    );
-  }
-
-  /// Fetches and activates Remote Config. Returns false when the server could
-  /// not be reached in time; the caller then keeps the inert defaults.
-  Future<bool> _fetchRemoteConfig() async {
     try {
       await _remoteConfig.setDefaults(const <String, dynamic>{
         minSupportedBuildKey: defaultMinSupportedBuild,
@@ -115,19 +118,68 @@ class AppUpdateService {
       await _remoteConfig.setConfigSettings(
         RemoteConfigSettings(
           fetchTimeout: fetchTimeout,
-          // The gate is a safety net: read the current policy on every launch
-          // rather than accepting a stale cached value.
+          // Read the current policy on every launch; the gate is a safety net.
           minimumFetchInterval: Duration.zero,
         ),
       );
       await _remoteConfig.fetchAndActivate().timeout(fetchTimeout);
-      return true;
+      fetched = true;
     } catch (error) {
       // Fail open. Never lock a user out because the network failed.
       debugPrint(
         'App update gate: Remote Config unavailable, failing open: $error',
       );
-      return false;
+    }
+
+    if (fetched) {
+      minSupportedBuild = _remoteConfig.getInt(minSupportedBuildKey);
+      message = _remoteConfig.getString(updateMessageKey);
+      updateUrl = _remoteConfig.getString(updateUrlKey);
+      _warnIfMinimumIsNotAnInteger();
+    }
+
+    final conclusive = fetched && runningBuild != null;
+    final decision = evaluateUpdate(
+      runningBuild: runningBuild,
+      minSupportedBuild: minSupportedBuild,
+      message: message,
+      updateUrl: updateUrl,
+      bypass: _bypassGate,
+      conclusive: conclusive,
+    );
+
+    if (decision.isBlocked && parseUpdateUrl(decision.updateUrl) == null) {
+      // A block without a usable update link is a dead end. Refuse to lock the
+      // user out; the maintainer sees this in the logs.
+      debugPrint(
+        'App update gate: min_supported_build requires an update, but '
+        'update_url is missing or is not a usable https/itms-apps URL. '
+        'Failing open; set update_url in Remote Config.',
+      );
+      return const UpdateDecision.allowed(isConclusive: false);
+    }
+
+    return decision;
+  }
+
+  /// A string-typed value silently decodes to 0, which leaves the gate inert.
+  /// Say so loudly instead of looking like the kill switch.
+  void _warnIfMinimumIsNotAnInteger() {
+    try {
+      final value = _remoteConfig.getValue(minSupportedBuildKey);
+      if (value.source == ValueSource.valueStatic) {
+        return;
+      }
+      final raw = value.asString();
+      if (raw.isEmpty || int.tryParse(raw) != null) {
+        return;
+      }
+      debugPrint(
+        'App update gate: min_supported_build is not an integer ("$raw"); '
+        'the gate is inert.',
+      );
+    } catch (_) {
+      // Diagnostics must never change the decision.
     }
   }
 

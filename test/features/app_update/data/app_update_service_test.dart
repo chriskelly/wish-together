@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_remote_config/firebase_remote_config.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -8,6 +9,11 @@ import 'package:wishtogether/features/app_update/data/app_update_service.dart';
 import 'package:wishtogether/features/app_update/domain/update_decision.dart';
 
 class MockRemoteConfig extends Mock implements FirebaseRemoteConfig {}
+
+/// [RemoteConfigValue]'s constructor is protected; a subclass may use it.
+class _FakeRemoteConfigValue extends RemoteConfigValue {
+  _FakeRemoteConfigValue(super.value, super.source);
+}
 
 void main() {
   setUpAll(() {
@@ -35,40 +41,51 @@ void main() {
           .thenReturn('');
       when(() => remoteConfig.getString(AppUpdateService.updateUrlKey))
           .thenReturn('');
+      when(() => remoteConfig.getValue(any()))
+          .thenReturn(_FakeRemoteConfigValue(null, ValueSource.valueStatic));
+    });
+
+    tearDown(() {
+      debugDefaultTargetPlatformOverride = null;
     });
 
     AppUpdateService serviceWith({
-      required String buildNumber,
+      String buildNumber = '1',
       bool bypassGate = false,
-      bool gateApplies = true,
+      bool? gateApplies = true,
       Duration fetchTimeout = AppUpdateService.defaultFetchTimeout,
+      Duration totalTimeout = AppUpdateService.defaultTotalTimeout,
+      PackageInfoLoader? packageInfoLoader,
     }) {
       return AppUpdateService(
         remoteConfig: remoteConfig,
-        packageInfoLoader: () async => PackageInfo(
-          appName: 'WishTogether',
-          packageName: 'gift.wishtogether',
-          version: '1.0.0',
-          buildNumber: buildNumber,
-        ),
+        packageInfoLoader:
+            packageInfoLoader ??
+            () async => PackageInfo(
+              appName: 'WishTogether',
+              packageName: 'gift.wishtogether',
+              version: '1.0.0',
+              buildNumber: buildNumber,
+            ),
         bypassGate: bypassGate,
         gateApplies: gateApplies,
         fetchTimeout: fetchTimeout,
+        totalTimeout: totalTimeout,
       );
     }
 
     test('fails open when Remote Config throws', () async {
       // Arrange
-      const runningBuild = 10;
       when(() => remoteConfig.fetchAndActivate())
           .thenThrow(Exception('offline'));
-      final service = serviceWith(buildNumber: '$runningBuild');
+      final service = serviceWith();
 
       // Act
       final decision = await service.check();
 
       // Assert
       expect(decision.isBlocked, isFalse);
+      expect(decision.isConclusive, isFalse);
     });
 
     test('fails open when Remote Config does not answer in time', () async {
@@ -76,7 +93,6 @@ void main() {
       when(() => remoteConfig.fetchAndActivate())
           .thenAnswer((_) => Completer<bool>().future);
       final service = serviceWith(
-        buildNumber: '10',
         fetchTimeout: const Duration(milliseconds: 10),
       );
 
@@ -85,6 +101,22 @@ void main() {
 
       // Assert
       expect(decision.isBlocked, isFalse);
+      expect(decision.isConclusive, isFalse);
+    });
+
+    test('fails open when the whole check hangs', () async {
+      // Arrange
+      final service = serviceWith(
+        packageInfoLoader: () => Completer<PackageInfo>().future,
+        totalTimeout: const Duration(milliseconds: 10),
+      );
+
+      // Act
+      final decision = await service.check();
+
+      // Assert
+      expect(decision.isBlocked, isFalse);
+      expect(decision.isConclusive, isFalse);
     });
 
     test('blocks when the running build is below the minimum', () async {
@@ -92,7 +124,7 @@ void main() {
       const minSupportedBuild = 20;
       const runningBuild = minSupportedBuild - 1;
       const message = 'Please update WishTogether.';
-      const updateUrl = 'https://example.com/update';
+      const updateUrl = 'https://apps.apple.com/app/id1234567890';
       when(() => remoteConfig.getInt(AppUpdateService.minSupportedBuildKey))
           .thenReturn(minSupportedBuild);
       when(() => remoteConfig.getString(AppUpdateService.updateMessageKey))
@@ -106,22 +138,21 @@ void main() {
 
       // Assert
       expect(decision.isBlocked, isTrue);
+      expect(decision.isConclusive, isTrue);
       expect(decision.message, message);
       expect(decision.updateUrl, updateUrl);
     });
 
     test('stays inert when the minimum is zero', () async {
       // Arrange
-      const runningBuild = 1;
-      when(() => remoteConfig.getInt(AppUpdateService.minSupportedBuildKey))
-          .thenReturn(0);
-      final service = serviceWith(buildNumber: '$runningBuild');
+      final service = serviceWith();
 
       // Act
       final decision = await service.check();
 
       // Assert
       expect(decision.isBlocked, isFalse);
+      expect(decision.isConclusive, isTrue);
     });
 
     test('fails open when the build number is not an integer', () async {
@@ -135,6 +166,7 @@ void main() {
 
       // Assert
       expect(decision.isBlocked, isFalse);
+      expect(decision.isConclusive, isFalse);
     });
 
     test('fails open when the build number is missing', () async {
@@ -148,17 +180,15 @@ void main() {
 
       // Assert
       expect(decision.isBlocked, isFalse);
+      expect(decision.isConclusive, isFalse);
     });
 
-    test('honours the maintainer bypass', () async {
+    test('fails open when the build loader throws', () async {
       // Arrange
-      const minSupportedBuild = 20;
-      const runningBuild = minSupportedBuild - 1;
       when(() => remoteConfig.getInt(AppUpdateService.minSupportedBuildKey))
-          .thenReturn(minSupportedBuild);
+          .thenReturn(20);
       final service = serviceWith(
-        buildNumber: '$runningBuild',
-        bypassGate: true,
+        packageInfoLoader: () async => throw Exception('unavailable'),
       );
 
       // Act
@@ -166,33 +196,12 @@ void main() {
 
       // Assert
       expect(decision.isBlocked, isFalse);
+      expect(decision.isConclusive, isFalse);
     });
 
-    test('uses the default message when Remote Config provides none', () async {
+    test('honours the maintainer bypass', () async {
       // Arrange
-      const minSupportedBuild = 20;
-      const runningBuild = minSupportedBuild - 1;
-      when(() => remoteConfig.getInt(AppUpdateService.minSupportedBuildKey))
-          .thenReturn(minSupportedBuild);
-      final service = serviceWith(buildNumber: '$runningBuild');
-
-      // Act
-      final decision = await service.check();
-
-      // Assert
-      expect(decision.message, defaultUpdateMessage);
-    });
-
-    test('never blocks on a platform where the gate does not apply', () async {
-      // Arrange
-      const minSupportedBuild = 20;
-      const runningBuild = 1;
-      when(() => remoteConfig.getInt(AppUpdateService.minSupportedBuildKey))
-          .thenReturn(minSupportedBuild);
-      final service = serviceWith(
-        buildNumber: '$runningBuild',
-        gateApplies: false,
-      );
+      final service = serviceWith(bypassGate: true);
 
       // Act
       final decision = await service.check();
@@ -202,9 +211,73 @@ void main() {
       verifyNever(() => remoteConfig.fetchAndActivate());
     });
 
-    test('registers a zero default before reading values', () async {
+    test('uses the default message when Remote Config provides none', () async {
       // Arrange
-      final service = serviceWith(buildNumber: '1');
+      when(() => remoteConfig.getInt(AppUpdateService.minSupportedBuildKey))
+          .thenReturn(20);
+      when(() => remoteConfig.getString(AppUpdateService.updateUrlKey))
+          .thenReturn('https://apps.apple.com/app/id1234567890');
+      final service = serviceWith(buildNumber: '19');
+
+      // Act
+      final decision = await service.check();
+
+      // Assert
+      expect(decision.message, defaultUpdateMessage);
+    });
+
+    test('fails open when a block has no usable update URL', () async {
+      // Arrange
+      when(() => remoteConfig.getInt(AppUpdateService.minSupportedBuildKey))
+          .thenReturn(20);
+      final service = serviceWith(buildNumber: '19');
+
+      // Act
+      final decision = await service.check();
+
+      // Assert
+      expect(decision.isBlocked, isFalse);
+      expect(decision.isConclusive, isFalse);
+    });
+
+    test('fails open when the update URL is not a store URL', () async {
+      // Arrange
+      when(() => remoteConfig.getInt(AppUpdateService.minSupportedBuildKey))
+          .thenReturn(20);
+      when(() => remoteConfig.getString(AppUpdateService.updateUrlKey))
+          .thenReturn('javascript:alert(1)');
+      final service = serviceWith(buildNumber: '19');
+
+      // Act
+      final decision = await service.check();
+
+      // Assert
+      expect(decision.isBlocked, isFalse);
+      expect(decision.isConclusive, isFalse);
+    });
+
+    test('reads values even when fetchAndActivate reports no change', () async {
+      // Arrange
+      const minSupportedBuild = 20;
+      when(() => remoteConfig.fetchAndActivate())
+          .thenAnswer((_) async => false);
+      when(() => remoteConfig.getInt(AppUpdateService.minSupportedBuildKey))
+          .thenReturn(minSupportedBuild);
+      when(() => remoteConfig.getString(AppUpdateService.updateUrlKey))
+          .thenReturn('https://apps.apple.com/app/id1234567890');
+      final service = serviceWith(buildNumber: '19');
+
+      // Act
+      final decision = await service.check();
+
+      // Assert
+      expect(decision.isBlocked, isTrue);
+      expect(decision.isConclusive, isTrue);
+    });
+
+    test('registers inert defaults and per-launch settings', () async {
+      // Arrange
+      final service = serviceWith();
 
       // Act
       await service.check();
@@ -214,6 +287,56 @@ void main() {
           verify(() => remoteConfig.setDefaults(captureAny())).captured.single
               as Map<String, dynamic>;
       expect(defaults[AppUpdateService.minSupportedBuildKey], 0);
+      expect(defaults[AppUpdateService.updateMessageKey], '');
+      expect(defaults[AppUpdateService.updateUrlKey], '');
+
+      final settings =
+          verify(() => remoteConfig.setConfigSettings(captureAny()))
+                  .captured
+                  .single
+              as RemoteConfigSettings;
+      expect(settings.fetchTimeout, AppUpdateService.defaultFetchTimeout);
+      expect(settings.minimumFetchInterval, Duration.zero);
+    });
+
+    group('platform policy', () {
+      test('applies on iOS', () async {
+        // Arrange
+        debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+        final service = serviceWith(gateApplies: null);
+
+        // Act
+        await service.check();
+
+        // Assert
+        verify(() => remoteConfig.fetchAndActivate()).called(1);
+      });
+
+      test('does not apply on Android', () async {
+        // Arrange
+        debugDefaultTargetPlatformOverride = TargetPlatform.android;
+        final service = serviceWith(gateApplies: null);
+
+        // Act
+        final decision = await service.check();
+
+        // Assert
+        expect(decision.isBlocked, isFalse);
+        verifyNever(() => remoteConfig.fetchAndActivate());
+      });
+
+      test('does not apply on macOS', () async {
+        // Arrange
+        debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+        final service = serviceWith(gateApplies: null);
+
+        // Act
+        final decision = await service.check();
+
+        // Assert
+        expect(decision.isBlocked, isFalse);
+        verifyNever(() => remoteConfig.fetchAndActivate());
+      });
     });
   });
 }

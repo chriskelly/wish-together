@@ -10,6 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/app_update/data/app_update_service.dart';
 import 'package:wishtogether/features/app_update/domain/update_decision.dart';
+import 'package:wishtogether/features/app_update/domain/update_url.dart';
 import 'package:wishtogether/features/app_update/presentation/update_required_page.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
 
@@ -52,15 +53,25 @@ Future<UpdateDecision> _checkForUpdate() async {
   }
 }
 
+bool _appStarted = false;
+
 void _startApp() {
+  if (_appStarted) {
+    return;
+  }
+  _appStarted = true;
   final authService = getIt<AuthService>();
   runApp(WishTogetherApp(router: createRouter(authService)));
 }
 
-/// Re-runs the gate and, when it now passes, replaces the blocker with the app.
+/// Re-runs the gate and, when it is conclusively satisfied, replaces the
+/// blocker with the app.
+///
+/// A retry that merely fails open must not unlock a confirmed block: offline
+/// users could otherwise tap through the gate.
 Future<void> _checkForUpdateAgain() async {
   final decision = await _checkForUpdate();
-  if (!decision.isBlocked) {
+  if (canStartFromRetry(decision)) {
     _startApp();
   }
 }
@@ -68,19 +79,24 @@ Future<void> _checkForUpdateAgain() async {
 /// Builds the blocking screen's update action, or null when no usable URL is
 /// configured (which disables the button).
 VoidCallback? _updateLauncher(String updateUrl) {
-  final uri = Uri.tryParse(updateUrl);
-  if (uri == null || !uri.hasScheme) {
+  final uri = parseUpdateUrl(updateUrl);
+  if (uri == null) {
     return null;
   }
   return () {
-    unawaited(
-      launchUrl(uri, mode: LaunchMode.externalApplication).catchError((
-        Object error,
-      ) {
+    unawaited(() async {
+      try {
+        final opened = await launchUrl(
+          uri,
+          mode: LaunchMode.externalApplication,
+        );
+        if (!opened) {
+          debugPrint('App update gate: could not open $uri');
+        }
+      } catch (error) {
         debugPrint('App update gate: could not open $uri: $error');
-        return false;
-      }),
-    );
+      }
+    }());
   };
 }
 

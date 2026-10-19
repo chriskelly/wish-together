@@ -14,6 +14,7 @@ class UpdateRequiredPage extends StatefulWidget {
     required this.message,
     this.onUpdate,
     this.onCheckAgain,
+    this.updateTimeout = const Duration(seconds: 10),
   });
 
   /// The message from Remote Config (or the hard-coded fallback).
@@ -28,6 +29,10 @@ class UpdateRequiredPage extends StatefulWidget {
   /// Re-runs the gate and reports whether the app may start. Null hides the
   /// retry.
   final Future<bool> Function()? onCheckAgain;
+
+  /// Bound on the store action, so a hung launcher cannot disable both actions
+  /// forever.
+  final Duration updateTimeout;
 
   @override
   State<UpdateRequiredPage> createState() => _UpdateRequiredPageState();
@@ -74,7 +79,7 @@ class _UpdateRequiredPageState extends State<UpdateRequiredPage>
 
     var opened = false;
     try {
-      opened = await onUpdate();
+      opened = await onUpdate().timeout(widget.updateTimeout);
     } catch (error) {
       debugPrint('App update gate: update action failed: $error');
     } finally {

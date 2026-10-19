@@ -16,7 +16,9 @@ class UpdateDecision {
   /// The gate is inert: nothing is shown and the app starts normally.
   ///
   /// [isConclusive] defaults to false as a fail-safe: a caller that forgets to
-  /// state that a check completed must not be able to unlock a retry.
+  /// state that a check completed must not be able to unlock a retry. A
+  /// completed check that could not produce an actionable result is also
+  /// inconclusive.
   const UpdateDecision.allowed({
     this.isConclusive = false,
     this.blockedForMissingUpdateUrl = false,
@@ -38,8 +40,11 @@ class UpdateDecision {
 
   final bool isBlocked;
 
-  /// Whether the result is based on a completed check. An allowed but
-  /// inconclusive result means "could not determine", not "confirmed current".
+  /// Whether the result may be treated as a completed check for retry
+  /// purposes. An allowed but inconclusive result means "could not determine",
+  /// not "confirmed current". A completed check that cannot offer an
+  /// actionable block (for example a block with no usable update URL) is also
+  /// marked inconclusive.
   final bool isConclusive;
 
   /// True when the policy would have blocked but no usable update URL was

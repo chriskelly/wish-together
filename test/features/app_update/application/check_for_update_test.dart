@@ -12,8 +12,7 @@ void main() {
       final result = await checkForUpdate(() async => decision);
 
       // Assert
-      expect(result.isBlocked, isFalse);
-      expect(result.isConclusive, isTrue);
+      expect(identical(result, decision), isTrue);
     });
 
     test('turns a throw into an inconclusive allowance', () async {

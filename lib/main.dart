@@ -45,7 +45,7 @@ void main() async {
 
 /// Runs the gate, treating any unexpected failure as "do not block".
 Future<UpdateDecision> _checkForUpdate() =>
-    checkForUpdate(getIt<AppUpdateService>().check);
+    checkForUpdate(() => getIt<AppUpdateService>().check());
 
 bool _appStarted = false;
 

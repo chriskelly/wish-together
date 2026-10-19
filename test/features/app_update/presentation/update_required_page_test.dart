@@ -302,5 +302,95 @@ void main() {
       // Assert
       expect(retries, 1);
     });
+
+    testWidgets('recovers when the retry throws', (tester) async {
+      // Arrange
+      await tester.pumpWidget(
+        MaterialApp(
+          home: UpdateRequiredPage(
+            message: 'Update',
+            onUpdate: () async => true,
+            onCheckAgain: () async => throw Exception('unavailable'),
+          ),
+        ),
+      );
+
+      // Act
+      await tester.tap(find.text('Check again'));
+      await tester.pumpAndSettle();
+
+      // Assert
+      expect(
+        find.text('Still not available. Try again later.'),
+        findsOneWidget,
+      );
+      expect(
+        tester.widget<TextButton>(find.byType(TextButton)).onPressed,
+        isNotNull,
+      );
+    });
+
+    testWidgets('bounds a hung store action', (tester) async {
+      // Arrange
+      await tester.pumpWidget(
+        MaterialApp(
+          home: UpdateRequiredPage(
+            message: 'Update',
+            updateTimeout: const Duration(milliseconds: 10),
+            onUpdate: () => Completer<bool>().future,
+          ),
+        ),
+      );
+
+      // Act
+      await tester.tap(find.text('Update now'));
+      await tester.pumpAndSettle();
+
+      // Assert
+      expect(
+        find.text(
+          "Couldn't open the App Store. Please open it manually and update "
+          'WishTogether.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
+        isNotNull,
+      );
+    });
+
+    testWidgets('does not double-check on resume while a retry is in flight', (
+      tester,
+    ) async {
+      // Arrange
+      final completer = Completer<bool>();
+      var calls = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: UpdateRequiredPage(
+            message: 'Update',
+            onUpdate: () async => true,
+            onCheckAgain: () {
+              calls++;
+              return completer.future;
+            },
+          ),
+        ),
+      );
+
+      // Act
+      await tester.tap(find.text('Check again'));
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+
+      // Assert
+      expect(calls, 1);
+
+      completer.complete(false);
+      await tester.pumpAndSettle();
+    });
   });
 }

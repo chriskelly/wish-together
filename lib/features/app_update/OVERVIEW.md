@@ -49,8 +49,9 @@ from breaking quietly.
   that merely fails open (offline, timeout) must not let a stale user through.
   The screen disables both actions while one is in flight, reports the result,
   and re-checks automatically when the app resumes (returning from the App
-  Store). It keeps the message and URL it started with, so relaunch after
-  correcting a Remote Config value.
+  Store). It keeps the message and URL it started with; users must relaunch
+  after a Remote Config correction. The automatic resume check only helps while
+  the app process survives the store round-trip.
 - **No dead-end blocks:** the gate refuses to block when `update_url` is empty
   or is not a usable Apple App Store URL, and logs why. Set `update_url` before
   raising the minimum. If the store still cannot be opened on the device, the

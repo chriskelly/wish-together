@@ -100,6 +100,40 @@ void main() {
       expect(decision.isConclusive, isFalse);
     });
 
+    test('does not block when the check is inconclusive', () {
+      // Arrange
+      const minSupportedBuild = 12;
+      const runningBuild = minSupportedBuild - 1;
+
+      // Act
+      final decision = evaluate(
+        runningBuild: runningBuild,
+        minSupportedBuild: minSupportedBuild,
+        conclusive: false,
+      );
+
+      // Assert
+      expect(decision.isBlocked, isFalse);
+      expect(decision.isConclusive, isFalse);
+    });
+
+    test('does not block when the update URL is not usable', () {
+      // Arrange
+      const minSupportedBuild = 12;
+      const runningBuild = minSupportedBuild - 1;
+
+      // Act
+      final decision = evaluate(
+        runningBuild: runningBuild,
+        minSupportedBuild: minSupportedBuild,
+        updateUrl: '',
+      );
+
+      // Assert
+      expect(decision.isBlocked, isFalse);
+      expect(decision.isConclusive, isFalse);
+    });
+
     test('does not block when a maintainer bypass is active', () {
       // Arrange
       const minSupportedBuild = 12;
@@ -187,7 +221,7 @@ void main() {
 
     test('unlocks a conclusive allowance', () {
       // Arrange
-      const decision = UpdateDecision.allowed();
+      const decision = UpdateDecision.allowed(isConclusive: true);
 
       // Act & Assert
       expect(canStartFromRetry(decision), isTrue);

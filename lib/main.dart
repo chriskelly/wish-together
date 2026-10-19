@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart'
@@ -8,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:wishtogether/core/service_locator.dart';
+import 'package:wishtogether/features/app_update/application/retry_update_gate.dart';
 import 'package:wishtogether/features/app_update/data/app_update_service.dart';
 import 'package:wishtogether/features/app_update/domain/update_decision.dart';
 import 'package:wishtogether/features/app_update/domain/update_url.dart';
@@ -69,34 +68,31 @@ void _startApp() {
 ///
 /// A retry that merely fails open must not unlock a confirmed block: offline
 /// users could otherwise tap through the gate.
-Future<void> _checkForUpdateAgain() async {
-  final decision = await _checkForUpdate();
-  if (canStartFromRetry(decision)) {
-    _startApp();
-  }
+Future<bool> _checkForUpdateAgain() {
+  return retryUpdateGate(check: _checkForUpdate, start: _startApp);
 }
 
 /// Builds the blocking screen's update action, or null when no usable URL is
 /// configured (which disables the button).
-VoidCallback? _updateLauncher(String updateUrl) {
+///
+/// Returns whether the store opened, so the screen can show a fallback message
+/// when it did not.
+Future<bool> Function()? _updateLauncher(String updateUrl) {
   final uri = parseUpdateUrl(updateUrl);
   if (uri == null) {
     return null;
   }
-  return () {
-    unawaited(() async {
-      try {
-        final opened = await launchUrl(
-          uri,
-          mode: LaunchMode.externalApplication,
-        );
-        if (!opened) {
-          debugPrint('App update gate: could not open $uri');
-        }
-      } catch (error) {
-        debugPrint('App update gate: could not open $uri: $error');
+  return () async {
+    try {
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!opened) {
+        debugPrint('App update gate: could not open $uri');
       }
-    }());
+      return opened;
+    } catch (error) {
+      debugPrint('App update gate: could not open $uri: $error');
+      return false;
+    }
   };
 }
 

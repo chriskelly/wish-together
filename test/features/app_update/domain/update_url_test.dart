@@ -28,6 +28,33 @@ void main() {
       expect(uri?.scheme, 'itms-apps');
     });
 
+    test('accepts the legacy itunes host', () {
+      // Arrange
+      const raw = 'https://itunes.apple.com/app/id1234567890';
+
+      // Act
+      final uri = parseUpdateUrl(raw);
+
+      // Assert
+      expect(uri, isNotNull);
+    });
+
+    test('rejects a non-Apple host', () {
+      // Arrange
+      const raw = 'https://evil.example/app/id1234567890';
+
+      // Act & Assert
+      expect(parseUpdateUrl(raw), isNull);
+    });
+
+    test('rejects a look-alike host', () {
+      // Arrange
+      const raw = 'https://apps.apple.com.evil.example/app/id1234567890';
+
+      // Act & Assert
+      expect(parseUpdateUrl(raw), isNull);
+    });
+
     test('accepts an upper-case scheme', () {
       // Arrange
       const raw = 'HTTPS://apps.apple.com/app/id1234567890';

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/foundation.dart';
@@ -297,6 +298,56 @@ void main() {
               as RemoteConfigSettings;
       expect(settings.fetchTimeout, AppUpdateService.defaultFetchTimeout);
       expect(settings.minimumFetchInterval, Duration.zero);
+    });
+
+    test('warns when min_supported_build is not an integer', () async {
+      // Arrange
+      final messages = <String?>[];
+      final originalDebugPrint = debugPrint;
+      debugPrint = (String? message, {int? wrapWidth}) {
+        messages.add(message);
+      };
+      addTearDown(() => debugPrint = originalDebugPrint);
+      when(() => remoteConfig.getValue(AppUpdateService.minSupportedBuildKey))
+          .thenReturn(
+            _FakeRemoteConfigValue(utf8.encode('v20'), ValueSource.valueRemote),
+          );
+      final service = serviceWith();
+
+      // Act
+      await service.check();
+
+      // Assert
+      expect(
+        messages.any((message) => message?.contains('not an integer') ?? false),
+        isTrue,
+      );
+    });
+
+    test('stays quiet when min_supported_build is an integer', () async {
+      // Arrange
+      final messages = <String?>[];
+      final originalDebugPrint = debugPrint;
+      debugPrint = (String? message, {int? wrapWidth}) {
+        messages.add(message);
+      };
+      addTearDown(() => debugPrint = originalDebugPrint);
+      when(() => remoteConfig.getValue(AppUpdateService.minSupportedBuildKey))
+          .thenReturn(
+            _FakeRemoteConfigValue(utf8.encode('20'), ValueSource.valueRemote),
+          );
+      when(() => remoteConfig.getInt(AppUpdateService.minSupportedBuildKey))
+          .thenReturn(20);
+      final service = serviceWith();
+
+      // Act
+      await service.check();
+
+      // Assert
+      expect(
+        messages.any((message) => message?.contains('not an integer') ?? false),
+        isFalse,
+      );
     });
 
     group('platform policy', () {

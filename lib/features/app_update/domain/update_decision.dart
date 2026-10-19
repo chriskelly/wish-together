@@ -1,3 +1,5 @@
+import 'package:wishtogether/features/app_update/domain/update_url.dart';
+
 /// The outcome of the minimum-build check.
 ///
 /// [isBlocked] is true only when the running build is known to be below the
@@ -12,9 +14,9 @@ class UpdateDecision {
 
   /// The gate is inert: nothing is shown and the app starts normally.
   ///
-  /// [isConclusive] is false when this allowance came from failing open (for
-  /// example an unreachable server) rather than from a completed check.
-  const UpdateDecision.allowed({this.isConclusive = true})
+  /// [isConclusive] defaults to false because most allowances come from failing
+  /// open. A caller that completed a check must pass `true` explicitly.
+  const UpdateDecision.allowed({this.isConclusive = false})
     : isBlocked = false,
       message = '',
       updateUrl = '';
@@ -49,12 +51,14 @@ const String defaultUpdateMessage =
 ///
 /// Fails open in every uncertain case:
 /// - [bypass] (debug build or maintainer override) never blocks.
+/// - An inconclusive check is allowed but marked inconclusive, so a retry
+///   cannot downgrade a confirmed block.
 /// - A non-positive [minSupportedBuild] is the kill switch, so the gate is
 ///   inert until a maintainer deliberately raises it.
 /// - An unknown [runningBuild] never blocks: the gate must not lock a user out
 ///   because a platform failed to report its build number.
-/// - An inconclusive check (for example a failed fetch) is allowed but marked
-///   inconclusive so a retry cannot downgrade a confirmed block.
+/// - A block is only produced when [updateUrl] is a usable store URL; a block
+///   with no action would be a dead end.
 UpdateDecision evaluateUpdate({
   required int? runningBuild,
   required int minSupportedBuild,
@@ -64,16 +68,22 @@ UpdateDecision evaluateUpdate({
   required bool conclusive,
 }) {
   if (bypass) {
+    return const UpdateDecision.allowed(isConclusive: true);
+  }
+  if (!conclusive) {
     return const UpdateDecision.allowed();
   }
   if (minSupportedBuild <= 0) {
-    return UpdateDecision.allowed(isConclusive: conclusive);
+    return const UpdateDecision.allowed(isConclusive: true);
   }
   if (runningBuild == null) {
-    return const UpdateDecision.allowed(isConclusive: false);
+    return const UpdateDecision.allowed();
   }
   if (runningBuild >= minSupportedBuild) {
-    return UpdateDecision.allowed(isConclusive: conclusive);
+    return const UpdateDecision.allowed(isConclusive: true);
+  }
+  if (parseUpdateUrl(updateUrl) == null) {
+    return const UpdateDecision.allowed();
   }
   return UpdateDecision.blocked(
     message: message.isEmpty ? defaultUpdateMessage : message,

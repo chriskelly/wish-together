@@ -91,24 +91,57 @@ class AppUpdateService {
   /// inconclusive decision, so the app starts.
   Future<UpdateDecision> check() async {
     if (!_gateApplies || _bypassGate) {
-      return const UpdateDecision.allowed();
+      return const UpdateDecision.allowed(isConclusive: true);
     }
     try {
       return await _check().timeout(totalTimeout);
     } catch (error) {
       debugPrint('App update gate: check failed, failing open: $error');
-      return const UpdateDecision.allowed(isConclusive: false);
+      return const UpdateDecision.allowed();
     }
   }
 
   Future<UpdateDecision> _check() async {
-    final runningBuild = await _readRunningBuild();
+    // Start both plugin calls together so a slow PackageInfo cannot eat the
+    // Remote Config budget.
+    final runningBuildFuture = _readRunningBuild();
+    final valuesFuture = _fetchRemoteConfigValues();
+    final runningBuild = await runningBuildFuture;
+    final values = await valuesFuture;
 
-    var minSupportedBuild = defaultMinSupportedBuild;
-    var message = defaultUpdateMessage;
-    var updateUrl = defaultUpdateUrl;
-    var fetched = false;
+    final minSupportedBuild =
+        values?.minSupportedBuild ?? defaultMinSupportedBuild;
+    final message = values?.message ?? defaultUpdateMessage;
+    final updateUrl = values?.updateUrl ?? defaultUpdateUrl;
+    final conclusive = values != null && runningBuild != null;
 
+    final decision = evaluateUpdate(
+      runningBuild: runningBuild,
+      minSupportedBuild: minSupportedBuild,
+      message: message,
+      updateUrl: updateUrl,
+      bypass: _bypassGate,
+      conclusive: conclusive,
+    );
+
+    if (conclusive &&
+        minSupportedBuild > 0 &&
+        runningBuild < minSupportedBuild &&
+        parseUpdateUrl(updateUrl) == null) {
+      // The policy wanted to block, but there is no update action to offer.
+      // Refuse to lock the user out; the maintainer sees this in the logs.
+      debugPrint(
+        'App update gate: min_supported_build requires an update, but '
+        'update_url is missing or is not a usable Apple App Store URL. '
+        'Failing open; set update_url in Remote Config.',
+      );
+    }
+
+    return decision;
+  }
+
+  Future<({int minSupportedBuild, String message, String updateUrl})?>
+  _fetchRemoteConfigValues() async {
     try {
       await _remoteConfig.setDefaults(const <String, dynamic>{
         minSupportedBuildKey: defaultMinSupportedBuild,
@@ -123,43 +156,22 @@ class AppUpdateService {
         ),
       );
       await _remoteConfig.fetchAndActivate().timeout(fetchTimeout);
-      fetched = true;
+      final minSupportedBuild = _remoteConfig.getInt(minSupportedBuildKey);
+      final message = _remoteConfig.getString(updateMessageKey);
+      final updateUrl = _remoteConfig.getString(updateUrlKey);
+      _warnIfMinimumIsNotAnInteger();
+      return (
+        minSupportedBuild: minSupportedBuild,
+        message: message,
+        updateUrl: updateUrl,
+      );
     } catch (error) {
       // Fail open. Never lock a user out because the network failed.
       debugPrint(
         'App update gate: Remote Config unavailable, failing open: $error',
       );
+      return null;
     }
-
-    if (fetched) {
-      minSupportedBuild = _remoteConfig.getInt(minSupportedBuildKey);
-      message = _remoteConfig.getString(updateMessageKey);
-      updateUrl = _remoteConfig.getString(updateUrlKey);
-      _warnIfMinimumIsNotAnInteger();
-    }
-
-    final conclusive = fetched && runningBuild != null;
-    final decision = evaluateUpdate(
-      runningBuild: runningBuild,
-      minSupportedBuild: minSupportedBuild,
-      message: message,
-      updateUrl: updateUrl,
-      bypass: _bypassGate,
-      conclusive: conclusive,
-    );
-
-    if (decision.isBlocked && parseUpdateUrl(decision.updateUrl) == null) {
-      // A block without a usable update link is a dead end. Refuse to lock the
-      // user out; the maintainer sees this in the logs.
-      debugPrint(
-        'App update gate: min_supported_build requires an update, but '
-        'update_url is missing or is not a usable https/itms-apps URL. '
-        'Failing open; set update_url in Remote Config.',
-      );
-      return const UpdateDecision.allowed(isConclusive: false);
-    }
-
-    return decision;
   }
 
   /// A string-typed value silently decodes to 0, which leaves the gate inert.

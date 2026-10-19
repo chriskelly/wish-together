@@ -30,7 +30,7 @@ from breaking quietly.
 | --- | ---- | ------- | ------- |
 | `min_supported_build` | int | `0` | Minimum iOS build (`CFBundleVersion`). `0` leaves the gate inert. |
 | `update_message` | string | code default | Message shown on the blocking screen. |
-| `update_url` | string | empty | Store URL for "Update now". Must be `https` or `itms-apps` with a host. |
+| `update_url` | string | empty | Store URL for "Update now". Must be `https` or `itms-apps` on `apps.apple.com` or `itunes.apple.com`. |
 
 ## Behaviour
 
@@ -38,19 +38,23 @@ from breaking quietly.
   maintainer deliberately raises the key.
 - **Fail open:** a Remote Config fetch that throws or exceeds the 3-second
   timeout is treated as "no minimum". A missing or unparseable build number
-  also never blocks. The whole check is bounded (5 seconds) so a hung plugin
-  cannot stop the first frame from rendering.
+  also never blocks. The update check itself is bounded (5 seconds) so a hung
+  plugin cannot stop the first frame; Firebase initialization and App Check
+  activation run before it and are not part of that bound.
 - **A confirmed block stays blocked:** "Check again" may only replace the
   blocker with the app when the retry is both allowed *and* conclusive. A retry
   that merely fails open (offline, timeout) must not let a stale user through.
+  The screen disables the retry while it is in flight and says "Still not
+  available" when it did not help.
 - **No dead-end blocks:** the gate refuses to block when `update_url` is empty
-  or not a usable store URL, and logs why. Set `update_url` before raising the
-  minimum. A check that fails open reports itself as inconclusive.
+  or is not a usable Apple App Store URL, and logs why. Set `update_url` before
+  raising the minimum. If the store still cannot be opened on the device, the
+  screen shows manual instructions instead of failing silently.
 - **No web build gate:** the web build number is not comparable with the iOS
   `CFBundleVersion`, so the service refuses to gate anywhere but iOS. Web gets
   a `Cache-Control: no-cache` rule on `**` (revalidation, covering SPA deep
-  links), but a warm service-worker cache can still run an old bundle until the
-  page is reloaded.
+  links; unchanged files still return 304), but a warm service-worker cache can
+  still run an old bundle until the page is reloaded.
 - **Maintainer bypass:** debug builds always bypass. A release build can bypass
   with `--dart-define=WT_DISABLE_UPDATE_GATE=true`. Neither is reachable from
   the UI. To exercise the blocking screen locally, run a release build (or the
@@ -65,11 +69,15 @@ from breaking quietly.
 3. In Firebase Console → Remote Config for `wish-together-project`, set
    `min_supported_build` to that integer, set `update_url` to the App Store
    listing (`https://apps.apple.com/app/id…`), and adjust `update_message` if
-   needed. A block is refused unless `update_url` is a usable store URL.
+   needed. A block is refused unless `update_url` is a usable Apple App Store
+   URL.
 4. Publish the changes.
 5. Verify on a device: a build below the minimum shows the blocking screen; a
    build at or above it starts normally.
 6. Roll back by setting `min_supported_build` to `0` and publishing again.
+   Clients already on the blocking screen recover on their next successful
+   check (the "Check again" button).
 
-A Remote Config outage leaves the app usable. That is deliberate: a network
-failure must never lock a user out.
+A Remote Config outage never blocks a user who was not already confirmed stale;
+a user already on the blocking screen stays blocked until a check succeeds.
+That is deliberate: a network failure must never lock a new user out.

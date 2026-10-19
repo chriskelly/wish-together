@@ -58,6 +58,7 @@ per-area `OVERVIEW.md` next to the code you are touching.
 | Where does gift claiming live? | `lib/features/wishlist/` and its `OVERVIEW.md` |
 | How is the app wired? | `lib/main.dart` → `core/service_locator.dart` → `core/router.dart` |
 | How is data accessed? | Repositories extending `core/data/firebase_repository.dart` |
+| How do I force a client update? | `lib/features/app_update/OVERVIEW.md` (Remote Config `min_supported_build`) |
 | Where are the Firestore rules? | `firestore.rules` (root) |
 | How does iOS ship to TestFlight? | `.github/workflows/testflight-release.yml` + `fastlane/Fastfile` (see CI) |
 | How do I test real auth on a preview? | `.agents/skills/preview-auth/` (run locally, never CI; see CI → Staging environment) |

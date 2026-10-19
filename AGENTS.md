@@ -83,6 +83,10 @@ Run every command from the repository root.
 After substantive changes, run `dart format .`, `flutter analyze`, and `flutter test`.
 `flutter analyze` must be clean and `flutter test` green before you claim work complete.
 
+One local caveat: after `npm ci` in `rules_tests/`, `dart format .` also walks the one
+vendored Dart file inside `rules_tests/node_modules`. Use `dart format lib test web` in
+that state (CI's format gate runs before the npm install, so CI is unaffected).
+
 Formatting: `dart format .` is the formatter and is **enforced in CI** as
 `dart format --output=none --set-exit-if-changed .`; the tree is formatted. Format the
 files you touch.
@@ -307,8 +311,10 @@ from it, in a write that adds or removes precisely the caller. The owner cannot 
 their own group. Only the owner may rename a group.
 
 **Reads are open to any signed-in user**, with two exceptions: listing groups is
-members-only (the group's members array must contain the caller), and items are readable
-only by their wishlist's owner or when that wishlist has been shared with a group. Note
+members-only (the group's members array must contain the caller; a second, owner-pinned
+list rule exists so `where('ownerId','==',uid)` stays provable — the owner is always a
+member, so the listable set is unchanged), and items are readable only by their
+wishlist's owner or when that wishlist has been shared with a group. Note
 that the second exception constrains *item* reads only. A wishlist document is readable by
 any signed-in user, and that includes **listing the whole `wishlists` collection** — the
 app only queries the viewer's own wishlists and the wishlists shared with a group they
@@ -351,6 +357,12 @@ To publish by hand:
 ```bash
 firebase deploy --only firestore:rules --project wish-together-project
 ```
+
+The deploy authenticates as the **Firebase Admin SDK service account**, which needs two
+roles that Hosting deploys do not use: `roles/serviceusage.serviceUsageViewer`
+(`firebase-tools` checks API enablement before deploying) and `roles/firebaserules.admin`
+(compile and publish). Without either, the job **fails closed** and production keeps the
+previous ruleset — it does not publish a partial or stale change silently.
 
 To roll back, the Firebase console keeps a history of published rulesets (Firestore
 Database → Rules): a previous ruleset can be cloned or restored, which publishes it

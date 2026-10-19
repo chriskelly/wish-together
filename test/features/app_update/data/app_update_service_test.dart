@@ -487,4 +487,23 @@ void main() {
       });
     });
   });
+
+  group('gateAppliesOn', () {
+    test('gates iOS', () {
+      expect(gateAppliesOn(isWeb: false, platform: TargetPlatform.iOS), isTrue);
+    });
+
+    test('does not gate web, where the build number is not comparable', () {
+      // kIsWeb is a compile-time constant, so the browser is simulated here.
+      // Dropping the web exclusion from the predicate must fail this test.
+      expect(gateAppliesOn(isWeb: true, platform: TargetPlatform.iOS), isFalse);
+    });
+
+    test('does not gate other platforms', () {
+      expect(
+        gateAppliesOn(isWeb: false, platform: TargetPlatform.android),
+        isFalse,
+      );
+    });
+  });
 }

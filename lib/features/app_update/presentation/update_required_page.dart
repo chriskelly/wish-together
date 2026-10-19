@@ -28,10 +28,14 @@ class UpdateRequiredPage extends StatefulWidget {
 
   /// Re-runs the gate and reports whether the app may start. Null hides the
   /// retry.
+  ///
+  /// The callback must be self-bounding; production wraps the service's
+  /// 5-second total check timeout.
   final Future<bool> Function()? onCheckAgain;
 
-  /// Bound on the store action, so a hung launcher cannot disable both actions
-  /// forever.
+  /// Maximum time to wait for the store action, so a hung launcher cannot
+  /// disable both actions forever. A late open is still possible; this only
+  /// bounds how long the screen waits before offering a manual path.
   final Duration updateTimeout;
 
   @override

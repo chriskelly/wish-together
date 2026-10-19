@@ -49,13 +49,15 @@ from breaking quietly.
   that merely fails open (offline, timeout) must not let a stale user through.
   The screen disables both actions while one is in flight, reports the result,
   and re-checks automatically when the app resumes (returning from the App
-  Store). It keeps the message and URL it started with; users must relaunch
-  after a Remote Config correction. The automatic resume check only helps while
-  the app process survives the store round-trip.
+  Store). It keeps the message and URL it started with; a changed
+  `update_message` or `update_url` needs a relaunch, while lowering
+  `min_supported_build` is picked up by "Check again". The automatic resume
+  check only helps while the app process survives the store round-trip.
 - **No dead-end blocks:** the gate refuses to block when `update_url` is empty
   or is not a usable Apple App Store URL, and logs why. Set `update_url` before
   raising the minimum. If the store still cannot be opened on the device, the
-  screen shows manual instructions instead of failing silently.
+  screen waits at most 10 seconds, then shows manual instructions and
+  re-enables both actions.
 - **No web build gate:** the web build number is not comparable with the iOS
   `CFBundleVersion`, so the service refuses to gate anywhere but iOS. Web gets
   a `Cache-Control: no-cache` rule on `**` (revalidation, covering SPA deep

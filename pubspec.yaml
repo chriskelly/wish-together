@@ -51,6 +51,11 @@ dependencies:
   get_it: ^9.0.5
   sign_in_with_apple: ^8.2.0
   crypto: ^3.0.7
+  # Pinned to 6.1.0: it is the newest firebase_remote_config whose firebase_core
+  # constraint (^4.2.0) matches the suite this repo has locked. Newer releases
+  # force a Firebase suite upgrade; treat that as its own deliberate change.
+  firebase_remote_config: 6.1.0
+  package_info_plus: ^9.0.1
 
 dev_dependencies:
   flutter_test:

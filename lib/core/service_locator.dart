@@ -1,4 +1,5 @@
 import 'package:get_it/get_it.dart';
+import 'package:wishtogether/features/app_update/data/app_update_service.dart';
 import 'package:wishtogether/features/auth/application/delete_account_use_case.dart';
 import 'package:wishtogether/features/auth/application/load_user_profile_use_case.dart';
 import 'package:wishtogether/features/auth/application/save_user_profile_use_case.dart';
@@ -23,6 +24,7 @@ final getIt = GetIt.instance;
 void setupServiceLocator() {
   // Services
   getIt.registerLazySingleton<AuthService>(() => AuthService());
+  getIt.registerLazySingleton<AppUpdateService>(() => AppUpdateService());
   getIt.registerLazySingleton<UserRepository>(() => UserRepository());
   getIt.registerLazySingleton<WishlistRepository>(() => WishlistRepository());
   getIt.registerLazySingleton<GroupRepository>(() => GroupRepository());

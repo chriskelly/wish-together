@@ -46,10 +46,12 @@ and whose `redirect` delegates to the pure function `handleRedirect(uriString, A
 
 ## Data flow
 
-`lib/main.dart` initializes Firebase, runs `setupServiceLocator()`, then
-`createRouter(getIt<AuthService>())` and mounts it via `MaterialApp.router`. Pages read
-dependencies from `getIt` and repositories from the locator; nothing constructs a
-repository inline.
+`lib/main.dart` initializes Firebase, activates App Check, runs
+`setupServiceLocator()`, then asks `AppUpdateService` whether the running build
+is still supported. If it is, `createRouter(getIt<AuthService>())` is mounted
+via `MaterialApp.router`; if not, the blocking `UpdateRequiredApp` is mounted
+and the router is never created. Pages read dependencies from `getIt` and
+repositories from the locator; nothing constructs a repository inline.
 
 ## How it is tested
 

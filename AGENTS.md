@@ -39,6 +39,7 @@ per-area `OVERVIEW.md` next to the code you are touching.
 │   ├── common/widgets/        # shared presentational widgets
 │   ├── core/                  # shared infra + composition roots — see lib/core/OVERVIEW.md
 │   └── features/              # feature-first: domain / data / application / presentation
+│       ├── app_update/        # see lib/features/app_update/OVERVIEW.md
 │       ├── auth/              # see lib/features/auth/OVERVIEW.md
 │       ├── group/             # see lib/features/group/OVERVIEW.md
 │       └── wishlist/          # see lib/features/wishlist/OVERVIEW.md
@@ -59,6 +60,7 @@ per-area `OVERVIEW.md` next to the code you are touching.
 | Where does gift claiming live? | `lib/features/wishlist/` and its `OVERVIEW.md` |
 | How is the app wired? | `lib/main.dart` → `core/service_locator.dart` → `core/router.dart` |
 | How is data accessed? | Repositories extending `core/data/firebase_repository.dart` |
+| How do I force a client update? | `lib/features/app_update/OVERVIEW.md` (Remote Config `min_supported_build`) |
 | Where are the Firestore rules? | `firestore.rules` (root) |
 | How does iOS ship to TestFlight? | `.github/workflows/testflight-release.yml` + `fastlane/Fastfile` (see CI) |
 | How do I test real auth on a preview? | `.agents/skills/preview-auth/` (run locally, never CI; see CI → Staging environment) |
@@ -164,7 +166,7 @@ and groups; anything created or claimed on staging is real data.
 - It deploys from `firebase.staging.json` (a `"target": "staging"` hosting config bound in
   `.firebaserc`), **not** `firebase.json`. `firebase.json` keeps a single untargeted hosting
   config, so live (`master` → `firebase deploy --only hosting`) and the PR preview channels
-  are unchanged.
+  are unchanged. Hosting `headers` are duplicated in both files; change them together.
 - One-time setup: the site must exist (`firebase hosting:sites:create wish-together-staging`,
   or Console → Hosting → Add site); the committed `.firebaserc` already binds the `staging`
   target to it. Then allowlist the staging host, with the **exact** host (no wildcard), in each:
@@ -227,7 +229,8 @@ specific integration smoke test is called for.
   `firestore:` constructor argument.
 - **Router logic** is tested as the pure `handleRedirect` function with a mocked
   `AuthService` and `UserRepository`.
-- There are no widget or golden tests yet; adding them is post-ship backlog.
+- Widget tests exist for the login page and the app-update screen; broader widget/golden
+  coverage is post-ship backlog.
 
 ## Architecture and dependency direction
 

@@ -87,6 +87,12 @@ One local caveat: after `npm ci` in `rules_tests/`, `dart format .` also walks t
 vendored Dart file inside `rules_tests/node_modules`. Use `dart format lib test web` in
 that state (CI's format gate runs before the npm install, so CI is unaffected).
 
+**App icon:** the single source is `web/favicon.png` (1024×1024, **opaque**). The iOS set in
+`ios/Runner/Assets.xcassets/AppIcon.appiconset/` is generated from it — resize each file named
+in `Contents.json` with `sips -z <px> <px> web/favicon.png --out <file>`. Keep every size
+opaque (no alpha) and at the exact pixel size; the App Store rejects an icon with a
+transparency channel.
+
 Formatting: `dart format .` is the formatter and is **enforced in CI** as
 `dart format --output=none --set-exit-if-changed .`; the tree is formatted. Format the
 files you touch.

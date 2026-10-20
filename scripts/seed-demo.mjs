@@ -271,7 +271,10 @@ const WISHLISTS = [
   },
   {
     key: 'viewer-list',
-    name: `${viewerName}'s Wishlist`,
+    name: `${viewerName}'s Birthday`,
+    // The viewer's account also has an auto-created "<name>'s Wishlist" (the
+    // app's default). Keep the demo list clearly distinct so the Home
+    // screenshot does not show two identical titles.
     owner: 'VIEWER',
     groups: ['family', 'inlaws'],
     items: [

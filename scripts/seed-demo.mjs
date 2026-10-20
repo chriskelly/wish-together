@@ -144,12 +144,13 @@ const WISHLISTS = [
     ],
   },
   {
-    // A list Sasha keeps for the twins, who are not on WishTogether. The app
-    // supports this: the list is owned by the person who manages it, and is
-    // named after the people it is for.
+    // A list the viewer keeps for the twins, who are not on WishTogether. The
+    // app supports this: the list is owned by the person who manages it, and is
+    // named after the people it is for. It also gives the viewer a second list,
+    // so their Home screen shows that one account can hold several.
     key: 'rumi-sir-birthday',
     name: "Rumi and Sir's Birthday",
-    owner: 'sasha',
+    owner: 'VIEWER',
     groups: ['family', 'knowles'],
     items: [
       ['Balance bike', 'For Sir — the blue one.', 'balance-bike'],

@@ -144,6 +144,25 @@ const WISHLISTS = [
     ],
   },
   {
+    // A list Sasha keeps for the twins, who are not on WishTogether. The app
+    // supports this: the list is owned by the person who manages it, and is
+    // named after the people it is for.
+    key: 'rumi-sir-birthday',
+    name: "Rumi and Sir's Birthday",
+    owner: 'sasha',
+    groups: ['family', 'knowles'],
+    items: [
+      ['Balance bike', 'For Sir — the blue one.', 'balance-bike'],
+      ['Balance bike (matching)', 'For Rumi — the pink one.', 'balance-bike-pink'],
+      ['Art easel', 'One each, so they stop arguing over it.', 'easel', 'tina'],
+      ['Wooden blocks', 'The big set.', 'blocks'],
+      ['Picture books', 'Anything with animals.', 'picture-books', 'blue'],
+      ['Swim vests', 'Two, age 7.', 'swim-vests'],
+      ['Plush lion', 'For Rumi.', 'plush-lion'],
+      ['Kids camera', 'Drop-proof.', 'kids-camera'],
+    ],
+  },
+  {
     key: 'blue-birthday',
     name: "Blue's Birthday",
     owner: 'blue',

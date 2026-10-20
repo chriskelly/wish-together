@@ -114,6 +114,9 @@ class WishTogetherApp extends StatelessWidget {
     return MaterialApp.router(
       routerConfig: router,
       title: 'WishTogether',
+      // The DEBUG ribbon is noise in screenshots and demos. It only ever
+      // renders in debug builds, so this has no effect on release.
+      debugShowCheckedModeBanner: false,
       theme: lightTheme,
       darkTheme: darkTheme,
       themeMode: ThemeMode.system,

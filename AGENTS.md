@@ -77,6 +77,7 @@ Run every command from the repository root.
 | Run all tests | `flutter test` |
 | Run one area's tests | `flutter test test/features/auth` |
 | Run one test file | `flutter test test/features/wishlist/application/claim_item_use_case_test.dart` |
+| Seed demo data (local, admin) | `cd scripts && npm ci && GOOGLE_APPLICATION_CREDENTIALS=<service-account.json> npm run seed:demo -- --yes --viewer-uid <uid>` — `--clean-only` removes it |
 | Run the Firestore rules tests | `cd rules_tests && npm ci && npm test` (needs Node 22+ and a JDK; regenerate its lockfile with that Node's npm, or `npm ci` fails in CI) |
 | Build for web | `flutter build web` |
 
@@ -92,6 +93,15 @@ that state (CI's format gate runs before the npm install, so CI is unaffected).
 in `Contents.json` with `sips -z <px> <px> web/favicon.png --out <file>`. Keep every size
 opaque (no alpha) and at the exact pixel size; the App Store rejects an icon with a
 transparency channel.
+
+**Demo data:** `scripts/seed-demo.mjs` writes a fictional, multi-family dataset (10 people,
+3 overlapping groups, 10 wishlists, ~80 items, marked claims) to the **production** Firestore,
+for screenshots and manual testing. It needs an Admin service-account JSON via
+`GOOGLE_APPLICATION_CREDENTIALS`, refuses to run without `--yes`, refuses a credentials file
+from another project, and only ever touches `demo-` document ids. Only the `--viewer-uid`
+account needs real authentication; the other people are plain `users/{uid}` documents, which
+works because every signed-in user can read every user document and every wishlist. Run it
+with `--clean-only` when done — while the data exists, any signed-in user can read it.
 
 Formatting: `dart format .` is the formatter and is **enforced in CI** as
 `dart format --output=none --set-exit-if-changed .`; the tree is formatted. Format the

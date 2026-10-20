@@ -1,0 +1,12 @@
+{
+  "name": "wishtogether-scripts",
+  "private": true,
+  "type": "module",
+  "description": "Local development scripts for WishTogether. Not part of the app build.",
+  "scripts": {
+    "seed:demo": "node seed-demo.mjs"
+  },
+  "dependencies": {
+    "firebase-admin": "^14.5.0"
+  }
+}

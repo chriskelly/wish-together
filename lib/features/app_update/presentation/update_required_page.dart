@@ -216,6 +216,7 @@ class UpdateRequiredApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'WishTogether',
+      debugShowCheckedModeBanner: false,
       theme: lightTheme,
       darkTheme: darkTheme,
       themeMode: ThemeMode.system,

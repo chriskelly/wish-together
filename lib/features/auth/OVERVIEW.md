@@ -86,9 +86,9 @@ profile).
   the two exits cannot disagree — never `pop`, because `/profile` is a top-level route and both
   Home → Profile and a web deep link arrive with a one-deep stack. `profileExitTarget` falls
   back to home for an absent, blank, or self-referential (`/profile`, `/profile/`) `redirect_to`
-  and otherwise passes the value through unchanged, including the full invitation links the join
-  flow produces. The AppBar also sets `automaticallyImplyLeading: false` so a future `push`
-  cannot put an automatic arrow on the onboarding state.
+  and otherwise passes the router-produced value through unchanged (an invitation reaches the
+  page as a path, `/join?group=123`). The AppBar also sets `automaticallyImplyLeading: false` so
+  a future `push` cannot put an automatic arrow on the onboarding state.
 - The default wishlist is created only on the first save (when the prior `displayName`
   was empty), so it is not duplicated on later profile edits.
 - `google_sign_in_stub.dart` is a compile-time stub that `login_page.dart` falls back to on
@@ -210,7 +210,7 @@ validate it on the **staging** site (or live) with a throwaway account for each 
   `shouldShowAppleSignInButton` platform-gate truth table (iOS shows; web, Android, macOS hide).
 - `test/features/auth/presentation/profile_page_test.dart` — the profile page's exits:
   `shouldShowProfileBackButton` (a new user and a still-loading profile get no arrow; a loaded
-  existing user does) and `profileExitTarget` (a `redirect_to` destination — including a full
-  invitation link — is returned unchanged, with `/` as the fallback for absent, blank, or
+  existing user does) and `profileExitTarget` (a `redirect_to` destination — including an
+  invitation path — is returned unchanged, with `/` as the fallback for absent, blank, or
   self-referential values). The same helper drives Save's exit.
 - `test/core/router_test.dart` covers the auth redirect matrix.

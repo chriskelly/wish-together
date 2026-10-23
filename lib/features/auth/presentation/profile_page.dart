@@ -24,8 +24,8 @@ bool shouldShowProfileBackButton({
 
 /// Where the profile page's exits send the user.
 ///
-/// Returns [redirectTo] unless it is absent, blank, or points back at
-/// `/profile`, in which case the user goes home. Those cases are picked
+/// Returns [redirectTo], trimmed, unless it is absent, blank, or points back
+/// at `/profile`, in which case the user goes home. Those cases are picked
 /// because a `redirect_to` is untrusted query-string input and each one would
 /// otherwise make the exit a no-op or an unmatched location: `context.go('')`
 /// renders go_router's error page, and `context.go('/profile')` keeps the user

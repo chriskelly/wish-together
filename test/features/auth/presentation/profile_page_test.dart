@@ -41,10 +41,10 @@ void main() {
       expect(profileExitTarget(destination), destination);
     });
 
-    test('leaves a full invitation link alone so it can be re-followed', () {
-      const invitationLink = 'http://localhost/#/join?group=123';
+    test('keeps an invitation path intact', () {
+      const invitation = '/join?group=123';
 
-      expect(profileExitTarget(invitationLink), invitationLink);
+      expect(profileExitTarget(invitation), invitation);
     });
 
     test('falls back to home without a destination', () {

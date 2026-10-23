@@ -86,9 +86,10 @@ profile).
   the two exits cannot disagree — never `pop`, because `/profile` is a top-level route and both
   Home → Profile and a web deep link arrive with a one-deep stack. `profileExitTarget` falls
   back to home for an absent, blank, or self-referential (`/profile`, `/profile/`) `redirect_to`
-  and otherwise passes the router-produced value through unchanged (an invitation reaches the
-  page as a path, `/join?group=123`). The AppBar also sets `automaticallyImplyLeading: false` so
-  a future `push` cannot put an automatic arrow on the onboarding state.
+  and otherwise forwards the value it was handed, trimmed (an invitation arrives as a path,
+  `/join?group=123`; the value is still untrusted query input). The AppBar also sets
+  `automaticallyImplyLeading: false` so a future `push` cannot put an automatic arrow on the
+  onboarding state.
 - The default wishlist is created only on the first save (when the prior `displayName`
   was empty), so it is not duplicated on later profile edits.
 - `google_sign_in_stub.dart` is a compile-time stub that `login_page.dart` falls back to on

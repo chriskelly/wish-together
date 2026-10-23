@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wishtogether/features/auth/presentation/home_page.dart';
 import 'package:wishtogether/features/auth/presentation/profile_page.dart';
+import 'package:wishtogether/features/group/presentation/join_group_page.dart';
 
 void main() {
   group('shouldShowProfileBackButton', () {
@@ -42,7 +43,8 @@ void main() {
     });
 
     test('keeps an invitation path intact', () {
-      const invitation = '/join?group=123';
+      const groupId = '123';
+      final invitation = '${JoinGroupPage.route}?group=$groupId';
 
       expect(profileExitTarget(invitation), invitation);
     });

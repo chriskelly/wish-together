@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
 import 'package:wishtogether/features/auth/presentation/home_page.dart';
@@ -30,20 +31,37 @@ class AuthListenable extends ChangeNotifier {
   }
 }
 
-GoRouter createRouter(AuthService authService) => GoRouter(
-  refreshListenable: AuthListenable(authService),
-  redirect: (BuildContext context, GoRouterState state) =>
-      handleRedirect(state.uri.toString(), authService),
-  routes: <RouteBase>[
-    homePageRoute(),
-    loginPageRoute(),
-    verificationPageRoute(),
-    wishlistFormPageRoute(),
-    groupFormPageRoute(),
-    profilePageRoute(),
-    joinGroupPageRoute(),
-  ],
-);
+/// Resolves the repository used for profile reads and writes.
+///
+/// The composition root supplies it once; tests may inject one. This is the
+/// only place that may fall back to the locator, so a staging build cannot
+/// accidentally construct a production repository.
+UserRepository resolveUserRepository([UserRepository? injected]) =>
+    injected ?? getIt<UserRepository>();
+
+GoRouter createRouter(
+  AuthService authService, {
+  UserRepository? userRepository,
+}) {
+  // Resolve the repository once at composition time so every redirect uses the
+  // same database target as the rest of the app.
+  final repository = resolveUserRepository(userRepository);
+
+  return GoRouter(
+    refreshListenable: AuthListenable(authService),
+    redirect: (BuildContext context, GoRouterState state) =>
+        handleRedirect(state.uri.toString(), authService, userRepo: repository),
+    routes: <RouteBase>[
+      homePageRoute(),
+      loginPageRoute(),
+      verificationPageRoute(),
+      wishlistFormPageRoute(),
+      groupFormPageRoute(),
+      profilePageRoute(),
+      joinGroupPageRoute(),
+    ],
+  );
+}
 
 Future<String?> handleRedirect(
   String uriString,
@@ -61,7 +79,7 @@ Future<String?> handleRedirect(
   // The profile document has to exist before any route can decide what to show.
   // The login redirect used to return before this, which sent a brand-new
   // account to home with no `users/{uid}` document to render.
-  final user = await (userRepo ?? UserRepository()).getOrCreateUser(
+  final user = await resolveUserRepository(userRepo).getOrCreateUser(
     authService.currentUserId!,
     email: authService.currentUserEmail,
     phoneNumber: authService.currentUserPhoneNumber,

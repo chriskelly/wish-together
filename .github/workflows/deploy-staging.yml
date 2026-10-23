@@ -1,16 +1,24 @@
 name: Deploy staging
 
-# Manual deploy of a chosen ref to the pre-merge staging site (Firebase Hosting
-# site `wish-together-staging`). Real phone + Google sign-in are validated here
-# because per-PR preview channels cannot be fully allowlisted without widening
-# the public browser API key (see AGENTS.md, "Staging environment").
+# Manual deploy of a chosen ref to the staging environment:
 #
-# This workflow only ever touches the staging site. Live (master -> the default
-# site) and per-PR preview channels are unchanged: `firebase.json` still defines
-# a single, untargeted hosting config, so `firebase deploy --only hosting` keeps
-# deploying only the default site.
+#   * Hosting site `wish-together-staging`, built against the named Firestore
+#     database declared in `firebase.staging.json` (not production).
+#   * The candidate `firestore.rules`, deployed only to that named database so a
+#     rules change can be rehearsed with real sign-in and real-shaped data.
 #
-# Deploy from Actions -> "Deploy staging" -> Run workflow, choosing a ref.
+# Production is isolated by construction: `firebase.json` still names the single
+# `(default)` database, and only `firebase.staging.json` is used here. The
+# config is validated twice — in the build job and again in the deploy job
+# immediately before use — because candidate code runs only in the build job.
+# The deploy also records the production ruleset before/after and checks that
+# the staging ruleset source matches `firestore.rules` (firebase-tools #9910 can
+# silently skip an upload).
+#
+# Deploy from Actions -> "Deploy staging" -> Run workflow. **Dispatch from
+# `master` with `ref=<branch>`** so the verification tooling is trusted; the
+# deploy job checks the tooling out from the workflow's own commit, never from
+# the candidate ref.
 
 on:
   workflow_dispatch:
@@ -33,17 +41,27 @@ env:
   # Pinned to the toolchain this repo targets (see AGENTS.md / pubspec.yaml).
   FLUTTER_VERSION: "3.47.7"
   FIREBASE_TOOLS_VERSION: "15.34.0"
+  NODE_VERSION: "22"
+  PROJECT_ID: "wish-together-project"
+  PRODUCTION_DATABASE: "(default)"
   STAGING_URL: "https://wish-together-staging.web.app"
 
 jobs:
-  deploy:
-    name: Build & deploy to staging
-    runs-on: ubuntu-latest
+  build:
+    name: Build staging artifacts
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -55,37 +73,220 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build web
-        run: flutter build web --release
+      # Early feedback for the operator; the deploy job validates the
+      # downloaded config again with the trusted copy of this script.
+      - name: Validate the staging config
+        id: target
+        run: |
+          DATABASE=$(node scripts/staging-config.mjs firebase.staging.json)
+          echo "database=$DATABASE" >> "$GITHUB_OUTPUT"
+          echo "Staging Firestore database: $DATABASE"
+
+      # Fails if the Dart define key or the workflow's --dart-define is renamed:
+      # the app would otherwise fall back to production with a green build.
+      - name: Test the staging Firestore define
+        env:
+          STAGING_DATABASE: ${{ steps.target.outputs.database }}
+        run: |
+          flutter test \
+            --dart-define=WT_FIRESTORE_DATABASE="$STAGING_DATABASE" \
+            --dart-define=WT_FIRESTORE_DATABASE_EXPECTED="$STAGING_DATABASE" \
+            test/core/firestore_target_test.dart
+
+      - name: Build web for the staging database
+        env:
+          # Passed via env, never interpolated into `run:` (expression injection).
+          STAGING_DATABASE: ${{ steps.target.outputs.database }}
+        run: |
+          flutter build web --release \
+            --dart-define=WT_FIRESTORE_DATABASE="$STAGING_DATABASE"
+
+      # The build output, not the test process, is the thing that ships. The
+      # marker is emitted by `firestore_target.dart`; Flutter's own code contains
+      # the word "staging", so the bare id is not a usable marker.
+      - name: Assert the bundle embeds the staging target
+        env:
+          STAGING_DATABASE: ${{ steps.target.outputs.database }}
+        run: |
+          [ -n "$STAGING_DATABASE" ] || { echo "Empty staging database id"; exit 1; }
+          node -e '
+            const { readFileSync } = require("node:fs");
+            const bundle = readFileSync("build/web/main.dart.js", "utf8");
+            const marker = "wishtogether-firestore-target=" + process.env.STAGING_DATABASE;
+            if (!bundle.includes(marker)) {
+              console.error("build/web/main.dart.js does not embed " + marker);
+              process.exit(1);
+            }
+            console.log("Bundle embeds " + marker);
+          '
+
+      - name: Record the built commit
+        run: git rev-parse --short HEAD > commit.txt
+
+      - name: Upload staging artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: staging-artifacts
+          path: |
+            build/web
+            firestore.rules
+            firebase.staging.json
+            commit.txt
+          if-no-files-found: error
+          retention-days: 1
+
+  deploy:
+    name: Deploy to staging
+    needs: build
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    steps:
+      # Candidate code does not run in this job. The verifier comes from the
+      # workflow's own commit, and every deployed file comes from the artifact.
+      - name: Check out the verification tooling
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .verify
+          persist-credentials: false
+
+      - name: Warn when the tooling was not dispatched from master
+        if: ${{ !endsWith(github.workflow_ref, '@refs/heads/master') }}
+        env:
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+        run: |
+          echo "::warning::The verification tooling was checked out from $WORKFLOW_REF. Dispatch from master with ref=<branch> for a trusted run."
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Download staging artifacts
+        uses: actions/download-artifact@v7
+        with:
+          name: staging-artifacts
+          path: staging
+
+      # Re-validate the exact files that are about to be deployed, with the
+      # trusted validator, after all candidate execution has finished.
+      - name: Validate the deployed config
+        id: target
+        working-directory: staging
+        run: |
+          DATABASE=$(node "$GITHUB_WORKSPACE/.verify/scripts/staging-config.mjs" firebase.staging.json)
+          echo "database=$DATABASE" >> "$GITHUB_OUTPUT"
+          echo "Staging Firestore database: $DATABASE"
+
+      # The artifact bundle must carry the marker for the trusted config id;
+      # this does not rely on the candidate build script having told the truth.
+      - name: Assert the artifact bundle targets staging
+        env:
+          STAGING_DATABASE: ${{ steps.target.outputs.database }}
+        run: |
+          [ -n "$STAGING_DATABASE" ] || { echo "Empty staging database id"; exit 1; }
+          node -e '
+            const { readFileSync } = require("node:fs");
+            const bundle = readFileSync("staging/build/web/main.dart.js", "utf8");
+            const marker = "wishtogether-firestore-target=" + process.env.STAGING_DATABASE;
+            if (!bundle.includes(marker)) {
+              console.error("staging/build/web/main.dart.js does not embed " + marker);
+              process.exit(1);
+            }
+            console.log("Artifact bundle embeds " + marker);
+          '
+
+      - name: Install and test the verification tooling
+        run: |
+          npm ci
+          npm test
+        working-directory: .verify/scripts
+
+      # Install the CLI into a trusted prefix: `npx` would resolve from the
+      # artifact directory and could honour a candidate-supplied .npmrc.
+      - name: Install firebase-tools
+        run: |
+          mkdir -p "$RUNNER_TEMP/tools"
+          npm install --prefix "$RUNNER_TEMP/tools" --no-save \
+            "firebase-tools@$FIREBASE_TOOLS_VERSION"
 
       - name: Authenticate to Firebase
         uses: google-github-actions/auth@v3
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
-      # Separate config so the default `firebase.json` (live + preview channels)
-      # is untouched. `firebase.staging.json` carries `"target": "staging"`.
-      # Pin the target and project explicitly so a stale/edited ref cannot bind
-      # `staging` to the live site.
-      - name: Pin the staging target
+      - name: Record the production rules release
+        id: production_before
         run: |
-          npx --yes firebase-tools@"$FIREBASE_TOOLS_VERSION" \
-            target:apply hosting staging wish-together-staging --project wish-together-project
+          RULESET=$(node .verify/scripts/rules-release.mjs show --database "$PRODUCTION_DATABASE" --project "$PROJECT_ID")
+          [ -n "$RULESET" ] || { echo "No production ruleset id returned"; exit 1; }
+          echo "ruleset=$RULESET" >> "$GITHUB_OUTPUT"
+          echo "Production ruleset before: $RULESET"
+
+      # `firebase.staging.json` names the staging database and site explicitly,
+      # so this deploy cannot reach production.
+      - name: Deploy the candidate rules to staging
+        working-directory: staging
+        run: |
+          "$RUNNER_TEMP/tools/node_modules/.bin/firebase" deploy \
+            --only firestore:rules \
+            --config firebase.staging.json \
+            --project "$PROJECT_ID"
+
+      - name: Verify the staging ruleset and production isolation
+        id: verify
+        working-directory: staging
+        env:
+          STAGING_DATABASE: ${{ steps.target.outputs.database }}
+          PRODUCTION_RULESET_BEFORE: ${{ steps.production_before.outputs.ruleset }}
+        run: |
+          STAGING_RULESET=$(node "$GITHUB_WORKSPACE/.verify/scripts/rules-release.mjs" show --database "$STAGING_DATABASE" --project "$PROJECT_ID")
+          [ -n "$STAGING_RULESET" ] || { echo "No staging ruleset id returned"; exit 1; }
+          node "$GITHUB_WORKSPACE/.verify/scripts/rules-release.mjs" check \
+            --database "$STAGING_DATABASE" \
+            --project "$PROJECT_ID" \
+            --source firestore.rules
+          node "$GITHUB_WORKSPACE/.verify/scripts/rules-release.mjs" check \
+            --database "$PRODUCTION_DATABASE" \
+            --project "$PROJECT_ID" \
+            --expect-ruleset "$PRODUCTION_RULESET_BEFORE"
+          echo "staging_ruleset=$STAGING_RULESET" >> "$GITHUB_OUTPUT"
 
       - name: Deploy to staging site
+        working-directory: staging
         run: |
-          npx --yes firebase-tools@"$FIREBASE_TOOLS_VERSION" \
-            deploy --only hosting:staging --config firebase.staging.json --project wish-together-project
+          "$RUNNER_TEMP/tools/node_modules/.bin/firebase" deploy \
+            --only hosting \
+            --config firebase.staging.json \
+            --project "$PROJECT_ID"
 
       - name: Summarize
         env:
           # Passed via env, never interpolated into `run:` (expression injection).
           REQUESTED_REF: ${{ inputs.ref }}
+          STAGING_DATABASE: ${{ steps.target.outputs.database }}
+          STAGING_RULESET: ${{ steps.verify.outputs.staging_ruleset }}
+          PRODUCTION_RULESET_BEFORE: ${{ steps.production_before.outputs.ruleset }}
         run: |
+          BUILD_COMMIT=$(cat staging/commit.txt)
+          case "$BUILD_COMMIT" in
+            *[!0-9a-f]*) echo "Invalid built commit: $BUILD_COMMIT"; exit 1 ;;
+          esac
+          [ "${#BUILD_COMMIT}" -ge 7 ] && [ "${#BUILD_COMMIT}" -le 40 ] || {
+            echo "Invalid built commit length: $BUILD_COMMIT"; exit 1;
+          }
+          SAFE_REF=$(printf '%s' "$REQUESTED_REF" | tr -d '\000-\037\140')
+          TOOLING_COMMIT=$(git -C .verify rev-parse --short HEAD)
           {
             echo "### Staging deploy"
             echo ""
-            echo "- Requested ref: \`$REQUESTED_REF\`"
-            echo "- Commit: \`$(git rev-parse --short HEAD)\`"
+            echo "- Requested ref: \`$SAFE_REF\`"
+            echo "- Built commit: \`$BUILD_COMMIT\`"
+            echo "- Verification tooling: \`.verify\` @ \`$TOOLING_COMMIT\`"
             echo "- URL: $STAGING_URL"
+            echo "- Firestore: \`$PROJECT_ID/$STAGING_DATABASE\`"
+            echo "- Staging ruleset: \`$STAGING_RULESET\` (source matches \`firestore.rules\`)"
+            echo "- Production ruleset: \`$PRODUCTION_RULESET_BEFORE\` (unchanged)"
+            echo ""
+            echo "Rules are published before the site, so a cancelled run can leave new rules with the previous bundle."
           } >> "$GITHUB_STEP_SUMMARY"

@@ -12,42 +12,94 @@
 //   GOOGLE_APPLICATION_CREDENTIALS=~/path/to/service-account.json \
 //     npm run seed:demo -- --yes --viewer-uid <uid> [--viewer-name <name>]
 //
-//   # remove every demo document again (items included)
-//   GOOGLE_APPLICATION_CREDENTIALS=... npm run seed:demo -- --yes --clean-only
+// The default target is the **staging** Firestore database. Pass
+// `--database "(default)"` for production (screenshots) or another named
+// database id for a different target.
+//
+//   # remove every demo document again (items included) from the same target
+//   GOOGLE_APPLICATION_CREDENTIALS=... npm run seed:demo -- --yes --clean-only \
+//     --database "(default)"
 //
 // Everything written here has a `demo-` id. `--clean-only` deletes only those,
-// so it is safe to run against production at any time.
+// so it is safe to run against any target at any time.
 //
-// Writes go to the production Firestore. While the data exists, any signed-in
-// user can read it (wishlists are enumerable by design — see AGENTS.md,
-// "Authorization model"), so run `--clean-only` after capturing screenshots.
+// While the data exists, any signed-in user can read it (wishlists are
+// enumerable by design — see AGENTS.md, "Authorization model"), so run
+// `--clean-only` after capturing screenshots.
 
 import { readFileSync } from 'node:fs';
 import { cert, initializeApp } from 'firebase-admin/app';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 
+import { STAGING_DATABASE, isNamedDatabaseId } from './staging-config.mjs';
+
 const PROJECT_ID = 'wish-together-project';
+const DEFAULT_DATABASE_ID = STAGING_DATABASE;
 const DEMO_PREFIX = 'demo-';
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(name);
 const value = (name, fallback = null) => {
+  const equals = args.find((arg) => arg.startsWith(`${name}=`));
+  if (equals) {
+    return equals.slice(name.length + 1);
+  }
   const i = args.indexOf(name);
   return i === -1 ? fallback : args[i + 1];
 };
 
+const KNOWN_FLAGS = new Set([
+  '--yes',
+  '--clean-only',
+  '--database',
+  '--print-target',
+  '--viewer-uid',
+  '--viewer-name',
+]);
+for (const arg of args) {
+  if (!arg.startsWith('--')) {
+    continue;
+  }
+  const name = arg.split('=')[0];
+  if (!KNOWN_FLAGS.has(name)) {
+    console.error(`Unknown option ${name}.`);
+    process.exit(2);
+  }
+}
+
+const rawDatabaseId = value('--database', DEFAULT_DATABASE_ID);
+const databaseId = rawDatabaseId == null ? '' : String(rawDatabaseId).trim();
+if (
+  !databaseId ||
+  (databaseId !== '(default)' && !isNamedDatabaseId(databaseId))
+) {
+  console.error(
+    `Invalid --database ${JSON.stringify(databaseId)}: expected a database id, e.g. "staging" or "(default)".`,
+  );
+  process.exit(2);
+}
+
+if (flag('--print-target')) {
+  console.log(databaseId);
+  process.exit(0);
+}
+
 if (!flag('--yes')) {
   console.error(
-    'Refusing to run without --yes (this writes to the production Firestore).',
+    `Refusing to run without --yes (this writes to the "${databaseId}" Firestore database).`,
   );
   process.exit(2);
 }
 
 const viewerUid = value('--viewer-uid');
-const viewerName = value('--viewer-name', 'Shawn');
+const viewerNameValue = value('--viewer-name');
+const viewerName =
+  viewerNameValue && !viewerNameValue.startsWith('--')
+    ? viewerNameValue
+    : 'Shawn';
 const cleanOnly = flag('--clean-only');
 
-if (!cleanOnly && !viewerUid) {
+if (!cleanOnly && (!viewerUid || viewerUid.startsWith('--'))) {
   console.error('Missing --viewer-uid <uid> (the account you sign in with).');
   process.exit(2);
 }
@@ -71,8 +123,15 @@ const app = initializeApp({
   credential: cert(credentials),
   projectId: PROJECT_ID,
 });
-const db = getFirestore(app);
+const db = getFirestore(app, databaseId);
 db.settings({ ignoreUndefinedProperties: true });
+
+console.log(`Target: ${PROJECT_ID}/${databaseId}`);
+if (databaseId === '(default)') {
+  console.warn(
+    'Writing to the PRODUCTION database. Pass --database staging for the rehearsal target.',
+  );
+}
 
 // ---------------------------------------------------------------------------
 // People. These are Firestore documents only — none of them ever signs in.
@@ -426,5 +485,7 @@ if (!cleanOnly) {
       GROUPS.map((g) => `"${g.name}"`).join(', ') +
       '.',
   );
-  console.log('Run with --clean-only when you are done capturing.');
+  console.log(
+    `Run with --clean-only --database ${databaseId} when you are done capturing.`,
+  );
 }

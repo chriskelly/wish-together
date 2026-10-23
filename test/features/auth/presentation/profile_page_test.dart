@@ -35,9 +35,16 @@ void main() {
 
   group('profileExitTarget', () {
     test('returns the destination the user was headed for', () {
-      const destination = '/wishlists/abc';
+      const wishlistId = 'abc';
+      final destination = '/wishlist/$wishlistId';
 
       expect(profileExitTarget(destination), destination);
+    });
+
+    test('leaves a full invitation link alone so it can be re-followed', () {
+      const invitationLink = 'http://localhost/#/join?group=123';
+
+      expect(profileExitTarget(invitationLink), invitationLink);
     });
 
     test('falls back to home without a destination', () {
@@ -48,8 +55,23 @@ void main() {
       expect(profileExitTarget(''), HomePage.route);
     });
 
+    test('falls back to home for a whitespace-only destination', () {
+      expect(profileExitTarget('   '), HomePage.route);
+    });
+
     test('falls back to home when the destination is the profile page', () {
       expect(profileExitTarget(ProfilePage.route), HomePage.route);
+    });
+
+    test('falls back to home for the profile page with a trailing slash', () {
+      expect(profileExitTarget('${ProfilePage.route}/'), HomePage.route);
+    });
+
+    test('falls back to home for the profile page with a query string', () {
+      expect(
+        profileExitTarget('${ProfilePage.route}?redirect_to=%2F'),
+        HomePage.route,
+      );
     });
   });
 }

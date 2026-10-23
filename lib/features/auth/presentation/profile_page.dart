@@ -12,26 +12,41 @@ import '../domain/user.dart';
 ///
 /// An empty display name *is* the onboarding state — the router refuses to let
 /// such a user past `/profile` — so an arrow for them would only bounce
-/// straight back. While the profile is still loading the page cannot tell the
-/// two apart, so it offers nothing rather than an arrow it might have to take
-/// back.
+/// straight back.
+///
+/// [isLoading] is checked as well even though a still-loading profile already
+/// reads as "new" (no user document yet): the gate should not depend on that
+/// coincidence, so the load state stays an explicit input.
 bool shouldShowProfileBackButton({
   required bool isLoading,
   required bool isNewUser,
 }) => !isLoading && !isNewUser;
 
-/// Where the profile page's back affordance returns to.
+/// Where the profile page's exits send the user.
 ///
-/// The one exception is the profile page itself: a `redirect_to` that points
-/// back here would make the arrow a no-op, so it counts as "nowhere" and the
-/// user goes home instead.
+/// Returns [redirectTo] unless it is absent, blank, or points back at
+/// `/profile`, in which case the user goes home. Those cases are picked
+/// because a `redirect_to` is untrusted query-string input and each one would
+/// otherwise make the exit a no-op or an unmatched location: `context.go('')`
+/// renders go_router's error page, and `context.go('/profile')` keeps the user
+/// on the page they are trying to leave.
+///
+/// Both the back arrow and Save use this, so the two exits cannot disagree.
 String profileExitTarget(String? redirectTo) {
-  if (redirectTo == null ||
-      redirectTo.isEmpty ||
-      redirectTo == ProfilePage.route) {
-    return HomePage.route;
-  }
-  return redirectTo;
+  final target = redirectTo?.trim() ?? '';
+  return target.isEmpty || _isProfilePageLocation(target)
+      ? HomePage.route
+      : target;
+}
+
+/// True for `/profile` and its canonical spellings (`/profile/`,
+/// `/profile?redirect_to=…`), which all resolve to the same page.
+bool _isProfilePageLocation(String location) {
+  final path = Uri.tryParse(location)?.path ?? location;
+  final withoutTrailingSlash = path.length > 1 && path.endsWith('/')
+      ? path.substring(0, path.length - 1)
+      : path;
+  return withoutTrailingSlash == ProfilePage.route;
 }
 
 class ProfilePage extends StatefulWidget {
@@ -107,8 +122,8 @@ class _ProfilePageState extends State<ProfilePage> {
     ),
   );
 
-  /// The non-saving exit; only built for a loaded, existing user. It reuses
-  /// Save's destination rule so the two exits cannot disagree.
+  /// The non-saving exit; only built for a loaded, existing user. It shares
+  /// [profileExitTarget] with Save, so the two exits cannot disagree.
   Widget? _backButton(BuildContext context) =>
       shouldShowProfileBackButton(isLoading: _isLoading, isNewUser: _isNewUser)
       ? BackButton(
@@ -181,7 +196,7 @@ class _ProfilePageState extends State<ProfilePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Profile saved successfully!')),
       );
-      context.go(widget.redirectTo ?? HomePage.route);
+      context.go(profileExitTarget(widget.redirectTo));
     }
   }
 

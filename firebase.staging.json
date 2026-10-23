@@ -1,6 +1,6 @@
 {
   "hosting": {
-    "target": "staging",
+    "site": "wish-together-staging",
     "public": "build/web",
     "ignore": ["firebase.json", "firebase.staging.json", "**/.*", "**/node_modules/**"],
     "rewrites": [
@@ -28,5 +28,9 @@
         ]
       }
     ]
+  },
+  "firestore": {
+    "database": "staging",
+    "rules": "firestore.rules"
   }
 }

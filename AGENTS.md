@@ -13,7 +13,7 @@ per-area `OVERVIEW.md` next to the code you are touching.
 | ----- | ---- |
 | Runtime | Flutter 3 / Dart 3 (stable), Material 3 |
 | Auth | Firebase Auth — phone OTP; Google Sign-In on web; App Check |
-| Data | Cloud Firestore (project `wish-together-project`, db `(default)`) |
+| Data | Cloud Firestore (project `wish-together-project`; production db `(default)`, staging db `staging`) |
 | Navigation | `go_router` |
 | DI | `get_it` service locator |
 | UI | `google_fonts`, `url_launcher`, `share_plus`, `intl` |
@@ -30,7 +30,7 @@ per-area `OVERVIEW.md` next to the code you are touching.
 ├── .agents/skills/            # repo-local agent skills (see Local skills)
 ├── .github/workflows/         # CI/CD (see CI)
 ├── firebase.json              # Hosting (default site) + Firestore config
-├── firebase.staging.json      # Hosting config for the staging site (see CI)
+├── firebase.staging.json      # staging environment config: Hosting + Firestore database/rules
 ├── firestore.rules            # the enforcement point for all data access
 ├── firestore.indexes.json     # Firestore composite indexes
 ├── lib/
@@ -77,8 +77,10 @@ Run every command from the repository root.
 | Run all tests | `flutter test` |
 | Run one area's tests | `flutter test test/features/auth` |
 | Run one test file | `flutter test test/features/wishlist/application/claim_item_use_case_test.dart` |
-| Seed demo data (local, admin) | `cd scripts && npm ci && GOOGLE_APPLICATION_CREDENTIALS=<service-account.json> npm run seed:demo -- --yes --viewer-uid <uid>` — `--clean-only` removes it |
+| Seed demo data (local, admin) | `cd scripts && npm ci && GOOGLE_APPLICATION_CREDENTIALS=<service-account.json> npm run seed:demo -- --yes --viewer-uid <uid>` — defaults to the **staging** database; pass `--database "(default)"` for production, `--clean-only` to remove the selected target's data |
 | Run the Firestore rules tests | `cd rules_tests && npm ci && npm test` (needs Node 22+ and a JDK; regenerate its lockfile with that Node's npm, or `npm ci` fails in CI) |
+| Run the dev-script tests | `cd scripts && npm ci && npm test` |
+| Inspect/verify a rules release | `cd scripts && ACCESS_TOKEN=$(gcloud auth print-access-token) npm run rules:release -- show --database staging` (`check --database <id> --source ../firestore.rules` to compare source) |
 | Build for web | `flutter build web` |
 
 After substantive changes, run `dart format .`, `flutter analyze`, and `flutter test`.
@@ -95,8 +97,9 @@ opaque (no alpha) and at the exact pixel size; the App Store rejects an icon wit
 transparency channel.
 
 **Demo data:** `scripts/seed-demo.mjs` writes a fictional, multi-family dataset (10 people,
-3 overlapping groups, 10 wishlists, ~80 items, marked claims) to the **production** Firestore,
-for screenshots and manual testing. It needs an Admin service-account JSON via
+3 overlapping groups, 10 wishlists, ~80 items, marked claims) for screenshots and manual
+testing. It defaults to the named **`staging`** Firestore database; pass
+`--database "(default)"` to write to production. It needs an Admin service-account JSON via
 `GOOGLE_APPLICATION_CREDENTIALS`, refuses to run without `--yes`, refuses a credentials file
 from another project, and only ever touches `demo-` document ids. Only the `--viewer-uid`
 account needs real authentication; the other people are plain `users/{uid}` documents, which
@@ -175,21 +178,77 @@ a convenience. **CI never allowlists a preview host.** An operator may allowlist
 host locally and temporarily via `.agents/skills/preview-auth/`, then revert. Staging is the
 one stable, authorized host.
 
-Staging is a **second site in the production Firebase project** (`wish-together-project`) — it
-uses the production Auth and the production Firestore. Validate with designated test accounts
-and groups; anything created or claimed on staging is real data.
+Staging is a **second site in the production Firebase project** (`wish-together-project`). It
+shares the production **Auth** — a staging sign-in is a real Auth account — but its Firestore
+reads and writes go to the named **`staging`** database, not `(default)`. That database is the
+**rules + data rehearsal target**: a candidate `firestore.rules` is deployed there and
+exercised with seeded, real-shaped data while production is untouched.
 
 - `.github/workflows/deploy-staging.yml` — manual (`workflow_dispatch`). Actions →
-  **Deploy staging** → *Run workflow*, choose a ref (branch, tag, or SHA). It builds web and
-  deploys that ref to the `wish-together-staging` site; each run **overwrites** the site, so
-  only the latest dispatch matters.
-- It deploys from `firebase.staging.json` (a `"target": "staging"` hosting config bound in
-  `.firebaserc`), **not** `firebase.json`. `firebase.json` keeps a single untargeted hosting
-  config, so live (`master` → `firebase deploy --only hosting`) and the PR preview channels
-  are unchanged. Hosting `headers` are duplicated in both files; change them together.
+  **Deploy staging** → *Run workflow*, choose a ref (branch, tag, or SHA). It builds web,
+  deploys the candidate rules to the `staging` database, verifies the deploy, then publishes
+  that ref to the `wish-together-staging` site. Each run **overwrites** both, so only the
+  latest dispatch matters. A cancelled run can leave new rules with the previous bundle
+  (rules are published first).
+- It deploys from `firebase.staging.json`, which names the `"site":
+  "wish-together-staging"` Hosting config **and** `firestore.database = "staging"`. It never
+  uses `firebase.json`, which keeps its single untargeted `(default)` config, so live
+  (`master` → `firebase deploy --only hosting`) and the PR preview channels are unchanged.
+  Hosting `headers` are duplicated in both files; change them together.
+- The build reads the database id from that same file and passes
+  `--dart-define=WT_FIRESTORE_DATABASE=<id>`. An **empty** define means production, so live,
+  preview channels, and iOS builds are unaffected; only the staging dispatch sets it. The
+  workflow fails unless the id is a named database (never `(default)`) and `rules` is
+  `firestore.rules`; it also fails unless `build/web/main.dart.js` embeds the
+  `wishtogether-firestore-target=<id>` marker emitted by `firestore_target.dart` (the bare
+  database id is not unique — Flutter's own code contains "staging").
+- The rules deploy is `firebase deploy --only firestore:rules --config firebase.staging.json`.
+  Afterwards the workflow **verifies** that the staging release source matches
+  `firestore.rules` (guards against firebase-tools #9910 silently skipping an upload) and that
+  the production release id did not change; either mismatch fails the run. The run summary
+  records both rulesets. The staging database has **no composite indexes** today; if the app
+  gains one, update all of these together: `firebase.staging.json` (`indexes`), the
+  `staging-config.mjs` allowlist, the artifact upload, and the deploy `--only` target
+  (`firestore:indexes`); the service account then needs `datastore.indexes.*`.
+- **Config allowlist:** `firebase.staging.json` is candidate data, and `firebase deploy`
+  executes `predeploy`/`postdeploy` hooks. The deploy job validates the downloaded config
+  against a strict allowlist (`hosting`: `site`, `public`, `ignore`, `rewrites`, `headers`;
+  `firestore`: `database`, `rules`) and rejects every other key, so a candidate branch cannot
+  run shell in the credential-holding job.
+- **Trust model:** the deploy runs as two jobs. `build` has no secrets and runs the candidate
+  code; `deploy` has the service account but runs **no candidate code** — it downloads the
+  built artifacts, checks out the verification tooling from the workflow's own commit into
+  `.verify`, and re-validates `firebase.staging.json` immediately before deploying it. Dispatch
+  from `master` with `ref=<branch>` so the tooling itself is trusted; dispatching a branch runs
+  that branch's workflow code with the credentials (the run warns when it is not `master`).
+- `ci-rules.yml` is unchanged: the emulator suite still gates, and a merge to `master` still
+  publishes to production. Staging is the pre-merge rehearsal, not the production deploy path.
+- One-time setup for the database:
+  `gcloud firestore databases create --database=staging --location=nam5 --edition=standard --type=firestore-native --project wish-together-project`
+  (billing is required for named databases and is already enabled here). A named-database
+  rules deploy also reads project metadata (`firebase.projects.get`) to attach the ruleset; if
+  the service account 403s there, grant that permission in addition to the rules roles below.
+- Seed the themed dataset after a staging deploy, using a **dedicated test account**:
+  `cd scripts && npm ci && GOOGLE_APPLICATION_CREDENTIALS=<service-account.json> npm run seed:demo -- --yes --database staging --viewer-uid <test-uid>`
+  Remove it with `--clean-only --database staging`.
+- **Shared Auth caveat:** the test account is a real account in the production Auth project.
+  Never use a family member's account, and never exercise in-app **account deletion** on
+  staging with a real account — it deletes the production Auth user. Use a throwaway test
+  account.
+- **App Check:** the staging host shares the production project's App Check registration.
+  Enforcement is currently off; if it is enabled later, the staging host and its reCAPTCHA
+  key must be registered first (the same prerequisite as the allowlisting below).
+- **Remote Config:** also shared with production. A production `min_supported_build` above the
+  staged build makes the staging site show the blocking force-update screen.
+- `firebase.json` **must not** learn about the `staging` database: production rules/indexes
+  are published from it, and adding a second database there would make
+  `firebase deploy --only firestore:rules` ambiguous. The staging database lives only in
+  `firebase.staging.json`.
+
 - One-time setup: the site must exist (`firebase hosting:sites:create wish-together-staging`,
-  or Console → Hosting → Add site); the committed `.firebaserc` already binds the `staging`
-  target to it. Then allowlist the staging host, with the **exact** host (no wildcard), in each:
+  or Console → Hosting → Add site). `firebase.staging.json` names it explicitly, so no
+  `.firebaserc` target is involved. Then allowlist the staging host, with the **exact** host
+  (no wildcard), in each:
   1. Firebase Console → **Authentication → Settings → Authorized domains** →
      `wish-together-staging.web.app`
   2. Google Cloud Console → **APIs & Services → Credentials → the browser API key →

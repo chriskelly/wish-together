@@ -4,9 +4,12 @@
   "type": "module",
   "description": "Local development scripts for WishTogether. Not part of the app build.",
   "scripts": {
-    "seed:demo": "node seed-demo.mjs"
+    "seed:demo": "node seed-demo.mjs",
+    "rules:release": "node rules-release.mjs",
+    "test": "node --test"
   },
   "dependencies": {
-    "firebase-admin": "^14.5.0"
+    "firebase-admin": "^14.5.0",
+    "google-auth-library": "^11.3.1"
   }
 }

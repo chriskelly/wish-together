@@ -1,4 +1,6 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get_it/get_it.dart';
+import 'package:wishtogether/core/firestore_target.dart';
 import 'package:wishtogether/features/app_update/data/app_update_service.dart';
 import 'package:wishtogether/features/auth/application/delete_account_use_case.dart';
 import 'package:wishtogether/features/auth/application/load_user_profile_use_case.dart';
@@ -21,13 +23,22 @@ import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 
 final getIt = GetIt.instance;
 
-void setupServiceLocator() {
+void setupServiceLocator({FirebaseFirestore? firestore}) {
   // Services
+  getIt.registerLazySingleton<FirebaseFirestore>(
+    () => firestore ?? createFirestoreInstance(),
+  );
   getIt.registerLazySingleton<AuthService>(() => AuthService());
   getIt.registerLazySingleton<AppUpdateService>(() => AppUpdateService());
-  getIt.registerLazySingleton<UserRepository>(() => UserRepository());
-  getIt.registerLazySingleton<WishlistRepository>(() => WishlistRepository());
-  getIt.registerLazySingleton<GroupRepository>(() => GroupRepository());
+  getIt.registerLazySingleton<UserRepository>(
+    () => UserRepository(firestore: getIt<FirebaseFirestore>()),
+  );
+  getIt.registerLazySingleton<WishlistRepository>(
+    () => WishlistRepository(firestore: getIt<FirebaseFirestore>()),
+  );
+  getIt.registerLazySingleton<GroupRepository>(
+    () => GroupRepository(firestore: getIt<FirebaseFirestore>()),
+  );
 
   // Auth Use Cases
   getIt.registerLazySingleton<LoadUserProfileUseCase>(

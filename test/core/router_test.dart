@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:wishtogether/core/router.dart';
+import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
 import 'package:wishtogether/features/auth/domain/user.dart';
@@ -237,6 +238,49 @@ void main() {
           },
         );
       });
+    });
+  });
+
+  group('handleRedirect repository resolution', () {
+    test('uses the registered UserRepository when none is passed', () async {
+      when(() => mockAuthService.currentUserId).thenReturn('test-uid');
+      when(() => mockAuthService.currentUserEmail).thenReturn(null);
+      when(() => mockAuthService.currentUserPhoneNumber).thenReturn(null);
+      when(
+        () => mockUserRepository.getOrCreateUser(
+          any(),
+          email: any(named: 'email'),
+          phoneNumber: any(named: 'phoneNumber'),
+        ),
+      ).thenAnswer((_) async => User(id: 'test-uid', displayName: 'Sasha'));
+      getIt.registerSingleton<UserRepository>(mockUserRepository);
+      addTearDown(getIt.reset);
+
+      final result = await handleRedirect(HomePage.route, mockAuthService);
+
+      expect(result, isNull);
+      verify(
+        () => mockUserRepository.getOrCreateUser(
+          'test-uid',
+          email: null,
+          phoneNumber: null,
+        ),
+      ).called(1);
+    });
+  });
+
+  group('resolveUserRepository', () {
+    test('uses the injected repository', () {
+      final injected = MockUserRepository();
+
+      expect(resolveUserRepository(injected), same(injected));
+    });
+
+    test('falls back to the registered repository', () {
+      getIt.registerSingleton<UserRepository>(mockUserRepository);
+      addTearDown(getIt.reset);
+
+      expect(resolveUserRepository(), same(mockUserRepository));
     });
   });
 }

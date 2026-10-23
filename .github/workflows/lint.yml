@@ -1,8 +1,9 @@
 name: Lint
 
-# Fast, narrow gate for the CI plumbing itself: lints every workflow file and
-# loads the Fastlane/Bundler setup (which validates Gemfile/Gemfile.lock bumps,
-# e.g. Dependabot PRs). Scoped by `paths` so it is skipped for app-only changes.
+# Fast, narrow gate for the CI plumbing itself: lints every workflow file, runs
+# the dev-script tests, and loads the Fastlane/Bundler setup (which validates
+# Gemfile/Gemfile.lock bumps, e.g. Dependabot PRs). Scoped by `paths` so it is
+# skipped for app-only changes.
 
 on:
   pull_request:
@@ -13,6 +14,8 @@ on:
       - 'fastlane/**'
       - 'Gemfile'
       - 'Gemfile.lock'
+      - 'scripts/**'
+      - 'firebase.staging.json'
   push:
     branches: [master]
     paths:
@@ -21,6 +24,8 @@ on:
       - 'fastlane/**'
       - 'Gemfile'
       - 'Gemfile.lock'
+      - 'scripts/**'
+      - 'firebase.staging.json'
 
 permissions:
   contents: read
@@ -36,7 +41,7 @@ env:
 
 jobs:
   lint:
-    name: Workflows & Fastlane
+    name: Workflows, Fastlane & scripts
     runs-on: ubuntu-26.04
     steps:
       - name: Checkout
@@ -53,6 +58,17 @@ jobs:
 
       - name: Lint workflows
         run: actionlint .github/workflows/*.yml
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      - name: Test the dev scripts
+        # The rules-release verifier gates the staging deploy, so its tests
+        # must run before that verifier is trusted in CI.
+        run: npm ci && npm test
+        working-directory: scripts
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1

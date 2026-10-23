@@ -85,7 +85,8 @@ profile).
   It navigates with `context.go(profileExitTarget(redirectTo))` — the rule Save also uses, so
   the two exits cannot disagree — never `pop`, because `/profile` is a top-level route and both
   Home → Profile and a web deep link arrive with a one-deep stack. `profileExitTarget` falls
-  back to home for an absent, blank, or self-referential (`/profile`, `/profile/`) `redirect_to`
+  back to home for an absent, blank, or self-referential (`/profile` in any spelling: trailing
+  slash or query string included) `redirect_to`
   and otherwise forwards the value it was handed, trimmed (an invitation arrives as a path,
   `/join?group=123`; the value is still untrusted query input). The AppBar also sets
   `automaticallyImplyLeading: false` so a future `push` cannot put an automatic arrow on the

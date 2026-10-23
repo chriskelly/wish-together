@@ -78,6 +78,14 @@ profile).
 - The `users/{uid}` document id **is** the Firebase Auth uid.
 - Onboarding is router-driven: a user with an empty `displayName` cannot reach home until
   they save a name on `ProfilePage`.
+- **`ProfilePage` offers a non-saving exit to an existing user, and none to a new one.** The
+  AppBar's back arrow is gated by `shouldShowProfileBackButton`, which reuses the router's own
+  onboarding predicate (an empty `displayName`) and stays hidden while the profile loads, so
+  the arrow can never disagree with the redirect. It navigates with
+  `context.go(profileExitTarget(redirectTo))` — the same rule Save already uses — never
+  `pop`, because `/profile` is a top-level route and both Home → Profile and a web deep link
+  arrive with a one-deep stack. The AppBar also sets `automaticallyImplyLeading: false` so a
+  future `push` cannot put an automatic arrow on the onboarding state.
 - The default wishlist is created only on the first save (when the prior `displayName`
   was empty), so it is not duplicated on later profile edits.
 - `google_sign_in_stub.dart` is a compile-time stub that `login_page.dart` falls back to on
@@ -197,4 +205,8 @@ validate it on the **staging** site (or live) with a throwaway account for each 
   including the silent-on-cancel cases.
 - `test/features/auth/presentation/login_page_test.dart` — the
   `shouldShowAppleSignInButton` platform-gate truth table (iOS shows; web, Android, macOS hide).
+- `test/features/auth/presentation/profile_page_test.dart` — the profile page's exit
+  affordance: `shouldShowProfileBackButton` (a new user and a still-loading profile get no
+  arrow; a loaded existing user does) and `profileExitTarget` (the `redirect_to` destination,
+  with `/` as the fallback for absent, blank, or self-referential values).
 - `test/core/router_test.dart` covers the auth redirect matrix.

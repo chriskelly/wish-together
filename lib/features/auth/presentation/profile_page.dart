@@ -8,6 +8,32 @@ import 'package:wishtogether/features/auth/presentation/home_page.dart';
 
 import '../domain/user.dart';
 
+/// Whether the profile page offers a way out that does not save.
+///
+/// An empty display name *is* the onboarding state — the router refuses to let
+/// such a user past `/profile` — so an arrow for them would only bounce
+/// straight back. While the profile is still loading the page cannot tell the
+/// two apart, so it offers nothing rather than an arrow it might have to take
+/// back.
+bool shouldShowProfileBackButton({
+  required bool isLoading,
+  required bool isNewUser,
+}) => !isLoading && !isNewUser;
+
+/// Where the profile page's back affordance returns to.
+///
+/// The one exception is the profile page itself: a `redirect_to` that points
+/// back here would make the arrow a no-op, so it counts as "nowhere" and the
+/// user goes home instead.
+String profileExitTarget(String? redirectTo) {
+  if (redirectTo == null ||
+      redirectTo.isEmpty ||
+      redirectTo == ProfilePage.route) {
+    return HomePage.route;
+  }
+  return redirectTo;
+}
+
 class ProfilePage extends StatefulWidget {
   static const String route = '/profile';
 
@@ -70,11 +96,25 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   AppBar _profileAppBar(BuildContext context) => AppBar(
+    // Nothing pushes `/profile` today, but an automatic leading arrow would
+    // appear if anything ever did — including for a new user who must not be
+    // able to dismiss onboarding.
+    automaticallyImplyLeading: false,
+    leading: _backButton(context),
     title: Text(
       _isNewUser ? 'Create Your Profile' : 'Edit Profile',
       style: Theme.of(context).textTheme.headlineSmall,
     ),
   );
+
+  /// The non-saving exit; only built for a loaded, existing user. It reuses
+  /// Save's destination rule so the two exits cannot disagree.
+  Widget? _backButton(BuildContext context) =>
+      shouldShowProfileBackButton(isLoading: _isLoading, isNewUser: _isNewUser)
+      ? BackButton(
+          onPressed: () => context.go(profileExitTarget(widget.redirectTo)),
+        )
+      : null;
 
   Form _profilePageForm(BuildContext context) => Form(
     key: _formKey,

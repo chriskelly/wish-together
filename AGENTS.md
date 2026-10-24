@@ -267,6 +267,13 @@ domains and the browser API-key referrers automatically, and the Google OAuth or
 printed manual step (`remove` prints the matching deletion). Run it **locally, never in CI** —
 it mutates production Firebase config.
 
+`.agents/skills/` also carries two git submodules of official upstream Agent Skills:
+`flutter-agent-plugins/` (Flutter/Dart) and `firebase-agent-skills/`. They are read-only
+upstream content — never hand-edit them. A checkout or worktree starts without them unless
+`git submodule update --init --recursive` has run; if the `dart-*`, `flutter-*`, or
+`firebase-*` skills are missing from your skill list, run that command and retry. Update
+them with `git submodule update --remote --recursive`, then commit the new pointers.
+
 ## Testing policy
 
 Follow TDD for every feature and bugfix.

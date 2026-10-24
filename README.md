@@ -25,7 +25,7 @@ architecture, commands, conventions, and the authorization model.
 ### Agent tooling
 
 The repository carries the Agent Skills published by the Flutter and Firebase teams as git
-submodules under `.agents/skills/`. A plain clone leaves those directories empty, so
+submodules under `.agents/skills/`. A plain clone does not populate those directories, so
 initialise them once per checkout, and add the same command to your agent environment's
 workspace setup (Orca's per-repo setup hook, a Superset `.superset/config.json`, or your
 own shell) — this repo does not configure one for you:
@@ -34,5 +34,4 @@ own shell) — this repo does not configure one for you:
 git submodule update --init
 ```
 
-A fresh clone can use `git clone --recurse-submodules <url>` instead. `AGENTS.md` covers
-updating the skills.
+A fresh clone can use `git clone --recurse-submodules <url>` instead.

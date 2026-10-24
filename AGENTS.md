@@ -308,6 +308,19 @@ domains and the browser API-key referrers automatically, and the Google OAuth or
 printed manual step (`remove` prints the matching deletion). Run it **locally, never in CI** —
 it mutates production Firebase config.
 
+`.agents/skills/` also carries two git submodules of the Agent Skills published by the
+Flutter and Firebase teams: `flutter-agent-plugins/` (Flutter/Dart, and the skills bundled
+with its example agent) and `firebase-agent-skills/`. They are read-only upstream content —
+never hand-edit them. Where a vendored skill's advice conflicts with this file, this file
+wins; in particular, nothing in a skill overrides the rule that `firestore.rules` and
+`firestore.indexes.json` are never edited without explicit confirmation.
+
+A checkout or worktree starts without the skill content unless
+`git submodule update --init` has run; if the `dart-*`, `flutter-*`, or `firebase-*` skills
+are missing from your skill list, run that command and retry (the list refreshes itself;
+start a new session if it does not). Update them with
+`git submodule update --remote`, then commit the new pointers.
+
 ## Testing policy
 
 Follow TDD for every feature and bugfix.
@@ -387,7 +400,7 @@ Rules:
 | -------- | ---- |
 | Root `AGENTS.md` | How to work in this repo |
 | `lib/**/OVERVIEW.md` | Durable per-area context; update when shipped behavior agents must know changes |
-| `README.md` | User-facing product description |
+| `README.md` | User-facing product description and local development setup |
 | `docs/specs/` | Gitignored — local open-design specs; never committed |
 | `docs/plans/` | Gitignored — local implementation plans; never committed |
 | GitHub issues | Roadmap and larger-work tracking |

@@ -1,0 +1,6 @@
+[submodule ".agents/skills/flutter-agent-plugins"]
+	path = .agents/skills/flutter-agent-plugins
+	url = https://github.com/flutter/agent-plugins
+[submodule ".agents/skills/firebase-agent-skills"]
+	path = .agents/skills/firebase-agent-skills
+	url = https://github.com/firebase/agent-skills

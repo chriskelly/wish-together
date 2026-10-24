@@ -22,6 +22,7 @@ function config(overrides = {}) {
     hosting: {
       site: STAGING_SITE,
       public: STAGING_PUBLIC_DIR,
+      appAssociation: 'NONE',
       ...overrides.hosting,
     },
     firestore: {
@@ -193,6 +194,15 @@ test('isNamedDatabaseId rejects non-strings', () => {
 });
 
 
+test('rejects a missing or non-NONE Hosting appAssociation', () => {
+  for (const value of ['AUTO', undefined]) {
+    assert.throws(
+      () => validateStagingConfig(config({ hosting: { appAssociation: value } })),
+      /appAssociation must be "NONE"/,
+    );
+  }
+});
+
 const SCRIPT = fileURLToPath(new URL('../staging-config.mjs', import.meta.url));
 const COMMITTED = fileURLToPath(
   new URL('../../firebase.staging.json', import.meta.url),
@@ -213,7 +223,11 @@ test('the CLI exits non-zero for an invalid config', () => {
   writeFileSync(
     path,
     JSON.stringify({
-      hosting: { site: STAGING_SITE, public: STAGING_PUBLIC_DIR },
+      hosting: {
+        site: STAGING_SITE,
+        public: STAGING_PUBLIC_DIR,
+        appAssociation: 'NONE',
+      },
       firestore: { database: '(default)', rules: TESTED_RULES },
     }),
   );

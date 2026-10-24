@@ -132,6 +132,7 @@ jobs:
             firestore.rules
             firebase.staging.json
             commit.txt
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 1
 
@@ -195,6 +196,9 @@ jobs:
             }
             console.log("Artifact bundle embeds " + marker);
           '
+
+      - name: Assert the artifact includes the AASA
+        run: test -f staging/build/web/.well-known/apple-app-site-association
 
       - name: Install and test the verification tooling
         run: |

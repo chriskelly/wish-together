@@ -92,6 +92,36 @@ jobs:
           fi
           echo "url=$url" >> "$GITHUB_OUTPUT"
 
+      - name: Verify the AASA on the preview
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+        run: |
+          url="${PREVIEW_URL%/}/.well-known/apple-app-site-association"
+          headers="$RUNNER_TEMP/aasa.headers"
+          body="$RUNNER_TEMP/aasa.json"
+          status=$(curl -sS -D "$headers" -o "$body" -w '%{http_code}' "$url")
+          if [ "$status" != "200" ]; then
+            echo "::error::AASA returned HTTP $status"
+            exit 1
+          fi
+          if ! grep -qi '^content-type: *application/json' "$headers"; then
+            echo "::error::AASA is not served as application/json"
+            grep -i '^content-type:' "$headers" || true
+            exit 1
+          fi
+          if ! jq -e '
+            .applinks.details[0].appIDs as $ids
+            | .applinks.details[0].components as $components
+            | ($ids | index("CD8XP2U645.gift.wishtogether")) != null
+              and ($components | map(.["/"]) | sort)
+                == ["/group/*", "/join", "/wishlist/*"]
+          ' "$body" >/dev/null; then
+            echo "::error::AASA body is not the expected narrow file"
+            cat "$body"
+            exit 1
+          fi
+
       - name: Comment the preview URL on the PR
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/github-script@v9

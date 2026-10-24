@@ -270,30 +270,29 @@ jobs:
             --project "$PROJECT_ID"
 
       - name: Verify the staging AASA is served
-        env:
-          STAGING_URL: https://wish-together-staging.web.app
         run: |
           url="${STAGING_URL}/.well-known/apple-app-site-association"
           headers="$RUNNER_TEMP/aasa.headers"
           body="$RUNNER_TEMP/aasa.json"
           status=""
+          matched=""
           for _ in 1 2 3 4 5; do
             status=$(curl -sS -D "$headers" -o "$body" -w '%{http_code}' "$url")
-            [ "$status" = "200" ] && break
+            if [ "$status" = "200" ] \
+              && grep -qi '^content-type: *application/json' "$headers" \
+              && diff -q \
+                <(jq -S . staging/build/web/.well-known/apple-app-site-association) \
+                <(jq -S . "$body") >/dev/null; then
+              matched=1
+              break
+            fi
             sleep 5
           done
-          [ "$status" = "200" ] || {
-            echo "::error::Staging AASA returned HTTP $status"
-            exit 1
-          }
-          if ! grep -qi '^content-type: *application/json' "$headers"; then
-            echo "::error::Staging AASA is not served as application/json"
-            exit 1
-          fi
-          if ! diff -u \
-            <(jq -S . staging/build/web/.well-known/apple-app-site-association) \
-            <(jq -S . "$body"); then
-            echo "::error::Staging AASA does not match the built file"
+          if [ -z "$matched" ]; then
+            echo "::error::Staging AASA is not the built narrow file (last HTTP $status)"
+            diff -u \
+              <(jq -S . staging/build/web/.well-known/apple-app-site-association) \
+              <(jq -S . "$body") || true
             exit 1
           fi
 

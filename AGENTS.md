@@ -48,7 +48,8 @@ per-area `OVERVIEW.md` next to the code you are touching.
 │   └── plans/                 # gitignored — local implementation plans
 ├── test/                      # mirrors lib/ path-for-path: <file>_test.dart
 ├── rules_tests/               # Firestore rules emulator suite (see Commands)
-└── web/                       # web host: index.html, manifest.json, privacy.html
+└── web/                       # web host: index.html, manifest.json, privacy.html,
+                               # .well-known/apple-app-site-association
 ```
 
 ## Find things fast
@@ -166,6 +167,36 @@ Running the lanes locally does not need Bundler: this repo's lockfile pins bundl
 which may be absent for a newer Ruby — `fastlane match appstore` (without `bundle exec`)
 works with a globally installed fastlane. If fastlane reports an invalid Apple session,
 delete the stale cookie at `~/.fastlane/spaceship/<apple-id>/cookie` and log in again.
+
+### Deep links (Universal Links)
+
+The app receives iOS Universal Links through `app_links`, not Flutter's built-in handler
+(`FlutterDeepLinkingEnabled` is **false** in `Info.plist`; two handlers would navigate
+twice).
+
+- The canonical URL is `<origin>/join?group=<id>` (plus `/group/<id>` and `/wishlist/<id>`).
+  Web uses `usePathUrlStrategy()`, so routes are real paths. Legacy `/#/…` hash links are
+  **not** supported and land on `/`.
+- `web/.well-known/apple-app-site-association` is deployed as a static file and lists only
+  those three paths. Both `firebase.json` and `firebase.staging.json` set
+  `"appAssociation": "NONE"` (otherwise Hosting generates a `/*` file) and serve the AASA
+  with `Content-Type: application/json`. The static file wins over the `**` rewrite; do not
+  add an AASA rewrite, and keep the hosting `headers` blocks in sync.
+- `app_links` captures the URL at scene connection, so a link received while Firebase, App
+  Check, or the update gate is still running is queued. `lib/core/deep_links.dart` hands the
+  queued location to `createRouter(initialLocation:)` and later links to `go_router`.
+  `lib/core/app_urls.dart` is the pure allowlist: https only, our hosts only, the three AASA
+  paths only.
+- **Entitlements:** `Runner.entitlements` (Release/Profile/TestFlight) carries
+  `applinks:wishtogether.gift`; `Runner-Debug.entitlements` carries
+  `applinks:wish-together-staging.web.app` only. A release build must never authorize the
+  staging host.
+- **Signing:** the App ID needs the Associated Domains capability, and the distribution
+  `match` profile must be regenerated (`fastlane match appstore --force`) after the
+  entitlement is added, or the TestFlight lane fails signing. This is a human step, like
+  Sign in with Apple.
+- Apple's AASA CDN caches the file; first-time verification can take hours. Simulators do not
+  open Universal Links, and typing the URL in Safari opens the website by design.
 
 ### Staging environment
 

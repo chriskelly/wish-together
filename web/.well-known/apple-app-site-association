@@ -1,0 +1,15 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appIDs": ["CD8XP2U645.gift.wishtogether"],
+        "components": [
+          { "/": "/join", "comment": "Group invitation" },
+          { "/": "/group/*", "comment": "Group details" },
+          { "/": "/wishlist/*", "comment": "Shared wishlist" }
+        ]
+      }
+    ]
+  }
+}

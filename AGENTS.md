@@ -195,6 +195,14 @@ twice).
   `match` profile must be regenerated (`fastlane match appstore --force`) after the
   entitlement is added, or the TestFlight lane fails signing. This is a human step, like
   Sign in with Apple.
+- **Device testing:** iOS debug builds cannot cold-launch standalone (they need Xcode), and
+  `app_links` also cancels registration when it is not attached to the debugger. A debug
+  build therefore validates **warm** links only; cold start is validated with a Release or
+  TestFlight build after the narrow production AASA is live.
+- **Pre-merge staging dispatch:** until a change to `scripts/staging-config.mjs` (for
+  example `appAssociation`) is on `master`, dispatch that branch from **"Use workflow from"
+  = the branch** *and* `ref=<branch>`; master's validator does not know the new key and
+  fails closed. Normal branches keep the documented `master` + `ref=<branch>` mode.
 - Apple's AASA CDN caches the file; first-time verification can take hours. Simulators do not
   open Universal Links, and typing the URL in Safari opens the website by design.
 

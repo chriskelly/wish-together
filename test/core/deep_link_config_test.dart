@@ -10,8 +10,8 @@ Map<String, dynamic> _json(String path) =>
 Map<String, dynamic> _hosting(String path) =>
     _json(path)['hosting'] as Map<String, dynamic>;
 
-/// Task 6 calls this for `firebase.staging.json` too.
-void expectHostingContract(String path) {
+/// Both hosting configs must satisfy this contract, so they cannot drift.
+void _expectHostingContract(String path) {
   final hosting = _hosting(path);
   expect(hosting['appAssociation'], 'NONE');
 
@@ -55,13 +55,13 @@ void main() {
   });
 
   test('firebase.json disables Hosting AASA generation and types the file', () {
-    expectHostingContract('firebase.json');
+    _expectHostingContract('firebase.json');
   });
 
   test(
     'firebase.staging.json disables Hosting AASA generation and types the file',
     () {
-      expectHostingContract('firebase.staging.json');
+      _expectHostingContract('firebase.staging.json');
     },
   );
 
@@ -90,6 +90,44 @@ void main() {
       RegExp(r'<key>FlutterDeepLinkingEnabled</key>\s*<false/>')
           .hasMatch(plist),
       isTrue,
+    );
+  });
+  test('signing wiring selects the right entitlements per configuration', () {
+    final pbxproj = File('ios/Runner.xcodeproj/project.pbxproj')
+        .readAsStringSync();
+
+    expect(
+      'CODE_SIGN_ENTITLEMENTS = Runner/Runner-Debug.entitlements;'
+          .allMatches(pbxproj)
+          .length,
+      1,
+    );
+    expect(
+      'CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;'
+          .allMatches(pbxproj)
+          .length,
+      2,
+    );
+  });
+
+  test('the AASA app id matches the team and Runner bundle id', () {
+    final pbxproj = File('ios/Runner.xcodeproj/project.pbxproj')
+        .readAsStringSync();
+    final team = RegExp(r'DEVELOPMENT_TEAM = ([A-Z0-9]+);')
+        .firstMatch(pbxproj)!
+        .group(1)!;
+    final bundle = RegExp(r'PRODUCT_BUNDLE_IDENTIFIER = ([^;]+);')
+        .allMatches(pbxproj)
+        .map((match) => match.group(1)!)
+        .firstWhere((id) => !id.contains('RunnerTests'));
+
+    final details =
+        (_json('web/.well-known/apple-app-site-association')['applinks']
+                as Map<String, dynamic>)['details']
+            as List<dynamic>;
+    expect(
+      (details.single as Map<String, dynamic>)['appIDs'],
+      contains('$team.$bundle'),
     );
   });
 }

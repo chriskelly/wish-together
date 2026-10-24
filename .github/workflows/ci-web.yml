@@ -110,15 +110,10 @@ jobs:
             grep -i '^content-type:' "$headers" || true
             exit 1
           fi
-          if ! jq -e '
-            .applinks.details[0].appIDs as $ids
-            | .applinks.details[0].components as $components
-            | ($ids | index("CD8XP2U645.gift.wishtogether")) != null
-              and ($components | map(.["/"]) | sort)
-                == ["/group/*", "/join", "/wishlist/*"]
-          ' "$body" >/dev/null; then
-            echo "::error::AASA body is not the expected narrow file"
-            cat "$body"
+          if ! diff -u \
+            <(jq -S . web/.well-known/apple-app-site-association) \
+            <(jq -S . "$body"); then
+            echo "::error::AASA does not match the committed file"
             exit 1
           fi
 

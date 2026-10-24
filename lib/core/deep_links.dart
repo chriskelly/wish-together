@@ -13,14 +13,11 @@ import 'package:wishtogether/core/app_urls.dart';
 class DeepLinkService {
   DeepLinkService({Stream<Uri>? links, Set<String>? allowedHosts})
     : _allowedHosts = allowedHosts ?? universalLinkHostsFor(debug: kDebugMode) {
-    final source = links ?? _platformLinks();
-    if (source != null) {
-      source.listen(
-        _onUri,
-        onError: (Object error) =>
-            debugPrint('Deep links: link stream failed: $error'),
-      );
-    }
+    (links ?? _platformLinks())?.listen(
+      _onUri,
+      onError: (Object error) =>
+          debugPrint('Deep links: link stream failed: $error'),
+    );
   }
 
   final Set<String> _allowedHosts;

@@ -43,7 +43,9 @@ void main() {
         '/joinXYZ',
         '/join/',
         '/group/',
+        '/group/a/b',
         '/wishlist/',
+        '/wishlist/a/b',
       ]) {
         expect(
           locationFromUniversalLink(
@@ -72,9 +74,7 @@ void main() {
     });
 
     test('accepts the staging host only when it is allowed', () {
-      final staging = Uri.parse(
-        'https://wish-together-staging.web.app/join?group=abc',
-      );
+      final staging = Uri.parse('https://$stagingHost/join?group=abc');
       expect(
         locationFromUniversalLink(
           staging,

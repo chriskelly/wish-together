@@ -6,6 +6,7 @@ import 'package:wishtogether/common/widgets/confirmation_dialog.dart';
 import 'package:wishtogether/common/widgets/data_section_builder.dart';
 import 'package:wishtogether/common/widgets/list_item_actions.dart';
 import 'package:wishtogether/common/widgets/stream_list_builder.dart';
+import 'package:wishtogether/core/app_urls.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
 import 'package:wishtogether/features/auth/presentation/home_page.dart';
@@ -28,10 +29,11 @@ class GroupDetailsPage extends StatefulWidget {
 
   const GroupDetailsPage({super.key, required this.groupId});
 
-  static String getInvitationLink(String groupId) {
-    // Use a hardcoded origin for tests and Uri.base for web
-    final origin = kIsWeb ? Uri.base.origin : 'http://localhost';
-    return '$origin/#/join?group=$groupId';
+  static String getInvitationLink(String groupId, {String? origin}) {
+    final base = origin ?? (kIsWeb ? Uri.base.origin : appOrigin);
+    return Uri.parse(base)
+        .replace(path: '/join', queryParameters: {'group': groupId})
+        .toString();
   }
 
   @override

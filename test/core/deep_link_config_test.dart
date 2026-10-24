@@ -96,18 +96,18 @@ void main() {
     final pbxproj = File('ios/Runner.xcodeproj/project.pbxproj')
         .readAsStringSync();
 
-    expect(
-      'CODE_SIGN_ENTITLEMENTS = Runner/Runner-Debug.entitlements;'
-          .allMatches(pbxproj)
-          .length,
-      1,
-    );
-    expect(
-      'CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;'
-          .allMatches(pbxproj)
-          .length,
-      2,
-    );
+    final mapping = <String, String>{};
+    for (final match in RegExp(
+      r'CODE_SIGN_ENTITLEMENTS = ([^;]+);[\s\S]*?name = (Debug|Release|Profile);',
+    ).allMatches(pbxproj)) {
+      mapping[match.group(2)!] = match.group(1)!;
+    }
+
+    expect(mapping, {
+      'Debug': 'Runner/Runner-Debug.entitlements',
+      'Release': 'Runner/Runner.entitlements',
+      'Profile': 'Runner/Runner.entitlements',
+    });
   });
 
   test('the AASA app id matches the team and Runner bundle id', () {
@@ -116,10 +116,12 @@ void main() {
     final team = RegExp(r'DEVELOPMENT_TEAM = ([A-Z0-9]+);')
         .firstMatch(pbxproj)!
         .group(1)!;
+    // The Runner bundle is the shortest id; the test target and any future
+    // extension add a suffix.
     final bundle = RegExp(r'PRODUCT_BUNDLE_IDENTIFIER = ([^;]+);')
         .allMatches(pbxproj)
         .map((match) => match.group(1)!)
-        .firstWhere((id) => !id.contains('RunnerTests'));
+        .reduce((a, b) => a.length <= b.length ? a : b);
 
     final details =
         (_json('web/.well-known/apple-app-site-association')['applinks']
@@ -129,5 +131,17 @@ void main() {
       (details.single as Map<String, dynamic>)['appIDs'],
       contains('$team.$bundle'),
     );
+  });
+
+  test('main installs path URLs and queues links before Firebase', () {
+    final main = File('lib/main.dart').readAsStringSync();
+    final strategy = main.indexOf('usePathUrlStrategy()');
+    final service = main.indexOf('_deepLinks = DeepLinkService()');
+    final firebase = main.indexOf('Firebase.initializeApp(');
+
+    expect(strategy, isNonNegative);
+    expect(service, greaterThan(strategy));
+    expect(service, lessThan(firebase));
+    expect(firebase, lessThan(main.indexOf('runApp(')));
   });
 }

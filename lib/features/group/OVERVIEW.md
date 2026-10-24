@@ -30,7 +30,7 @@ members identified by Firebase Auth uid; wishlists are shared *into* a group.
 - Use cases: `CreateGroupUseCase` (owner is also the first member),
   `JoinGroupUseCase`, `LeaveGroupUseCase`, `UpdateGroupUseCase` (rename),
   `ShareWishlistWithGroupUseCase`.
-- `GroupDetailsPage.getInvitationLink(groupId)` builds an invite URL.
+- `GroupDetailsPage.getInvitationLink(groupId, {String? origin})` builds the invite URL.
 - `JoinGroupPage` handles the invite deep link.
 
 ## Invariants
@@ -47,11 +47,12 @@ members identified by Firebase Auth uid; wishlists are shared *into* a group.
   not the group document. It is idempotent: an already-shared group is skipped.
 - The group's "Shared Wishlists" list is the set of wishlists whose `sharedWithGroups`
   `arrayContains` the group id; a wishlist is removed by its owner.
-- The invite format is `<origin>/#/join?group=<groupId>` (web hash router). The router
-  preserves the invite's hash path (`/join?group=<groupId>`) as `redirect_to` through login,
-  verification, and profile — the browser hands the app the fragment, not the full URL — so an
-  invited, not-yet-onboarded user still lands on the join page. Passing the full URL would not
-  work: `context.go` matches its path (`/`), so the invite would be lost.
+- The invite format is `<origin>/join?group=<groupId>` — a real path, not a hash URL. Web
+  uses the current origin; native uses `https://wishtogether.gift`. On iOS the URL is a
+  Universal Link (`app_links`); the router receives the location `/join?group=<groupId>` and
+  preserves it as `redirect_to` through login, verification, and profile, so an invited,
+  not-yet-onboarded user still lands on the join page. Legacy `/#/join?…` links are not
+  supported and land on `/`.
 
 ## Data flow
 
@@ -70,4 +71,6 @@ from `AuthService`; no uid is passed in from the UI.
   plus `listForMember`, `listOwnedBy`, and `transferOwnership` (both fields, and the
   departing member gone) against `FakeFirebaseFirestore`.
 - `test/core/router_test.dart` covers the invite-link redirect matrix.
+- `test/features/group/presentation/group_details_page_test.dart` pins the invite URL
+  (canonical origin off web, supplied origin, encoded id).
 - The group pages themselves have no widget tests.

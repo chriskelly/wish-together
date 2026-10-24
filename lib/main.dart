@@ -1,7 +1,12 @@
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart'
-    show debugPrint, defaultTargetPlatform, kIsWeb, TargetPlatform;
+    show
+        debugPrint,
+        defaultTargetPlatform,
+        kIsWeb,
+        TargetPlatform,
+        visibleForTesting;
 import 'package:flutter/material.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:go_router/go_router.dart';
@@ -58,14 +63,24 @@ void _startApp() {
   if (_appStarted) {
     return;
   }
-  final authService = getIt<AuthService>();
-  final router = createRouter(
-    authService,
-    initialLocation: _deepLinks.takePendingLocation(),
-  );
-  runApp(WishTogetherApp(router: router));
-  _deepLinks.attach((location) => router.go(location));
+  startApp(links: _deepLinks, auth: getIt<AuthService>(), mount: runApp);
   _appStarted = true;
+}
+
+/// Composition step shared with the startup test: apply a queued link to the
+/// router, mount the app, then forward warm links.
+@visibleForTesting
+void startApp({
+  required DeepLinkService links,
+  required AuthService auth,
+  required void Function(WishTogetherApp app) mount,
+}) {
+  final router = createRouter(
+    auth,
+    initialLocation: links.takePendingLocation(),
+  );
+  mount(WishTogetherApp(router: router));
+  links.attach((location) => router.go(location));
 }
 
 /// Re-runs the gate and, when it is conclusively satisfied, replaces the

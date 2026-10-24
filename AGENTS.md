@@ -212,9 +212,11 @@ exercised with seeded, real-shaped data while production is untouched.
   (`firestore:indexes`); the service account then needs `datastore.indexes.*`.
 - **Config allowlist:** `firebase.staging.json` is candidate data, and `firebase deploy`
   executes `predeploy`/`postdeploy` hooks. The deploy job validates the downloaded config
-  against a strict allowlist (`hosting`: `site`, `public`, `ignore`, `rewrites`, `headers`;
-  `firestore`: `database`, `rules`) and rejects every other key, so a candidate branch cannot
-  run shell in the credential-holding job.
+  against a strict allowlist (`hosting`: `site`, `public`, `ignore`, `rewrites`, `headers`,
+  `appAssociation` — required to be `NONE`; `firestore`: `database`, `rules`) and rejects
+  every other key, so a candidate branch cannot run shell in the credential-holding job.
+  Branches created before `appAssociation` became required must be rebased before a staging
+  dispatch.
 - **Trust model:** the deploy runs as two jobs. `build` has no secrets and runs the candidate
   code; `deploy` has the service account but runs **no candidate code** — it downloads the
   built artifacts, checks out the verification tooling from the workflow's own commit into

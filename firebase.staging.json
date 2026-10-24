@@ -2,6 +2,7 @@
   "hosting": {
     "site": "wish-together-staging",
     "public": "build/web",
+    "appAssociation": "NONE",
     "ignore": ["firebase.json", "firebase.staging.json", "**/.*", "**/node_modules/**"],
     "rewrites": [
       {
@@ -18,6 +19,15 @@
       }
     ],
     "headers": [
+      {
+        "source": "/.well-known/apple-app-site-association",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ]
+      },
       {
         "source": "**",
         "headers": [

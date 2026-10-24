@@ -37,6 +37,7 @@ const HOSTING_KEYS = new Set([
   'ignore',
   'rewrites',
   'headers',
+  'appAssociation',
 ]);
 const FIRESTORE_KEYS = new Set(['database', 'rules']);
 
@@ -95,6 +96,10 @@ export function validateStagingConfig(
     fail(
       `firebase.staging.json must publish only ${STAGING_PUBLIC_DIR}, got ${JSON.stringify(hosting.public)}`,
     );
+  }
+  // A missing value lets Hosting generate its own catch-all AASA.
+  if (hosting.appAssociation !== 'NONE') {
+    fail('hosting.appAssociation must be "NONE"');
   }
 
   return { database: actualDatabase, site: hosting.site };

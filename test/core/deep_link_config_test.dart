@@ -58,6 +58,13 @@ void main() {
     expectHostingContract('firebase.json');
   });
 
+  test(
+    'firebase.staging.json disables Hosting AASA generation and types the file',
+    () {
+      expectHostingContract('firebase.staging.json');
+    },
+  );
+
   test('entitlements split production and staging and keep existing keys', () {
     final release = File('ios/Runner/Runner.entitlements').readAsStringSync();
     final debug = File('ios/Runner/Runner-Debug.entitlements')

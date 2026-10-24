@@ -3,8 +3,10 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart'
     show debugPrint, defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:flutter/material.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:wishtogether/core/deep_links.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/app_update/application/check_for_update.dart';
 import 'package:wishtogether/features/app_update/application/retry_update_gate.dart';
@@ -21,6 +23,8 @@ import 'core/theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  usePathUrlStrategy();
+  _deepLinks = DeepLinkService();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await _activateAppCheck();
@@ -48,13 +52,19 @@ Future<UpdateDecision> _checkForUpdate() =>
     checkForUpdate(() => getIt<AppUpdateService>().check());
 
 bool _appStarted = false;
+late final DeepLinkService _deepLinks;
 
 void _startApp() {
   if (_appStarted) {
     return;
   }
   final authService = getIt<AuthService>();
-  runApp(WishTogetherApp(router: createRouter(authService)));
+  final router = createRouter(
+    authService,
+    initialLocation: _deepLinks.takePendingLocation(),
+  );
+  runApp(WishTogetherApp(router: router));
+  _deepLinks.attach((location) => router.go(location));
   _appStarted = true;
 }
 

@@ -42,12 +42,14 @@ UserRepository resolveUserRepository([UserRepository? injected]) =>
 GoRouter createRouter(
   AuthService authService, {
   UserRepository? userRepository,
+  String? initialLocation,
 }) {
   // Resolve the repository once at composition time so every redirect uses the
   // same database target as the rest of the app.
   final repository = resolveUserRepository(userRepository);
 
   return GoRouter(
+    initialLocation: initialLocation,
     refreshListenable: AuthListenable(authService),
     redirect: (BuildContext context, GoRouterState state) =>
         handleRedirect(state.uri.toString(), authService, userRepo: repository),
@@ -68,7 +70,7 @@ Future<String?> handleRedirect(
   AuthService authService, {
   UserRepository? userRepo,
 }) async {
-  final uri = _normalizeUri(uriString);
+  final uri = Uri.parse(uriString);
   final loggedIn = authService.currentUserId != null;
   if (!loggedIn) {
     return _redirectIfNotLoggedIn(uri, uriString);
@@ -100,17 +102,6 @@ Future<String?> handleRedirect(
   }
 
   return null; // No redirect needed.
-}
-
-/// Normalizes a URI string for web hash URLs.
-Uri _normalizeUri(String uriString) {
-  final Uri parsedForFragment = Uri.parse(uriString);
-  final String effectiveUriString =
-      (parsedForFragment.hasFragment &&
-          parsedForFragment.fragment.startsWith('/'))
-      ? parsedForFragment.fragment
-      : uriString;
-  return Uri.parse(effectiveUriString);
 }
 
 /// If not on the login page, redirects to it, preserving the original destination.

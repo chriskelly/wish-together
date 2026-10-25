@@ -278,6 +278,7 @@ jobs:
           expected="$RUNNER_TEMP/aasa.expected.json"
           expected_src="staging/build/web/.well-known/apple-app-site-association"
           attempts=6
+          retry_delay=5
           connect_timeout=3
           request_timeout=10
 
@@ -344,8 +345,8 @@ jobs:
             fi
 
             if [ "$attempt" -lt "$attempts" ]; then
-              echo "Staging AASA not served correctly yet ($reason); retrying in 5 s..."
-              sleep 5
+              echo "Staging AASA not served correctly yet ($reason); retrying in ${retry_delay} s..."
+              sleep "$retry_delay"
             fi
           done
 
@@ -354,9 +355,9 @@ jobs:
             case "$cause" in
               curl) ;;
               http) ;;
-              ctype) grep -i '^content-type:' "$headers" || true ;;
-              json) head -c 500 "$body" 2>/dev/null | tr -d '\000-\010\013\014\016-\037' || true; echo ;;
-              body) diff -u "$expected" "$body_norm" 2>/dev/null | head -c 4000 || true ;;
+              ctype) grep -i '^content-type:' "$headers" | tr -d '\r' | head -c 200 || true ;;
+              json) head -c 500 "$body" 2>/dev/null | tr -d '\000-\010\013\014\016-\037' | sed 's/^/  /' || true; echo ;;
+              body) diff -u "$expected" "$body_norm" 2>/dev/null | sed 's/^/  /' | head -c 4000 || true ;;
               *) echo "unclassified failure" ;;
             esac
             exit 1

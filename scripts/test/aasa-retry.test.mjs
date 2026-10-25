@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import {
   chmodSync,
+  symlinkSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -44,7 +45,8 @@ function stepScript(workflow, stepName) {
   const lines = readFileSync(file, 'utf8').split('\n');
   const step = lines.findIndex((l) => l.trim() === `- name: ${stepName}`);
   assert.notEqual(step, -1, `step not found in ${workflow}: ${stepName}`);
-  const run = lines.findIndex((l, n) => n > step && l.trim() === 'run: |');
+  const nextStep = lines.findIndex((l, n) => n > step && /^\s*- name:/.test(l));
+  const run = lines.findIndex((l, n) => n > step && n < nextStep && l.trim() === 'run: |');
   assert.notEqual(run, -1, `run block not found for ${stepName}`);
   const indent = lines[run].length - lines[run].trimStart().length;
   const body = [];
@@ -56,6 +58,16 @@ function stepScript(workflow, stepName) {
   assert.match(script, /curl /, `extracted block looks wrong: ${stepName}`);
   return script;
 }
+
+const toolPathWithoutJq = (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'no-jq-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  for (const tool of ['bash', 'sh', 'env', 'sed', 'tr', 'head', 'grep', 'diff', 'base64', 'sleep']) {
+    const found = spawnSync('sh', ['-c', `command -v ${tool}`], { encoding: 'utf8' }).stdout.trim();
+    if (found) symlinkSync(found, join(dir, tool));
+  }
+  return dir;
+};
 
 const readNumber = (file) => {
   try {
@@ -78,7 +90,7 @@ const readLines = (file) => {
  * scenario: [{ rc, status, contentType, body }], one entry per curl call.
  * Bodies are base64-encoded so a multi-line document stays one scenario line.
  */
-function runBlock({ workflow, stepName, scenario, expected = COMMITTED, expectedPath, url, t }) {
+function runBlock({ workflow, stepName, scenario, expected = COMMITTED, expectedPath, url, pathOverride, t }) {
   const dir = mkdtempSync(join(tmpdir(), 'aasa-retry-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
 
@@ -159,7 +171,7 @@ printf '%s' "$status"
       encoding: 'utf8',
       timeout: 60_000,
       env: {
-        PATH: `${bin}:${process.env.PATH}`,
+        PATH: pathOverride ? `${bin}:${pathOverride}` : `${bin}:${process.env.PATH}`,
         HOME: process.env.HOME,
         RUNNER_TEMP: dir,
         STUB_SCENARIO: scenarioFile,
@@ -262,7 +274,7 @@ for (const target of TARGETS) {
     assert.equal(r.requests, ATTEMPTS);
     assert.match(r.output, /::error::/);
     assert.match(r.output, new RegExp(`last failure: body does not match the ${target.kind} file`));
-    assert.match(r.output, /^--- /m, 'the diff is not printed');
+    assert.match(r.output, /^\s+--- /m, 'the diff is not printed');
   });
 
   test(`${target.workflow}: a JSON content type with parameters is accepted`, (t) => {
@@ -364,9 +376,16 @@ for (const target of TARGETS) {
     assert.match(r.output, /^::error::.*is missing/m);
   });
 
+  test(`${target.workflow}: a missing jq is named, not reported as invalid JSON`, (t) => {
+    const r = run([ok], { t, pathOverride: toolPathWithoutJq(t) });
+    assert.equal(r.status, 1);
+    assert.equal(r.requests, 0);
+    assert.match(r.output, /jq is required/);
+  });
+
   test(`${target.workflow}: every request is time-bounded and the total budget holds`, (t) => {
     const r = run(repeat(ATTEMPTS, noConnection), { t });
-    assert.equal(r.bounds.length, 6);
+    assert.equal(r.bounds.length, ATTEMPTS);
     for (const bound of r.bounds) assert.equal(bound, `${CONNECT_TIMEOUT} ${REQUEST_TIMEOUT}`);
     const seconds =
       r.bounds.reduce((sum, b) => sum + Number(b.split(' ')[1] ?? 0), 0) +

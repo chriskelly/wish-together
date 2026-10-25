@@ -71,9 +71,11 @@ function runBlock({ workflow, stepName, scenario, expected = COMMITTED, expected
 
   const bin = join(dir, 'bin');
   mkdirSync(bin);
-  const expectedFile = join(dir, expectedPath);
-  mkdirSync(dirname(expectedFile), { recursive: true });
-  writeFileSync(expectedFile, expected);
+  if (expected !== null) {
+    const expectedFile = join(dir, expectedPath);
+    mkdirSync(dirname(expectedFile), { recursive: true });
+    writeFileSync(expectedFile, expected);
+  }
 
   const scenarioFile = join(dir, 'scenario');
   writeFileSync(
@@ -92,6 +94,7 @@ function runBlock({ workflow, stepName, scenario, expected = COMMITTED, expected
   const counter = join(dir, 'counter');
   const sleeps = join(dir, 'sleeps');
   const bounds = join(dir, 'bounds');
+  const urls = join(dir, 'urls');
 
   writeFileSync(
     join(bin, 'curl'),
@@ -110,7 +113,8 @@ while [ $# -gt 0 ]; do
     -D) headers="$2"; shift 2 ;;
     -o) bodypath="$2"; shift 2 ;;
     -w|-H) shift 2 ;;
-    *) shift ;;
+    -*) shift ;;
+    *) printf '%s\n' "$1" >> "$STUB_URLS"; shift ;;
   esac
 done
 echo "$connect $total" >> "$STUB_BOUNDS"
@@ -138,11 +142,13 @@ printf '%s' "$status"
       env: {
         ...process.env,
         PATH: `${bin}:${process.env.PATH}`,
+        HOME: process.env.HOME,
         RUNNER_TEMP: dir,
         STUB_SCENARIO: scenarioFile,
         STUB_COUNTER: counter,
         STUB_SLEEPS: sleeps,
         STUB_BOUNDS: bounds,
+        STUB_URLS: urls,
         ...url,
       },
     },
@@ -153,7 +159,8 @@ printf '%s' "$status"
     status: result.status,
     output: `${result.stdout ?? ''}${result.stderr ?? ''}`,
     requests: readNumber(counter),
-    sleeps: readLines(sleeps).length,
+    sleeps: readLines(sleeps),
+    urls: readLines(urls),
     bounds: readLines(bounds),
   };
 }
@@ -163,7 +170,7 @@ const TARGETS = [
     workflow: 'ci-web.yml',
     stepName: 'Verify the AASA on the preview',
     expectedPath: 'web/.well-known/apple-app-site-association',
-    url: { PREVIEW_URL: 'https://preview.example' },
+    url: { PREVIEW_URL: 'https://preview.example/' },
   },
   {
     workflow: 'deploy-staging.yml',
@@ -184,22 +191,26 @@ for (const target of TARGETS) {
     const r = run([ok], { t });
     assert.equal(r.status, 0, r.output);
     assert.equal(r.requests, 1);
-    assert.equal(r.sleeps, 0);
+    assert.equal(r.sleeps.length, 0);
+    const base = (target.url.PREVIEW_URL ?? target.url.STAGING_URL).replace(/\/$/, '');
+    assert.deepEqual(r.urls, [`${base}/.well-known/apple-app-site-association`]);
   });
 
   test(`${target.workflow}: a 404 that clears is retried`, (t) => {
     const r = run([notFound, ok], { t });
     assert.equal(r.status, 0, r.output);
     assert.equal(r.requests, 2);
-    assert.equal(r.sleeps, 1);
+    assert.equal(r.sleeps.length, 1);
   });
 
   test(`${target.workflow}: a persistent 404 fails after the full budget`, (t) => {
     const r = run(repeat(6, notFound), { t });
     assert.equal(r.status, 1);
     assert.equal(r.requests, 6);
-    assert.equal(r.sleeps, 5);
+    assert.equal(r.sleeps.length, 5);
     assert.match(r.output, /last failure: HTTP 404/);
+    assert.deepEqual(r.sleeps, Array(5).fill('5'));
+    assert.ok(r.bounds.length * 10 + r.sleeps.length * 5 <= 85, 'the budget is not bounded by 85 s');
   });
 
   test(`${target.workflow}: a stalled connection that clears is retried`, (t) => {
@@ -247,6 +258,13 @@ for (const target of TARGETS) {
     assert.equal(r.status, 1);
     assert.equal(r.requests, 0);
     assert.match(r.output, /is not valid JSON/);
+  });
+
+  test(`${target.workflow}: a missing source file fails fast with its own message`, (t) => {
+    const r = run([ok], { t, expected: null });
+    assert.equal(r.status, 1);
+    assert.equal(r.requests, 0);
+    assert.match(r.output, /is missing/);
   });
 
   test(`${target.workflow}: every request is time-bounded`, (t) => {

@@ -271,7 +271,7 @@ jobs:
 
       - name: Verify the staging AASA is served
         run: |
-          url="${URL_BASE}/.well-known/apple-app-site-association"
+          url="${STAGING_URL}/.well-known/apple-app-site-association"
           headers="$RUNNER_TEMP/aasa.headers"
           body="$RUNNER_TEMP/aasa.json"
           body_norm="$RUNNER_TEMP/aasa.body.norm.json"
@@ -327,7 +327,7 @@ jobs:
               cause="ctype"
               ctype=$(grep -i '^content-type:' "$headers" | tr -d '\r' | sed 's/^[^:]*: *//' || true)
               reason="content-type is ${ctype:-missing}"
-            elif ! jq -Se . "$body" > "$body_norm" 2>/dev/null; then
+            elif [ ! -s "$body" ] || ! jq -S . "$body" > "$body_norm" 2>/dev/null; then
               cause="json"
               reason="body is not valid JSON"
             elif ! diff -q "$expected" "$body_norm" >/dev/null; then

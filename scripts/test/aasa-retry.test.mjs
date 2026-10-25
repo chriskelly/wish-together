@@ -31,6 +31,8 @@ const RETRY_DELAY = '5';
 const CONNECT_TIMEOUT = 3;
 const REQUEST_TIMEOUT = 10;
 const MAX_BUDGET_SECONDS = 85;
+const HEADER_VALUE_MAX = 200;
+const DIAGNOSTIC_PREFIX_ALLOWANCE = 150;
 const NOT_FOUND = 404;
 const TRANSPORT_FAILURE = 7;
 const HTML_TYPE = 'text/html';
@@ -369,7 +371,17 @@ for (const target of TARGETS) {
     assert.doesNotMatch(r.output, /\u001b/, 'an escape sequence reached the log');
     assert.doesNotMatch(r.output, /\r/, 'a CR survived the diagnostic');
     const longest = Math.max(...r.output.split('\n').map((l) => l.length));
-    assert.ok(longest < 400, `unbounded diagnostic line (${longest} chars)`);
+    assert.ok(
+      longest < HEADER_VALUE_MAX + DIAGNOSTIC_PREFIX_ALLOWANCE,
+      `unbounded diagnostic line (${longest} chars)`,
+    );
+  });
+
+  test(`${target.workflow}: an excerpt line cannot forge an annotation`, (t) => {
+    const r = run(repeat(ATTEMPTS, { status: 200, contentType: 'application/json', body: 'before\n::error::spoofed after' }), { t });
+    assert.equal(r.status, 1);
+    assert.doesNotMatch(r.output, /^::error::spoofed/m);
+    assert.match(r.output, /^ {2}::error::spoofed/m, 'the excerpt is not indented');
   });
 
   test(`${target.workflow}: an escape sequence in the body excerpt is sanitised`, (t) => {

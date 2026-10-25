@@ -276,6 +276,26 @@ void main() {
       );
     });
 
+    test('removes the Flutter error-details context', () {
+      final event = SentryEvent(
+        tags: const {'event': 'error'},
+        contexts: Contexts()
+          ..['flutter_error_details'] = <String, String>{
+            'information': 'TextEditingValue(text: "Grace Hopper")',
+          }
+          ..['device'] = <String, String>{'name': 'iPhone'},
+      );
+
+      final scrubbed = scrubEvent(event, Hint());
+
+      expect(scrubbed!.contexts.containsKey('flutter_error_details'), isFalse);
+      expect(
+        scrubbed.contexts.containsKey('device'),
+        isTrue,
+        reason: 'only the Flutter diagnostics context is unsafe',
+      );
+    });
+
     test('drops a user id that is not a derived reference', () {
       final event = SentryEvent(
         tags: const {'event': 'error'},

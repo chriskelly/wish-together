@@ -62,7 +62,7 @@ function stepScript(workflow, stepName) {
 const toolPathWithoutJq = (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'no-jq-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  for (const tool of ['bash', 'sh', 'env', 'sed', 'tr', 'head', 'grep', 'diff', 'base64', 'sleep']) {
+  for (const tool of ['bash', 'sh', 'env', 'sed', 'tr', 'head', 'grep', 'diff', 'base64', 'sleep', 'cat']) {
     const found = spawnSync('sh', ['-c', `command -v ${tool}`], { encoding: 'utf8' }).stdout.trim();
     if (found) symlinkSync(found, join(dir, tool));
   }
@@ -184,6 +184,7 @@ printf '%s' "$status"
     },
   );
   assert.equal(result.signal, null, 'the step hung');
+  assert.equal(result.error, undefined, `could not spawn the step: ${result.error?.message}`);
 
   return {
     status: result.status,
@@ -247,7 +248,7 @@ for (const target of TARGETS) {
     assert.deepEqual(r.sleeps, Array(ATTEMPTS - 1).fill(RETRY_DELAY));
   });
 
-  test(`${target.workflow}: a stalled connection that clears is retried`, (t) => {
+  test(`${target.workflow}: a connection failure that clears is retried`, (t) => {
     const r = run([noConnection, ok], { t });
     assert.equal(r.status, 0, r.output);
     assert.equal(r.requests, 2);
@@ -313,6 +314,12 @@ for (const target of TARGETS) {
     assert.equal(r.status, 1);
     assert.equal(r.requests, 0);
     assert.match(r.output, /is not valid JSON/);
+  });
+
+  test(`${target.workflow}: a zero-byte body is not valid JSON`, (t) => {
+    const r = run(repeat(ATTEMPTS, { status: 200, body: '' }), { t });
+    assert.equal(r.status, 1);
+    assert.match(r.output, /body is not valid JSON/);
   });
 
   test(`${target.workflow}: a whitespace-only body is not valid JSON`, (t) => {

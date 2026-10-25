@@ -158,6 +158,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Assert
+      expect(find.text(loadFailedHeadline), findsOneWidget);
       expect(find.byType(BackButton), findsNothing);
       expect(find.text('Save and Continue'), findsNothing);
       expect(find.text('Delete account'), findsNothing);
@@ -280,6 +281,63 @@ void main() {
       retry.complete(User(id: 'user-3', displayName: 'Ada Lovelace'));
       await tester.pumpAndSettle();
       expect(find.text('Ada Lovelace'), findsOneWidget);
+    });
+
+    testWidgets('starts one read per retry, even on a double tap', (
+      tester,
+    ) async {
+      // Arrange
+      final retry = Completer<User?>();
+      var reads = 0;
+      when(() => loadUserProfile.execute()).thenAnswer((_) {
+        reads++;
+        if (reads == 1) {
+          return Future<User?>.error(Exception('offline'));
+        }
+        return retry.future;
+      });
+      await pumpProfilePage(tester);
+      await tester.pumpAndSettle();
+
+      // Act: both taps land before the frame that swaps the panel for the
+      // spinner, so the second one hits a still-enabled Retry.
+      await tester.tap(find.text(retryLabel));
+      await tester.tap(find.text(retryLabel), warnIfMissed: false);
+      await tester.pump();
+
+      // Assert
+      expect(reads, 2);
+
+      retry.complete(User(id: 'user-4', displayName: 'Ada Lovelace'));
+      await tester.pumpAndSettle();
+      expect(find.text('Ada Lovelace'), findsOneWidget);
+    });
+
+    testWidgets('leaves a disposed page alone when a read completes', (
+      tester,
+    ) async {
+      // Arrange
+      final retry = Completer<User?>();
+      var reads = 0;
+      when(() => loadUserProfile.execute()).thenAnswer((_) {
+        reads++;
+        if (reads == 1) {
+          return Future<User?>.error(Exception('offline'));
+        }
+        return retry.future;
+      });
+      await pumpProfilePage(tester);
+      await tester.pumpAndSettle();
+
+      // Act: a session revoked mid-retry would take the page with it.
+      await tester.tap(find.text(retryLabel));
+      await tester.pump();
+      await tester.pumpWidget(const SizedBox());
+      retry.completeError(Exception('signed out'));
+      await tester.pump();
+
+      // Assert
+      expect(tester.takeException(), isNull);
     });
   });
 

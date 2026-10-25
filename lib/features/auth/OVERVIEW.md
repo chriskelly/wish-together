@@ -92,15 +92,19 @@ profile).
   `/join?group=123`; the value is still untrusted query input). The AppBar also sets
   `automaticallyImplyLeading: false` so a future `push` cannot put an automatic arrow on the
   onboarding state.
-- **A profile read that fails shows an error with Retry, never a spinner that never ends.**
+- **A profile read that throws or finds no document shows an error with Retry.**
   `ProfilePage` models its single read as `ProfileLoadState` (`loading`, `loaded`, `failed`).
   A throw from `LoadUserProfileUseCase` — which deliberately propagates rather than swallowing —
   and a `null` result both become `failed`, which renders a message plus a **Try again** action
   and nothing else: no form, no Save, no delete-account section, no back arrow. Retry returns to
-  `loading` and re-reads; a success renders the form normally. Retries are unlimited and always
-  user-initiated (no automatic retry or backoff), because a cap would turn a recoverable page
-  into a dead end. The AppBar title is `Profile` while loading or failed, since only a loaded
-  profile knows whether the user is new.
+  `loading` and re-reads, ignoring a second tap while one is in flight; a success renders the
+  form normally. Retries are unlimited and always user-initiated (no automatic retry or
+  backoff), because a cap would turn a recoverable page into a dead end. The AppBar title is
+  `Profile` while loading or failed, since only a loaded profile knows whether the user is new.
+  Two consequences are accepted, not oversights: a read that never *completes* still spins,
+  because nothing on this path has a timeout (the router's own `getOrCreateUser` read is
+  equally unbounded), and account deletion — which lives in the form — is unreachable while the
+  read fails. The page recovers on the first read that succeeds.
 - The default wishlist is created only on the first save (when the prior `displayName`
   was empty), so it is not duplicated on later profile edits.
 - `google_sign_in_stub.dart` is a compile-time stub that `login_page.dart` falls back to on
@@ -226,8 +230,9 @@ validate it on the **staging** site (or live) with a throwaway account for each 
   loaded), and `profileExitTarget` (a `redirect_to` destination — including an invitation path
   — is returned unchanged, with `/` as the fallback for absent, blank, or self-referential
   values). The same helper drives Save's exit. It also drives the page itself against a mocked
-  `LoadUserProfileUseCase` in `getIt` for the load states: a throw and a `null` result both show
-  the error with no back arrow, Save or delete section; a successful Retry renders the form
-  (with an arrow for an existing user, without one for a nameless user); a failed Retry keeps
-  Retry available; and a Retry in flight shows the spinner.
+  `LoadUserProfileUseCase` in `getIt` for the load states: a throw shows the error with no back
+  arrow, Save or delete section; a `null` result shows the same error; a successful Retry
+  renders the form (with an arrow for an existing user, without one for a nameless user); a
+  failed Retry keeps Retry available; a double tap starts one read; a Retry in flight shows the
+  spinner; and a read that completes after the page is disposed raises nothing.
 - `test/core/router_test.dart` covers the auth redirect matrix.

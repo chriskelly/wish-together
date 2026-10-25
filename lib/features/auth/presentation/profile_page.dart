@@ -12,14 +12,14 @@ import '../domain/user.dart';
 ///
 /// A read that throws and a read that finds no document both end in [failed]:
 /// waiting cannot clear either, and a permanent spinner would hide the Retry
-/// that can.
+/// that can. Only [loaded] renders the form, so [loading] and [failed] offer
+/// no exit that leaves the page without a read that succeeded.
 enum ProfileLoadState { loading, loaded, failed }
 
 /// The AppBar title for each load state.
 ///
-/// Only a [ProfileLoadState.loaded] profile knows whether this is onboarding, so
-/// the other two stay neutral rather than telling an existing user whose read
-/// failed to create a profile.
+/// Only a [ProfileLoadState.loaded] profile knows whether this is onboarding,
+/// so [ProfileLoadState.loading] and [ProfileLoadState.failed] stay neutral.
 String profilePageTitle({
   required ProfileLoadState loadState,
   required bool isNewUser,
@@ -36,9 +36,7 @@ String profilePageTitle({
 ///
 /// Only a loaded profile is trusted to answer: a still-loading or failed read
 /// knows no name at all, and an arrow there would let a new user past
-/// onboarding on the strength of a request that never succeeded. That is why
-/// the state is an explicit input rather than a pair of booleans the page
-/// derives from whatever it happens to hold.
+/// onboarding on the strength of a request that never succeeded.
 bool shouldShowProfileBackButton({
   required ProfileLoadState loadState,
   required bool isNewUser,
@@ -107,27 +105,32 @@ class _ProfilePageState extends State<ProfilePage> {
   /// Retry. The router creates the document before routing here, so a missing
   /// one means something is wrong, not that the user is mid-signup.
   Future<void> _loadUserData() async {
+    User? user;
     try {
-      final user = await _loadUserProfileUseCase.execute();
-      if (!mounted) return;
-      if (user == null) {
-        setState(() => _loadState = ProfileLoadState.failed);
-        return;
-      }
-      setState(() {
-        _currentUser = user;
-        _displayNameController.text = user.displayName ?? '';
-        _loadState = ProfileLoadState.loaded;
-      });
+      user = await _loadUserProfileUseCase.execute();
     } catch (error) {
       debugPrint('Profile load failed: $error');
-      if (!mounted) return;
-      setState(() => _loadState = ProfileLoadState.failed);
     }
+    if (!mounted) return;
+    if (user == null) {
+      setState(() => _loadState = ProfileLoadState.failed);
+      return;
+    }
+    final loaded = user;
+    setState(() {
+      _currentUser = loaded;
+      _displayNameController.text = loaded.displayName ?? '';
+      _loadState = ProfileLoadState.loaded;
+    });
   }
 
   /// Retry from the error state: back to the spinner, then one fresh read.
+  ///
+  /// Ignored while a read is already in flight: the error panel is still the
+  /// live tree until the next frame, so a second tap could otherwise start a
+  /// read that outlives the one which decides the state.
   Future<void> _retryLoad() async {
+    if (_loadState == ProfileLoadState.loading) return;
     setState(() => _loadState = ProfileLoadState.loading);
     await _loadUserData();
   }
@@ -177,12 +180,11 @@ class _ProfilePageState extends State<ProfilePage> {
         )
       : null;
 
-  /// The failed state: no form, no Save, no delete-account section and no back
-  /// arrow, so the only way off this page is a read that succeeds.
-  ///
-  /// Shaped like the app-update screen: one icon, one headline, one line of
-  /// guidance, one action, all inside a scroll view so a small screen or a
-  /// large text scale cannot clip the Retry.
+  /// The failed state: one icon, one headline, one line of guidance, one
+  /// action, in a scroll view so a small screen cannot clip the Retry. What
+  /// the surrounding page withholds in this state — the form, Save, the delete
+  /// section and the back arrow — is decided by [build]'s switch and
+  /// [shouldShowProfileBackButton], not here.
   Widget _loadErrorPanel(BuildContext context) {
     final theme = Theme.of(context);
     return Center(
@@ -234,7 +236,9 @@ class _ProfilePageState extends State<ProfilePage> {
         const SizedBox(height: 30),
         _saveButton(context),
         // The account exists as soon as the user signs in — even before they
-        // have picked a display name — so deletion must always be reachable.
+        // have picked a display name — so deletion must be reachable whenever
+        // the profile has loaded. It is deliberately absent in the failed
+        // state, which offers nothing but Retry (see ProfileLoadState).
         const DeleteAccountSection(),
       ],
     ),

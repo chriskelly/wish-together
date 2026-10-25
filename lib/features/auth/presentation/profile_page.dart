@@ -13,8 +13,9 @@ import '../domain/user.dart';
 /// A read that throws and a read that finds no document both end in [failed]:
 /// waiting cannot clear either, and a permanent spinner would hide the Retry
 /// that can. Only [loaded] renders the form; [loading] and [failed] show no
-/// form, no Save, no delete section and no back arrow, so the only way off the
-/// page is a read that succeeds.
+/// form, no Save, no delete section and no back arrow, so no control on the
+/// page leaves it without a read that succeeds. Browser and OS back are not
+/// gated, but a nameless user is bounced straight back here by the router.
 enum ProfileLoadState { loading, loaded, failed }
 
 /// The AppBar title for each load state.
@@ -105,13 +106,20 @@ class _ProfilePageState extends State<ProfilePage> {
   /// document both land in [ProfileLoadState.failed] so the page can offer
   /// Retry. The router creates the document before routing here, so a missing
   /// one means something is wrong, not that the user is mid-signup.
+  ///
+  /// The catch is deliberately broad: an `Error` (a bad cast on a malformed
+  /// document, a missing registration) is not transient, but leaving the
+  /// spinner up would be worse than offering the same Retry, and the log is
+  /// where that case gets diagnosed.
   Future<void> _loadUserData() async {
     User? user;
     try {
       user = await _loadUserProfileUseCase.execute();
     } catch (error, stackTrace) {
-      debugPrint('Profile load failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
+      debugPrintStack(
+        label: 'Profile load failed: $error',
+        stackTrace: stackTrace,
+      );
     }
     if (!mounted) return;
     if (user == null) {

@@ -113,8 +113,10 @@ void main() {
       getIt.reset();
       loadUserProfile = MockLoadUserProfileUseCase();
       getIt.registerSingleton<LoadUserProfileUseCase>(loadUserProfile);
-      // The page resolves these while building the form; none of them run in
-      // these tests because the form is only ever rendered, never saved from.
+      // `_ProfilePageState` resolves the save use case when it is created and
+      // the delete section resolves its two services when the form is built,
+      // so all three must be registered even though these tests never save or
+      // delete.
       getIt.registerSingleton<SaveUserProfileUseCase>(SaveUserProfileUseCase());
       getIt.registerSingleton<AuthService>(MockAuthService());
       getIt.registerSingleton<DeleteAccountUseCase>(DeleteAccountUseCase());
@@ -201,7 +203,10 @@ void main() {
       expect(find.text(displayName), findsOneWidget);
       expect(find.text('Save and Continue'), findsOneWidget);
       expect(find.byType(BackButton), findsOneWidget);
-      expect(find.text('Delete account'), findsWidgets);
+      expect(
+        find.widgetWithText(OutlinedButton, 'Delete account'),
+        findsOneWidget,
+      );
       expect(find.text(loadFailedHeadline), findsNothing);
     });
 

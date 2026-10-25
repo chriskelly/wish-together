@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wishtogether/core/logging/app_event.dart';
 import 'package:wishtogether/core/logging/diagnostics.dart';
+import 'package:wishtogether/core/logging/redaction.dart';
 
 import 'recording_sink.dart';
 import 'recording_transport.dart';
@@ -52,21 +53,21 @@ void main() {
     });
   });
 
-  group('errorCodeOf', () {
+  group('readErrorCode', () {
     test('reads a structured code', () {
       expect(
-        errorCodeOf(const ErrorWithCode('permission-denied')),
+        readErrorCode(const ErrorWithCode('permission-denied')),
         'permission-denied',
       );
     });
 
     test('ignores a non-string or missing code', () {
-      expect(errorCodeOf(const ErrorWithCode(42)), isNull);
-      expect(errorCodeOf(StateError('plain')), isNull);
+      expect(readErrorCode(const ErrorWithCode(42)), isNull);
+      expect(readErrorCode(StateError('plain')), isNull);
     });
 
     test('survives a code getter that throws', () {
-      expect(errorCodeOf(ThrowingCode()), isNull);
+      expect(readErrorCode(ThrowingCode()), isNull);
     });
   });
 

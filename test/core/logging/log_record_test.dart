@@ -312,4 +312,29 @@ void main() {
       expect(record.stackTrace, isNull);
     });
   });
+
+  test('every event name in the vocabulary is registered', () {
+    final events = <AppEvent>[
+      const SessionStartEvent(build: '57', platform: 'ios', route: '/'),
+      const SessionEndEvent(
+        build: '57',
+        platform: 'ios',
+        route: '/',
+        clean: true,
+      ),
+      const AuthStateEvent(outcome: AuthOutcome.signedOut),
+      const FirestoreErrorEvent(op: FirestoreOp.get, collection: 'items'),
+      const RouteChangedEvent(route: '/'),
+      const UpdateGateEvent(result: UpdateGateResult.allowed),
+      const AppCheckEvent(result: 'activated'),
+      const ClaimActionEvent(phase: ClaimPhase.started),
+      const ErrorEvent(runtimeTypeName: 'StateError', route: '/'),
+    ];
+
+    expect(
+      events.map(eventNameFor).toSet(),
+      logEventNames,
+      reason: 'a new AppEvent subtype must register its name in logEventNames',
+    );
+  });
 }

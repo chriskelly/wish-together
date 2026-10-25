@@ -276,24 +276,38 @@ void main() {
       );
     });
 
-    test('removes the Flutter error-details context', () {
+    test('rebuilds contexts to the §4.3 allowlist', () {
       final event = SentryEvent(
         tags: const {'event': 'error'},
         contexts: Contexts()
+          ..['device'] = SentryDevice(name: 'Chris iPhone', model: 'iPhone15,3')
+          ..['os'] = SentryOperatingSystem(
+            name: 'iOS',
+            version: '17.2',
+            build: '21C62',
+          )
+          ..['app'] = SentryApp(
+            name: 'Secret App Name',
+            version: '1.2.3',
+            build: '57',
+          )
           ..['flutter_error_details'] = <String, String>{
             'information': 'TextEditingValue(text: "Grace Hopper")',
           }
-          ..['device'] = <String, String>{'name': 'iPhone'},
+          ..['custom'] = <String, String>{'note': 'anything'},
       );
 
-      final scrubbed = scrubEvent(event, Hint());
+      final scrubbed = scrubEvent(event, Hint())!;
 
-      expect(scrubbed!.contexts.containsKey('flutter_error_details'), isFalse);
-      expect(
-        scrubbed.contexts.containsKey('device'),
-        isTrue,
-        reason: 'only the Flutter diagnostics context is unsafe',
-      );
+      expect(scrubbed.contexts.keys, unorderedEquals(<String>['os', 'app']));
+      final os = scrubbed.contexts['os'] as SentryOperatingSystem;
+      expect(os.name, 'iOS');
+      expect(os.version, '17.2');
+      expect(os.build, isNull);
+      final app = scrubbed.contexts['app'] as SentryApp;
+      expect(app.version, '1.2.3');
+      expect(app.build, '57');
+      expect(app.name, isNull);
     });
 
     test('drops a user id that is not a derived reference', () {
@@ -317,6 +331,16 @@ void main() {
       final breadcrumb = Breadcrumb(
         category: 'http',
         message: 'GET https://example.com/wishlist/abc',
+      );
+
+      expect(scrubBreadcrumb(breadcrumb, Hint()), isNull);
+    });
+
+    test('drops a breadcrumb whose message is free text', () {
+      final breadcrumb = Breadcrumb(
+        category: sentryBreadcrumbCategory,
+        message: 'user entered phone 555-0100',
+        data: const <String, String>{'event': 'error'},
       );
 
       expect(scrubBreadcrumb(breadcrumb, Hint()), isNull);

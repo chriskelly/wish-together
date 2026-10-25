@@ -114,10 +114,22 @@ SentryEvent? scrubEvent(SentryEvent event, Hint hint) {
   if (extra != null && !extra.keys.every(logRecordKeys.contains)) {
     return null;
   }
-  // Flutter's error-details context carries the informationCollector output:
-  // free diagnostic text that can quote a controller value (the typed name) or
-  // a text span. It is not a §4.3 field, so it never ships.
-  event.contexts.remove('flutter_error_details');
+  // Contexts are an allowlist, not a subtraction: Flutter's error-details
+  // context carries free `informationCollector` text (a typed name, a text
+  // span), and the device context carries a human device name. §4.3 allows the
+  // OS class/version and the app version/build, nothing else.
+  final os = event.contexts['os'];
+  final app = event.contexts['app'];
+  event.contexts.clear();
+  if (os is SentryOperatingSystem) {
+    event.contexts['os'] = SentryOperatingSystem(
+      name: os.name,
+      version: os.version,
+    );
+  }
+  if (app is SentryApp) {
+    event.contexts['app'] = SentryApp(version: app.version, build: app.build);
+  }
   // A request carries the endpoint and, on some platforms, an IP.
   event.request = null;
   // The SDK materialises an exception's `toString()` into `value` before this
@@ -163,6 +175,10 @@ Breadcrumb? scrubBreadcrumb(Breadcrumb? breadcrumb, Hint hint) =>
 
 bool _isAllowedBreadcrumb(Breadcrumb breadcrumb) {
   if (breadcrumb.category != sentryBreadcrumbCategory) {
+    return false;
+  }
+  final message = breadcrumb.message;
+  if (message != null && !logEventNames.contains(message)) {
     return false;
   }
   final data = breadcrumb.data;

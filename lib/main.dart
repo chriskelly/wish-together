@@ -2,7 +2,6 @@ import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart'
     show
-        debugPrint,
         defaultTargetPlatform,
         kDebugMode,
         kIsWeb,
@@ -41,13 +40,32 @@ void main() async {
   usePathUrlStrategy();
   _deepLinks = DeepLinkService();
 
-  // No DSN means Sentry is never initialised: no SDK, no native handler, no
-  // network. The app then runs exactly the startup it ran before Sentry.
-  if (!sentryDsnConfigured(wtSentryDsn)) {
-    await _startUp();
+  await startWithDiagnostics(
+    dsn: wtSentryDsn,
+    start: () => _startUp(),
+    startWithSentry: _startWithSentry,
+  );
+}
+
+/// Pins the composition root's DSN decision.
+///
+/// An empty DSN means Sentry is never initialised: no SDK, no native handler,
+/// no network. Testing the branch itself — not only the predicate — is what
+/// keeps a future refactor from waking the SDK in tests and CI.
+@visibleForTesting
+Future<void> startWithDiagnostics({
+  required String dsn,
+  required Future<void> Function() start,
+  required Future<void> Function() startWithSentry,
+}) async {
+  if (!sentryDsnConfigured(dsn)) {
+    await start();
     return;
   }
+  await startWithSentry();
+}
 
+Future<void> _startWithSentry() async {
   final identity = await SentryStartup.readIdentity();
   final startup = SentryStartup.fromEnvironment(
     identity: identity,
@@ -181,11 +199,16 @@ Future<bool> Function()? _updateLauncher(String updateUrl) {
     try {
       final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!opened) {
-        debugPrint('App update gate: could not open $uri');
+        appLogOrNull?.event(
+          const UpdateGateEvent(
+            result: UpdateGateResult.blocked,
+            reason: 'store-not-opened',
+          ),
+        );
       }
       return opened;
-    } catch (error) {
-      debugPrint('App update gate: could not open $uri: $error');
+    } catch (error, stackTrace) {
+      appLogOrNull?.error(error, stackTrace, code: 'store-open-failed');
       return false;
     }
   };
@@ -201,6 +224,9 @@ Future<void> _activateAppCheck() async {
   }
   await FirebaseAppCheck.instance.activate(
     providerApple: const AppleDeviceCheckProvider(),
+  );
+  appLogOrNull?.event(
+    const AppCheckEvent(result: 'activated', provider: 'devicecheck'),
   );
 }
 

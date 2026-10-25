@@ -116,26 +116,7 @@ class AppLog {
   /// explicit code does not hide the structured one carried by the error. The
   /// error's `code` is read only when the explicit one cannot be used.
   static String? _codeFor(Object error, String? explicit) {
-    if (explicit != null && redactCode(explicit) != null) {
-      return explicit;
-    }
-    final mapped = _codeOf(error);
-    return mapped != null && redactCode(mapped) != null ? mapped : null;
-  }
-
-  /// Reads a `code` property without importing Firebase.
-  ///
-  /// The façade is deliberately dependency-free, so a
-  /// `FirebaseException.code` is picked up structurally. Anything that is not
-  /// a string is ignored, and `LogRecord` drops values that are not shaped
-  /// like a code.
-  static String? _codeOf(Object error) {
-    try {
-      final dynamic candidate = error;
-      final Object? code = candidate.code;
-      return code is String ? code : null;
-    } catch (_) {
-      return null;
-    }
+    final gated = explicit == null ? null : redactCode(explicit);
+    return gated ?? readErrorCode(error);
   }
 }

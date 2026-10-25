@@ -85,8 +85,9 @@ function runBlock({ workflow, stepName, scenario, expected = COMMITTED, expected
         [
           s.rc ?? 0,
           s.status ?? 200,
-          s.contentType ?? 'application/json',
+          s.omitContentType ? '-' : (s.contentType ?? 'application/json'),
           Buffer.from(s.body ?? '').toString('base64'),
+          s.extraContentType ?? '',
         ].join('|'),
       )
       .join('\n') + '\n',
@@ -104,7 +105,7 @@ n=$(( $(cat "$STUB_COUNTER" 2>/dev/null || echo 0) + 1 ))
 echo "$n" > "$STUB_COUNTER"
 line=$(sed -n "\${n}p" "$STUB_SCENARIO")
 if [ -z "$line" ]; then echo "stub: scenario exhausted" >&2; exit 99; fi
-IFS='|' read -r rc status ctype body64 <<< "$line"
+IFS='|' read -r rc status ctype body64 extra <<< "$line"
 connect=""; total=""; headers=""; bodypath=""
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -123,7 +124,12 @@ if [ "\${rc:-}" != "0" ]; then
   echo "curl: (\${rc:-?}) scripted transport failure" >&2
   exit "\${rc:-1}"
 fi
-printf 'HTTP/2 %s\\r\\ncontent-type: %s\\r\\n\\r\\n' "$status" "$ctype" > "$headers"
+{
+  printf 'HTTP/2 %s\\r\\n' "$status"
+  [ "$ctype" != "-" ] && printf 'content-type: %s\\r\\n' "$ctype"
+  [ -n "\${extra:-}" ] && printf 'content-type: %s\\r\\n' "$extra"
+  printf '\\r\\n'
+} > "$headers"
 printf '%s' "$body64" | base64 -d > "$bodypath"
 printf '%s' "$status"
 `,
@@ -140,7 +146,6 @@ printf '%s' "$status"
       encoding: 'utf8',
       timeout: 60_000,
       env: {
-        ...process.env,
         PATH: `${bin}:${process.env.PATH}`,
         HOME: process.env.HOME,
         RUNNER_TEMP: dir,
@@ -172,6 +177,7 @@ const TARGETS = [
     expectedPath: 'web/.well-known/apple-app-site-association',
     kind: 'committed',
     url: { PREVIEW_URL: 'https://preview.example/' },
+    noSlashUrl: { PREVIEW_URL: 'https://preview.example' },
   },
   {
     workflow: 'deploy-staging.yml',
@@ -179,6 +185,7 @@ const TARGETS = [
     expectedPath: 'staging/build/web/.well-known/apple-app-site-association',
     kind: 'built',
     url: { STAGING_URL: 'https://staging.example/' },
+    noSlashUrl: { STAGING_URL: 'https://staging.example' },
   },
 ];
 
@@ -250,10 +257,43 @@ for (const target of TARGETS) {
     assert.equal(r.status, 0, r.output);
   });
 
-  test(`${target.workflow}: an application/jsonp content type is rejected`, (t) => {
-    const r = run(repeat(6, { status: 200, contentType: 'application/jsonp', body: COMMITTED }), { t });
+  test(`${target.workflow}: json-like content types are rejected`, (t) => {
+    for (const contentType of ['application/jsonp', 'application/json-seq']) {
+      const r = run(repeat(6, { status: 200, contentType, body: COMMITTED }), { t });
+      assert.equal(r.status, 1, contentType);
+      assert.match(r.output, new RegExp(`content-type is ${contentType.replace('/', '\\/')}`));
+    }
+  });
+
+  test(`${target.workflow}: a missing or duplicated content type fails closed`, (t) => {
+    for (const scenario of [
+      { status: 200, body: COMMITTED, omitContentType: true },
+      { status: 200, body: COMMITTED, extraContentType: 'application/json' },
+    ]) {
+      const r = run(repeat(6, scenario), { t });
+      assert.equal(r.status, 1, JSON.stringify(scenario));
+      assert.match(r.output, /content-type header is missing or duplicated/);
+    }
+  });
+
+  test(`${target.workflow}: a base URL without a trailing slash still works`, (t) => {
+    const r = run([ok], { t, url: target.noSlashUrl });
+    assert.equal(r.status, 0, r.output);
+    const base = Object.values(target.noSlashUrl)[0];
+    assert.deepEqual(r.urls, [`${base}/.well-known/apple-app-site-association`]);
+  });
+
+  test(`${target.workflow}: an empty source file fails fast`, (t) => {
+    const r = run([ok], { t, expected: '  \n' });
     assert.equal(r.status, 1);
-    assert.match(r.output, /content-type is application\/jsonp/);
+    assert.equal(r.requests, 0);
+    assert.match(r.output, /is not valid JSON/);
+  });
+
+  test(`${target.workflow}: a whitespace-only body is not valid JSON`, (t) => {
+    const r = run(repeat(6, { status: 200, body: '  \n' }), { t });
+    assert.equal(r.status, 1);
+    assert.match(r.output, /body is not valid JSON/);
   });
 
   test(`${target.workflow}: a re-serialised body passes (normalised equality)`, (t) => {

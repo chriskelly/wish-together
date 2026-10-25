@@ -287,7 +287,7 @@ jobs:
             echo "::error::$expected_src is missing"
             exit 1
           fi
-          if ! jq -S . "$expected_src" > "$expected"; then
+          if ! jq -S . "$expected_src" > "$expected" || [ ! -s "$expected" ]; then
             echo "::error::$expected_src is not valid JSON"
             exit 1
           fi
@@ -323,11 +323,14 @@ jobs:
             elif [ "$http_status" != "200" ]; then
               cause="http"
               reason="HTTP $http_status"
+            elif [ "$(grep -ic '^content-type:' "$headers")" -ne 1 ]; then
+              cause="ctype"
+              reason="content-type header is missing or duplicated"
             elif ! grep -qiE '^content-type:[[:space:]]*application/json[[:space:]]*(;.*)?$' "$headers"; then
               cause="ctype"
               ctype=$(grep -i '^content-type:' "$headers" | tr -d '\r' | sed 's/^[^:]*: *//' || true)
               reason="content-type is ${ctype:-missing}"
-            elif [ ! -s "$body" ] || ! jq -S . "$body" > "$body_norm" 2>/dev/null; then
+            elif [ ! -s "$body" ] || ! jq -S . "$body" > "$body_norm" 2>/dev/null || [ ! -s "$body_norm" ]; then
               cause="json"
               reason="body is not valid JSON"
             elif ! diff -q "$expected" "$body_norm" >/dev/null; then

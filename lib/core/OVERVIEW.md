@@ -85,7 +85,7 @@ Firebase, so an iOS link received while startup is still working is queued. It t
 build-identity read and initializes Firebase concurrently (the iOS package-info call overlaps
 init), builds the launch diagnostics (`SessionContext`,
 `AppLog`, `ConsoleSink`, and `SentrySink` when a DSN is configured), registers the log in the
-locator, installs the global error handlers, activates App Check, and asks `AppUpdateService`
+locator, activates App Check, and asks `AppUpdateService`
 whether the running build is still supported. If it is, `_startApp` takes the queued link (if
 any), seeds the session route and emits `sessionStart`, mounts
 `createRouter(getIt<AuthService>(), initialLocation: …)` via `MaterialApp.router`, and attaches

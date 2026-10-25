@@ -114,6 +114,10 @@ SentryEvent? scrubEvent(SentryEvent event, Hint hint) {
   if (extra != null && !extra.keys.every(logRecordKeys.contains)) {
     return null;
   }
+  // Flutter's error-details context carries the informationCollector output:
+  // free diagnostic text that can quote a controller value (the typed name) or
+  // a text span. It is not a §4.3 field, so it never ships.
+  event.contexts.remove('flutter_error_details');
   // A request carries the endpoint and, on some platforms, an IP.
   event.request = null;
   // The SDK materialises an exception's `toString()` into `value` before this

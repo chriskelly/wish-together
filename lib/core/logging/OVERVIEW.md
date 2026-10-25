@@ -65,6 +65,7 @@ Sentry sink, its policy and the startup wiring are the files that know about the
   `LogRecord` carries the snapshot from when it was emitted.
 - **`ConsoleSink(enabled: …)` takes the debug gate as an argument** (the composition root
   passes `kDebugMode`), so the branch is testable in a VM test. Release builds pass `false`.
+- No barrel file: import the concrete path (`package:wishtogether/core/logging/app_log.dart`).
 - **Every record is a Sentry breadcrumb; only the diagnostic families are events.**
   `ErrorEvent` → `error`; `FirestoreErrorEvent`, a failed `AuthStateEvent` and an
   `UpdateGateEvent` with `result: failedOpen` → `warning`; everything else → `info`, breadcrumb
@@ -73,8 +74,10 @@ Sentry sink, its policy and the startup wiring are the files that know about the
   needs to find afterwards.
 - **`beforeBreadcrumb` keeps only category `applog`.** An SDK breadcrumb (an HTTP URL, a
   lifecycle event) cannot carry an id or free text into the store. `beforeSend` drops an event
-  whose tags or extra carry a key outside `logRecordKeys`, nulls the request, reduces the user
-  to a validated `SentryUser(id:)`, strips every exception's `value`, and keeps a message only
+  whose tags or extra carry a key outside `logRecordKeys`, removes the
+  `flutter_error_details` context (its `informationCollector` text can quote a typed name or a
+  text span), nulls the request, reduces the user to a validated `SentryUser(id:)`, strips
+  every exception's `value`, and keeps a message only
   when the event carries this app's `event` tag — a zone or native error has no such tag, so its
   `toString()` never ships. That last part matters on **web**: `sentry_flutter`
   runs the app runner inside its own `runZonedGuarded` there, materialises an uncaught error's

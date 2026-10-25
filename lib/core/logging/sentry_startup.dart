@@ -27,8 +27,8 @@ const String debugEnvironment = 'debug';
 
 /// Whether a configured DSN should start Sentry.
 ///
-/// Whitespace is absent, not a DSN: the composition root and `SentryStartup`
-/// share this one predicate.
+/// Whitespace is absent, not a DSN; the composition root gates on this
+/// predicate.
 bool sentryDsnConfigured(String dsn) => dsn.trim().isNotEmpty;
 
 /// The `platform` tag value: `web`, `ios`, `android`, …
@@ -113,8 +113,6 @@ class SentryStartup {
   final String dsn;
   final String environment;
   final BuildIdentity identity;
-
-  bool get enabled => sentryDsnConfigured(dsn);
 
   /// True for the pre-merge host, which deploys without a release.
   bool get isStaging => environment == stagingEnvironment;

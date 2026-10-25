@@ -355,7 +355,9 @@ jobs:
             case "$cause" in
               curl) ;;
               http) ;;
-              ctype) grep -i '^content-type:' "$headers" | tr -d '\r' | head -c 200 || true ;;
+              ctype) grep -i '^content-type:' "$headers" | tr -d '\000-\010\013-\037' | head -c 200 || true ;;
+              # Drop control bytes but keep TAB and LF, so the excerpt stays readable;
+              # CR and ESC must never reach the log or an annotation.
               json) head -c 500 "$body" 2>/dev/null | tr -d '\000-\010\013-\037' | sed 's/^/  /' || true; echo ;;
               body) diff -u "$expected" "$body_norm" 2>/dev/null | sed 's/^/  /' | head -c 4000 || true ;;
               *) echo "unclassified failure" ;;

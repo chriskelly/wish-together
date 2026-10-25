@@ -62,7 +62,7 @@ function stepScript(workflow, stepName) {
 const toolPathWithoutJq = (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'no-jq-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  for (const tool of ['bash', 'sh', 'env', 'sed', 'tr', 'head', 'grep', 'diff', 'base64', 'sleep', 'cat']) {
+  for (const tool of ['bash', 'sh', 'env', 'sed', 'tr', 'head', 'grep', 'diff', 'base64', 'sleep']) {
     const found = spawnSync('sh', ['-c', `command -v ${tool}`], { encoding: 'utf8' }).stdout.trim();
     if (found) symlinkSync(found, join(dir, tool));
   }
@@ -319,6 +319,7 @@ for (const target of TARGETS) {
   test(`${target.workflow}: a zero-byte body is not valid JSON`, (t) => {
     const r = run(repeat(ATTEMPTS, { status: 200, body: '' }), { t });
     assert.equal(r.status, 1);
+    assert.equal(r.requests, ATTEMPTS);
     assert.match(r.output, /body is not valid JSON/);
   });
 
@@ -358,6 +359,24 @@ for (const target of TARGETS) {
     assert.match(r.output, /::error::/);
     assert.match(r.output, new RegExp(`content-type is ${HTML_TYPE.replace('/', '\\/')}`));
     assert.match(r.output, new RegExp(`^content-type: ${HTML_TYPE}`, 'im'), 'the header dump is not printed');
+    assert.doesNotMatch(r.output, /\r/, 'a CR survived the diagnostic');
+  });
+
+  test(`${target.workflow}: a hostile content type is sanitised and bounded`, (t) => {
+    const hostile = `text/plain${'x'.repeat(400)}\u001b[31m`;
+    const r = run(repeat(ATTEMPTS, { status: 200, contentType: hostile, body: COMMITTED }), { t });
+    assert.equal(r.status, 1);
+    assert.doesNotMatch(r.output, /\u001b/, 'an escape sequence reached the log');
+    assert.doesNotMatch(r.output, /\r/, 'a CR survived the diagnostic');
+    const longest = Math.max(...r.output.split('\n').map((l) => l.length));
+    assert.ok(longest < 400, `unbounded diagnostic line (${longest} chars)`);
+  });
+
+  test(`${target.workflow}: an escape sequence in the body excerpt is sanitised`, (t) => {
+    const r = run(repeat(ATTEMPTS, { status: 200, contentType: 'application/json', body: '\u001b[31mboom' }), { t });
+    assert.equal(r.status, 1);
+    assert.doesNotMatch(r.output, /\u001b/, 'an escape sequence reached the log');
+    assert.ok(r.output.includes('boom'));
   });
 
   test(`${target.workflow}: a non-JSON body is reported as such, not as a diff`, (t) => {

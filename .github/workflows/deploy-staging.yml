@@ -274,31 +274,77 @@ jobs:
           url="${STAGING_URL}/.well-known/apple-app-site-association"
           headers="$RUNNER_TEMP/aasa.headers"
           body="$RUNNER_TEMP/aasa.json"
-          status=""
-          matched=""
-          for _ in 1 2 3 4 5; do
-            # A failed transfer counts against the same budget (a bare
-            # assignment would abort the step under `bash -e` before the retry).
-            status=$(curl -sS -D "$headers" -o "$body" -w '%{http_code}' "$url") \
-              || status="curl-exit-$?"
-            if [ "$status" = "200" ] \
-              && grep -qi '^content-type: *application/json' "$headers" \
-              && diff -q \
-                <(jq -S . staging/build/web/.well-known/apple-app-site-association) \
-                <(jq -S . "$body") >/dev/null; then
-              matched=1
-              break
-            fi
-            sleep 5
-          done
-          if [ -z "$matched" ]; then
-            echo "::error::Staging AASA is not the built narrow file (last HTTP $status)"
-            diff -u \
-              <(jq -S . staging/build/web/.well-known/apple-app-site-association) \
-              <(jq -S . "$body") || true
+          body_norm="$RUNNER_TEMP/aasa.body.json"
+          expected="$RUNNER_TEMP/aasa.expected.json"
+          expected_src="staging/build/web/.well-known/apple-app-site-association"
+          attempts=5
+
+          # See ci-web: the committed file is normalised once and must be valid JSON.
+          if ! jq -Se . "$expected_src" > "$expected"; then
+            echo "::error::$expected_src is not valid JSON"
             exit 1
           fi
 
+          # A freshly deployed site can 404 (or still serve the previous file) while the
+          # CDN catches up, so each attempt re-evaluates all three assertions. A failed
+          # transfer counts against the same budget, and each request is bounded.
+          matched=""
+          curl_rc=0
+          http_status=""
+          reason=""
+          for attempt in $(seq "$attempts"); do
+            : > "$headers"
+            : > "$body"
+            if out=$(curl -sS --connect-timeout 3 --max-time 10 \
+              -H 'Cache-Control: no-cache' \
+              -D "$headers" -o "$body" -w '%{http_code}' "$url"); then
+              curl_rc=0
+              http_status="$out"
+            else
+              curl_rc=$?
+              http_status=""
+            fi
+
+            if [ "$curl_rc" -ne 0 ]; then
+              reason="request failed (curl exit $curl_rc)"
+            elif [ "$http_status" != "200" ]; then
+              reason="HTTP $http_status"
+            elif ! grep -qi '^content-type: *application/json' "$headers"; then
+              reason="content-type is not application/json"
+            elif ! jq -Se . "$body" > "$body_norm" 2>/dev/null \
+              || ! diff -q "$expected" "$body_norm" >/dev/null; then
+              reason="body does not match the built file"
+            else
+              matched=1
+              break
+            fi
+
+            if [ "$attempt" -lt "$attempts" ]; then
+              echo "Staging AASA not served correctly yet ($reason); retrying in 5 s..."
+              sleep 5
+            fi
+          done
+
+          if [ -z "$matched" ]; then
+            if [ "$curl_rc" -ne 0 ]; then
+              echo "::error::Staging AASA request failed on all $attempts attempts (curl exit $curl_rc)"
+              exit 1
+            fi
+            if [ "$http_status" != "200" ]; then
+              echo "::error::Staging AASA returned HTTP $http_status after $attempts attempts"
+              exit 1
+            fi
+            if ! grep -qi '^content-type: *application/json' "$headers"; then
+              echo "::error::Staging AASA is not served as application/json"
+              grep -i '^content-type:' "$headers" || true
+              exit 1
+            fi
+            echo "::error::Staging AASA is not the built narrow file"
+            if jq -Se . "$body" > "$body_norm" 2>/dev/null; then
+              diff -u "$expected" "$body_norm" || true
+            fi
+            exit 1
+          fi
       - name: Summarize
         env:
           # Passed via env, never interpolated into `run:` (expression injection).

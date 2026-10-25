@@ -100,36 +100,71 @@ jobs:
           url="${PREVIEW_URL%/}/.well-known/apple-app-site-association"
           headers="$RUNNER_TEMP/aasa.headers"
           body="$RUNNER_TEMP/aasa.json"
-          # A freshly deployed channel can 404 (or still serve the previous
-          # file) for a few seconds while the CDN catches up, so retry for
-          # ~30 s before calling it a regression. What is asserted does not
-          # change, only when: same status, content-type and body.
+          body_norm="$RUNNER_TEMP/aasa.body.json"
+          expected="$RUNNER_TEMP/aasa.expected.json"
+          expected_src="web/.well-known/apple-app-site-association"
+          attempts=6
+
+          # Normalise the committed file once, and fail fast if it is not JSON: a
+          # corrupt file must not normalise to the same empty output as an unparseable
+          # response and compare equal.
+          if ! jq -Se . "$expected_src" > "$expected"; then
+            echo "::error::$expected_src is not valid JSON"
+            exit 1
+          fi
+
+          # A freshly deployed channel can 404 (or still serve the previous file) while
+          # the CDN catches up, so each attempt re-evaluates all three assertions for
+          # about 25 s of sleeps before the failure is reported. A failed transfer
+          # (curl non-zero) counts against the same budget: under `bash -e` a bare
+          # assignment would abort the step before the retry. Each request is bounded
+          # (3 s connect, 10 s total), so even six hung attempts finish in under 90 s.
           matched=""
-          status=""
-          for attempt in 1 2 3 4 5 6; do
-            # A failed transfer counts against the same budget: under
-            # `bash -e` a bare assignment would abort the step before the
-            # retry, so a refused connection or a reset would redden the PR
-            # without ever reaching the assertions below.
-            status=$(curl -sS -D "$headers" -o "$body" -w '%{http_code}' "$url") \
-              || status="curl-exit-$?"
-            if [ "$status" = "200" ] \
-              && grep -qi '^content-type: *application/json' "$headers" \
-              && diff -q \
-                <(jq -S . web/.well-known/apple-app-site-association) \
-                <(jq -S . "$body") >/dev/null; then
+          curl_rc=0
+          http_status=""
+          reason=""
+          for attempt in $(seq "$attempts"); do
+            # Truncate first, so a failed transfer cannot leave a previous attempt's
+            # response behind to be reported or compared.
+            : > "$headers"
+            : > "$body"
+            if out=$(curl -sS --connect-timeout 3 --max-time 10 \
+              -H 'Cache-Control: no-cache' \
+              -D "$headers" -o "$body" -w '%{http_code}' "$url"); then
+              curl_rc=0
+              http_status="$out"
+            else
+              curl_rc=$?
+              http_status=""
+            fi
+
+            if [ "$curl_rc" -ne 0 ]; then
+              reason="request failed (curl exit $curl_rc)"
+            elif [ "$http_status" != "200" ]; then
+              reason="HTTP $http_status"
+            elif ! grep -qi '^content-type: *application/json' "$headers"; then
+              reason="content-type is not application/json"
+            elif ! jq -Se . "$body" > "$body_norm" 2>/dev/null \
+              || ! diff -q "$expected" "$body_norm" >/dev/null; then
+              reason="body does not match the committed file"
+            else
               matched=1
               break
             fi
-            if [ "$attempt" -lt 6 ]; then
-              echo "AASA not served correctly yet (HTTP $status); retrying in 5 s..."
+
+            if [ "$attempt" -lt "$attempts" ]; then
+              echo "AASA not served correctly yet ($reason); retrying in 5 s..."
               sleep 5
             fi
           done
 
           if [ -z "$matched" ]; then
-            if [ "$status" != "200" ]; then
-              echo "::error::AASA returned HTTP $status after 6 attempts"
+            if [ "$curl_rc" -ne 0 ]; then
+              echo "::error::AASA request failed on all $attempts attempts (curl exit $curl_rc)"
+              exit 1
+            fi
+            if [ "$http_status" != "200" ]; then
+              echo "::error::AASA returned HTTP $http_status after $attempts attempts"
               exit 1
             fi
             if ! grep -qi '^content-type: *application/json' "$headers"; then
@@ -138,12 +173,11 @@ jobs:
               exit 1
             fi
             echo "::error::AASA does not match the committed file"
-            diff -u \
-              <(jq -S . web/.well-known/apple-app-site-association) \
-              <(jq -S . "$body") || true
+            if jq -Se . "$body" > "$body_norm" 2>/dev/null; then
+              diff -u "$expected" "$body_norm" || true
+            fi
             exit 1
           fi
-
       - name: Comment the preview URL on the PR
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/github-script@v9

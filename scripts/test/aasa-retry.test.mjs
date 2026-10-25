@@ -170,13 +170,15 @@ const TARGETS = [
     workflow: 'ci-web.yml',
     stepName: 'Verify the AASA on the preview',
     expectedPath: 'web/.well-known/apple-app-site-association',
+    kind: 'committed',
     url: { PREVIEW_URL: 'https://preview.example/' },
   },
   {
     workflow: 'deploy-staging.yml',
     stepName: 'Verify the staging AASA is served',
     expectedPath: 'staging/build/web/.well-known/apple-app-site-association',
-    url: { STAGING_URL: 'https://staging.example' },
+    kind: 'built',
+    url: { STAGING_URL: 'https://staging.example/' },
   },
 ];
 
@@ -208,9 +210,9 @@ for (const target of TARGETS) {
     assert.equal(r.status, 1);
     assert.equal(r.requests, 6);
     assert.equal(r.sleeps.length, 5);
+    assert.match(r.output, /::error::/);
     assert.match(r.output, /last failure: HTTP 404/);
     assert.deepEqual(r.sleeps, Array(5).fill('5'));
-    assert.ok(r.bounds.length * 10 + r.sleeps.length * 5 <= 85, 'the budget is not bounded by 85 s');
   });
 
   test(`${target.workflow}: a stalled connection that clears is retried`, (t) => {
@@ -223,6 +225,7 @@ for (const target of TARGETS) {
     const r = run(repeat(6, noConnection), { t });
     assert.equal(r.status, 1);
     assert.equal(r.requests, 6);
+    assert.match(r.output, /::error::/);
     assert.match(r.output, /last failure: request failed with curl exit 7/);
     assert.doesNotMatch(r.output, /HTTP curl/);
   });
@@ -231,6 +234,26 @@ for (const target of TARGETS) {
     const r = run([{ status: 200, body: OTHER }, ok], { t });
     assert.equal(r.status, 0, r.output);
     assert.equal(r.requests, 2);
+  });
+
+  test(`${target.workflow}: a persistent body mismatch fails with the wording for its target`, (t) => {
+    const r = run(repeat(6, { status: 200, body: OTHER }), { t });
+    assert.equal(r.status, 1);
+    assert.equal(r.requests, 6);
+    assert.match(r.output, /::error::/);
+    assert.match(r.output, new RegExp(`last failure: body does not match the ${target.kind} file`));
+    assert.match(r.output, /^--- /m, 'the diff is not printed');
+  });
+
+  test(`${target.workflow}: a JSON content type with parameters is accepted`, (t) => {
+    const r = run([{ status: 200, contentType: 'application/json; charset=utf-8', body: RESERIALISED }], { t });
+    assert.equal(r.status, 0, r.output);
+  });
+
+  test(`${target.workflow}: an application/jsonp content type is rejected`, (t) => {
+    const r = run(repeat(6, { status: 200, contentType: 'application/jsonp', body: COMMITTED }), { t });
+    assert.equal(r.status, 1);
+    assert.match(r.output, /content-type is application\/jsonp/);
   });
 
   test(`${target.workflow}: a re-serialised body passes (normalised equality)`, (t) => {
@@ -242,12 +265,15 @@ for (const target of TARGETS) {
   test(`${target.workflow}: a wrong content type fails and names it`, (t) => {
     const r = run(repeat(6, { status: 200, contentType: 'text/html', body: COMMITTED }), { t });
     assert.equal(r.status, 1);
+    assert.match(r.output, /::error::/);
     assert.match(r.output, /content-type is text\/html/);
+    assert.match(r.output, /^content-type: text\/html/im, 'the header dump is not printed');
   });
 
   test(`${target.workflow}: a non-JSON body is reported as such, not as a diff`, (t) => {
     const r = run(repeat(6, { status: 200, contentType: 'application/json', body: '<html>oops' }), { t });
     assert.equal(r.status, 1);
+    assert.match(r.output, /::error::/);
     assert.match(r.output, /body is not valid JSON/);
     assert.match(r.output, /<html>oops/);
     assert.doesNotMatch(r.output, /does not match/);
@@ -267,9 +293,13 @@ for (const target of TARGETS) {
     assert.match(r.output, /is missing/);
   });
 
-  test(`${target.workflow}: every request is time-bounded`, (t) => {
+  test(`${target.workflow}: every request is time-bounded and the total budget holds`, (t) => {
     const r = run(repeat(6, noConnection), { t });
     assert.equal(r.bounds.length, 6);
     for (const bound of r.bounds) assert.equal(bound, '3 10');
+    const seconds =
+      r.bounds.reduce((sum, b) => sum + Number(b.split(' ')[1] ?? 0), 0) +
+      r.sleeps.reduce((sum, s) => sum + Number(s), 0);
+    assert.ok(seconds <= 85, `the retry budget is ${seconds}s, over the 85s bound`);
   });
 }

@@ -271,7 +271,7 @@ jobs:
 
       - name: Verify the staging AASA is served
         run: |
-          url="${STAGING_URL}/.well-known/apple-app-site-association"
+          url="${STAGING_URL%/}/.well-known/apple-app-site-association"
           headers="$RUNNER_TEMP/aasa.headers"
           body="$RUNNER_TEMP/aasa.json"
           body_norm="$RUNNER_TEMP/aasa.body.norm.json"
@@ -287,7 +287,7 @@ jobs:
             echo "::error::$expected_src is missing"
             exit 1
           fi
-          if ! jq -Se . "$expected_src" > "$expected"; then
+          if ! jq -S . "$expected_src" > "$expected"; then
             echo "::error::$expected_src is not valid JSON"
             exit 1
           fi
@@ -323,7 +323,7 @@ jobs:
             elif [ "$http_status" != "200" ]; then
               cause="http"
               reason="HTTP $http_status"
-            elif ! grep -qi '^content-type: *application/json' "$headers"; then
+            elif ! grep -qiE '^content-type:[[:space:]]*application/json[[:space:]]*(;.*)?$' "$headers"; then
               cause="ctype"
               ctype=$(grep -i '^content-type:' "$headers" | tr -d '\r' | sed 's/^[^:]*: *//' || true)
               reason="content-type is ${ctype:-missing}"

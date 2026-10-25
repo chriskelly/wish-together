@@ -9,6 +9,8 @@ is a feature; features import from `core/`.
 - Navigation and the auth/onboarding redirect contract (`router.dart`).
 - Dependency wiring (`service_locator.dart`).
 - App theming (`theme.dart`).
+- The reporting façade (`logging/`) — typed events, identifier derivation, and the
+  breadcrumb allowlist; see `logging/OVERVIEW.md`.
 
 ## Key types
 
@@ -17,6 +19,7 @@ is a feature; features import from `core/`.
 | `FirebaseRepository<T>` | `data/firebase_repository.dart` | Abstract base for feature repositories. |
 | `resolveFirestoreDatabaseId` / `createFirestoreInstance` | `firestore_target.dart` | Build-time Firestore database selection (`WT_FIRESTORE_DATABASE`). |
 | `createRouter(AuthService, {UserRepository?, String? initialLocation})` / `handleRedirect(...)` | `router.dart` | The `go_router` graph and the redirect contract. |
+| `AppLog` / `LogSink` / `SessionContext` / `AppEvent` / `LogRecord` | `logging/` | The dependency-free reporting seam, its typed vocabulary, and the §4.3 allowlist (`logging/OVERVIEW.md`). |
 | `appOrigin` / `locationFromUniversalLink(...)` | `app_urls.dart` | Canonical URL and the allowlisted Universal-Link → location mapping. |
 | `DeepLinkService` | `deep_links.dart` | iOS link delivery (`app_links`) with a startup queue and a warm-link callback. |
 | `setupServiceLocator()` / `getIt` | `service_locator.dart` | Registers repositories and use cases as lazy singletons. |
@@ -96,3 +99,6 @@ the queued link (if any), mounts `createRouter(getIt<AuthService>(), initialLoca
   the no-replay rule.
 - `test/core/deep_link_config_test.dart` pins the AASA content, both hosting AASA settings,
   the entitlements split, and the disabled engine handler.
+- `test/core/logging/` pins the reporting façade with fake sinks: the Crockford session id and
+  support code, `user_ref` hashing, route/collection/code redaction, the allowlisted wire keys,
+  the 30-record breadcrumb cap, error-message suppression, and `ConsoleSink`'s injected gate.

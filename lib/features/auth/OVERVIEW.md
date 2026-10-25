@@ -80,8 +80,9 @@ profile).
   they save a name on `ProfilePage`.
 - **`ProfilePage` offers a non-saving exit to an existing user, and none to a new one.** The
   AppBar's back arrow is gated by `shouldShowProfileBackButton`, which applies the same rule the
-  router uses for onboarding — an empty `displayName` — and stays hidden while the profile
-  loads, so the arrow is never offered where the redirect would only send the user back.
+  router uses for onboarding — an empty `displayName` — and is offered only for a **loaded**
+  profile (`ProfileLoadState.loaded`), so the arrow is never offered where the redirect would
+  only send the user back, and never on the strength of a read that has not succeeded.
   It navigates with `context.go(profileExitTarget(redirectTo))` — the rule Save also uses, so
   the two exits cannot disagree — never `pop`, because `/profile` is a top-level route and both
   Home → Profile and a web deep link arrive with a one-deep stack. `profileExitTarget` falls
@@ -91,6 +92,15 @@ profile).
   `/join?group=123`; the value is still untrusted query input). The AppBar also sets
   `automaticallyImplyLeading: false` so a future `push` cannot put an automatic arrow on the
   onboarding state.
+- **A profile read that fails shows an error with Retry, never a spinner that never ends.**
+  `ProfilePage` models its single read as `ProfileLoadState` (`loading`, `loaded`, `failed`).
+  A throw from `LoadUserProfileUseCase` — which deliberately propagates rather than swallowing —
+  and a `null` result both become `failed`, which renders a message plus a **Try again** action
+  and nothing else: no form, no Save, no delete-account section, no back arrow. Retry returns to
+  `loading` and re-reads; a success renders the form normally. Retries are unlimited and always
+  user-initiated (no automatic retry or backoff), because a cap would turn a recoverable page
+  into a dead end. The AppBar title is `Profile` while loading or failed, since only a loaded
+  profile knows whether the user is new.
 - The default wishlist is created only on the first save (when the prior `displayName`
   was empty), so it is not duplicated on later profile edits.
 - `google_sign_in_stub.dart` is a compile-time stub that `login_page.dart` falls back to on
@@ -211,8 +221,13 @@ validate it on the **staging** site (or live) with a throwaway account for each 
 - `test/features/auth/presentation/login_page_test.dart` — the
   `shouldShowAppleSignInButton` platform-gate truth table (iOS shows; web, Android, macOS hide).
 - `test/features/auth/presentation/profile_page_test.dart` — the profile page's exits:
-  `shouldShowProfileBackButton` (a new user and a still-loading profile get no arrow; a loaded
-  existing user does) and `profileExitTarget` (a `redirect_to` destination — including an
-  invitation path — is returned unchanged, with `/` as the fallback for absent, blank, or
-  self-referential values). The same helper drives Save's exit.
+  `shouldShowProfileBackButton` (a new user, a still-loading profile, and a failed read get no
+  arrow; a loaded existing user does), `profilePageTitle` (onboarding and edit titles only once
+  loaded), and `profileExitTarget` (a `redirect_to` destination — including an invitation path
+  — is returned unchanged, with `/` as the fallback for absent, blank, or self-referential
+  values). The same helper drives Save's exit. It also drives the page itself against a mocked
+  `LoadUserProfileUseCase` in `getIt` for the load states: a throw and a `null` result both show
+  the error with no back arrow, Save or delete section; a successful Retry renders the form
+  (with an arrow for an existing user, without one for a nameless user); a failed Retry keeps
+  Retry available; and a Retry in flight shows the spinner.
 - `test/core/router_test.dart` covers the auth redirect matrix.

@@ -1,36 +1,285 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:wishtogether/core/service_locator.dart';
+import 'package:wishtogether/features/auth/application/delete_account_use_case.dart';
+import 'package:wishtogether/features/auth/application/load_user_profile_use_case.dart';
+import 'package:wishtogether/features/auth/application/save_user_profile_use_case.dart';
+import 'package:wishtogether/features/auth/data/auth_service.dart';
+import 'package:wishtogether/features/auth/domain/user.dart';
 import 'package:wishtogether/features/auth/presentation/home_page.dart';
 import 'package:wishtogether/features/auth/presentation/profile_page.dart';
 import 'package:wishtogether/features/group/presentation/join_group_page.dart';
+
+/// Copy the profile page shows when it cannot read the profile.
+const loadFailedHeadline = 'Could not load your profile.';
+const loadFailedGuidance = 'Check your connection and try again.';
+const retryLabel = 'Try again';
+
+class MockAuthService extends Mock implements AuthService {}
+
+class MockLoadUserProfileUseCase extends Mock
+    implements LoadUserProfileUseCase {}
 
 void main() {
   group('shouldShowProfileBackButton', () {
     test('offers the way out to a loaded existing user', () {
       expect(
-        shouldShowProfileBackButton(isLoading: false, isNewUser: false),
+        shouldShowProfileBackButton(
+          loadState: ProfileLoadState.loaded,
+          isNewUser: false,
+        ),
         isTrue,
       );
     });
 
     test('keeps a new user in onboarding', () {
       expect(
-        shouldShowProfileBackButton(isLoading: false, isNewUser: true),
+        shouldShowProfileBackButton(
+          loadState: ProfileLoadState.loaded,
+          isNewUser: true,
+        ),
         isFalse,
       );
     });
 
     test('waits for the profile to load', () {
       expect(
-        shouldShowProfileBackButton(isLoading: true, isNewUser: false),
+        shouldShowProfileBackButton(
+          loadState: ProfileLoadState.loading,
+          isNewUser: false,
+        ),
         isFalse,
       );
     });
 
     test('offers nothing while a new user is still loading', () {
       expect(
-        shouldShowProfileBackButton(isLoading: true, isNewUser: true),
+        shouldShowProfileBackButton(
+          loadState: ProfileLoadState.loading,
+          isNewUser: true,
+        ),
         isFalse,
       );
+    });
+
+    test('offers nothing after a failed load, even for an existing user', () {
+      expect(
+        shouldShowProfileBackButton(
+          loadState: ProfileLoadState.failed,
+          isNewUser: false,
+        ),
+        isFalse,
+      );
+    });
+  });
+
+  group('profilePageTitle', () {
+    test('titles a loaded new user with the welcome task', () {
+      expect(
+        profilePageTitle(loadState: ProfileLoadState.loaded, isNewUser: true),
+        'Create Your Profile',
+      );
+    });
+
+    test('titles a loaded existing user as an edit', () {
+      expect(
+        profilePageTitle(loadState: ProfileLoadState.loaded, isNewUser: false),
+        'Edit Profile',
+      );
+    });
+
+    test('stays neutral while the profile is loading', () {
+      expect(
+        profilePageTitle(loadState: ProfileLoadState.loading, isNewUser: true),
+        'Profile',
+      );
+    });
+
+    test('stays neutral after a failed load, where the user is unknown', () {
+      expect(
+        profilePageTitle(loadState: ProfileLoadState.failed, isNewUser: true),
+        'Profile',
+      );
+    });
+  });
+
+  group('ProfilePage', () {
+    late MockLoadUserProfileUseCase loadUserProfile;
+
+    setUp(() {
+      getIt.reset();
+      loadUserProfile = MockLoadUserProfileUseCase();
+      getIt.registerSingleton<LoadUserProfileUseCase>(loadUserProfile);
+      // The page resolves these while building the form; none of them run in
+      // these tests because the form is only ever rendered, never saved from.
+      getIt.registerSingleton<SaveUserProfileUseCase>(SaveUserProfileUseCase());
+      getIt.registerSingleton<AuthService>(MockAuthService());
+      getIt.registerSingleton<DeleteAccountUseCase>(DeleteAccountUseCase());
+    });
+
+    tearDown(getIt.reset);
+
+    Future<void> pumpProfilePage(WidgetTester tester) =>
+        tester.pumpWidget(const MaterialApp(home: ProfilePage()));
+
+    /// Fails every read the way an offline or permission-denied read does.
+    ///
+    /// The error is raised inside an async body so it arrives after
+    /// `initState`, exactly as production's async use case behaves.
+    void stubLoadFailure() {
+      when(() => loadUserProfile.execute())
+          .thenAnswer((_) async => throw Exception('offline'));
+    }
+
+    testWidgets('shows an error instead of an endless spinner', (tester) async {
+      // Arrange
+      stubLoadFailure();
+
+      // Act
+      await pumpProfilePage(tester);
+      await tester.pumpAndSettle();
+
+      // Assert
+      expect(find.text(loadFailedHeadline), findsOneWidget);
+      expect(find.text(loadFailedGuidance), findsOneWidget);
+      expect(find.text(retryLabel), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+    });
+
+    testWidgets('offers no exit from the error state except retry', (
+      tester,
+    ) async {
+      // Arrange
+      stubLoadFailure();
+      await pumpProfilePage(tester);
+      await tester.pumpAndSettle();
+
+      // Assert
+      expect(find.byType(BackButton), findsNothing);
+      expect(find.text('Save and Continue'), findsNothing);
+      expect(find.text('Delete account'), findsNothing);
+    });
+
+    testWidgets('treats a missing profile as a failed read', (tester) async {
+      // Arrange
+      when(() => loadUserProfile.execute()).thenAnswer((_) async => null);
+
+      // Act
+      await pumpProfilePage(tester);
+      await tester.pumpAndSettle();
+
+      // Assert
+      expect(find.text(loadFailedHeadline), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+    });
+
+    testWidgets('renders the profile after a successful retry', (tester) async {
+      // Arrange
+      const displayName = 'Grace Hopper';
+      final user = User(id: 'user-1', displayName: displayName);
+      var reads = 0;
+      when(() => loadUserProfile.execute()).thenAnswer((_) async {
+        reads++;
+        if (reads == 1) {
+          throw Exception('offline');
+        }
+        return user;
+      });
+      await pumpProfilePage(tester);
+      await tester.pumpAndSettle();
+
+      // Act
+      await tester.tap(find.text(retryLabel));
+      await tester.pumpAndSettle();
+
+      // Assert
+      expect(reads, 2);
+      expect(find.text(displayName), findsOneWidget);
+      expect(find.text('Save and Continue'), findsOneWidget);
+      expect(find.byType(BackButton), findsOneWidget);
+      expect(find.text(loadFailedHeadline), findsNothing);
+    });
+
+    testWidgets(
+      'keeps a nameless user in onboarding after a successful retry',
+      (tester) async {
+        // Arrange
+        final user = User(id: 'user-2');
+        var reads = 0;
+        when(() => loadUserProfile.execute()).thenAnswer((_) async {
+          reads++;
+          if (reads == 1) {
+            throw Exception('offline');
+          }
+          return user;
+        });
+        await pumpProfilePage(tester);
+        await tester.pumpAndSettle();
+
+        // Act
+        await tester.tap(find.text(retryLabel));
+        await tester.pumpAndSettle();
+
+        // Assert
+        expect(
+          find.text('Welcome! Please enter your name to continue.'),
+          findsOneWidget,
+        );
+        expect(find.byType(BackButton), findsNothing);
+      },
+    );
+
+    testWidgets('keeps the retry available when the retry also fails', (
+      tester,
+    ) async {
+      // Arrange
+      stubLoadFailure();
+      await pumpProfilePage(tester);
+      await tester.pumpAndSettle();
+
+      // Act
+      await tester.tap(find.text(retryLabel));
+      await tester.pumpAndSettle();
+
+      // Assert
+      expect(find.text(loadFailedHeadline), findsOneWidget);
+      expect(
+        tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
+        isNotNull,
+      );
+      verify(() => loadUserProfile.execute()).called(2);
+    });
+
+    testWidgets('shows the spinner while the retry is in flight', (
+      tester,
+    ) async {
+      // Arrange
+      final retry = Completer<User?>();
+      var reads = 0;
+      when(() => loadUserProfile.execute()).thenAnswer((_) {
+        reads++;
+        if (reads == 1) {
+          return Future<User?>.error(Exception('offline'));
+        }
+        return retry.future;
+      });
+      await pumpProfilePage(tester);
+      await tester.pumpAndSettle();
+
+      // Act
+      await tester.tap(find.text(retryLabel));
+      await tester.pump();
+
+      // Assert
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.text(loadFailedHeadline), findsNothing);
+
+      retry.complete(User(id: 'user-3', displayName: 'Ada Lovelace'));
+      await tester.pumpAndSettle();
+      expect(find.text('Ada Lovelace'), findsOneWidget);
     });
   });
 

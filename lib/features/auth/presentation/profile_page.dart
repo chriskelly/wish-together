@@ -12,8 +12,9 @@ import '../domain/user.dart';
 ///
 /// A read that throws and a read that finds no document both end in [failed]:
 /// waiting cannot clear either, and a permanent spinner would hide the Retry
-/// that can. Only [loaded] renders the form, so [loading] and [failed] offer
-/// no exit that leaves the page without a read that succeeded.
+/// that can. Only [loaded] renders the form; [loading] and [failed] show no
+/// form, no Save, no delete section and no back arrow, so the only way off the
+/// page is a read that succeeds.
 enum ProfileLoadState { loading, loaded, failed }
 
 /// The AppBar title for each load state.
@@ -108,8 +109,9 @@ class _ProfilePageState extends State<ProfilePage> {
     User? user;
     try {
       user = await _loadUserProfileUseCase.execute();
-    } catch (error) {
+    } catch (error, stackTrace) {
       debugPrint('Profile load failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
     }
     if (!mounted) return;
     if (user == null) {
@@ -181,10 +183,7 @@ class _ProfilePageState extends State<ProfilePage> {
       : null;
 
   /// The failed state: one icon, one headline, one line of guidance, one
-  /// action, in a scroll view so a small screen cannot clip the Retry. What
-  /// the surrounding page withholds in this state — the form, Save, the delete
-  /// section and the back arrow — is decided by [build]'s switch and
-  /// [shouldShowProfileBackButton], not here.
+  /// action, in a scroll view so a small screen cannot clip the Retry.
   Widget _loadErrorPanel(BuildContext context) {
     final theme = Theme.of(context);
     return Center(
@@ -237,8 +236,7 @@ class _ProfilePageState extends State<ProfilePage> {
         _saveButton(context),
         // The account exists as soon as the user signs in — even before they
         // have picked a display name — so deletion must be reachable whenever
-        // the profile has loaded. It is deliberately absent in the failed
-        // state, which offers nothing but Retry (see ProfileLoadState).
+        // the profile has loaded.
         const DeleteAccountSection(),
       ],
     ),

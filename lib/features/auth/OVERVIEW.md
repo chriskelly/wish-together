@@ -104,7 +104,9 @@ profile).
   Two consequences are accepted, not oversights: a read that never *completes* still spins,
   because nothing on this path has a timeout (the router's own `getOrCreateUser` read is
   equally unbounded), and account deletion — which lives in the form — is unreachable while the
-  read fails. The page recovers on the first read that succeeds.
+  read fails. Sign out lives only on `HomePage`, so an account whose read never succeeds has no
+  in-app way to sign out or switch account either. The page recovers on the first read that
+  succeeds.
 - The default wishlist is created only on the first save (when the prior `displayName`
   was empty), so it is not duplicated on later profile edits.
 - `google_sign_in_stub.dart` is a compile-time stub that `login_page.dart` falls back to on
@@ -234,5 +236,5 @@ validate it on the **staging** site (or live) with a throwaway account for each 
   arrow, Save or delete section; a `null` result shows the same error; a successful Retry
   renders the form (with an arrow for an existing user, without one for a nameless user); a
   failed Retry keeps Retry available; a double tap starts one read; a Retry in flight shows the
-  spinner; and a read that completes after the page is disposed raises nothing.
+  spinner; and a read that fails after the page is disposed raises nothing.
 - `test/core/router_test.dart` covers the auth redirect matrix.

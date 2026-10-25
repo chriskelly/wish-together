@@ -201,6 +201,7 @@ void main() {
       expect(find.text(displayName), findsOneWidget);
       expect(find.text('Save and Continue'), findsOneWidget);
       expect(find.byType(BackButton), findsOneWidget);
+      expect(find.text('Delete account'), findsWidgets);
       expect(find.text(loadFailedHeadline), findsNothing);
     });
 
@@ -258,6 +259,7 @@ void main() {
       tester,
     ) async {
       // Arrange
+      const displayName = 'Ada Lovelace';
       final retry = Completer<User?>();
       var reads = 0;
       when(() => loadUserProfile.execute()).thenAnswer((_) {
@@ -278,15 +280,16 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
       expect(find.text(loadFailedHeadline), findsNothing);
 
-      retry.complete(User(id: 'user-3', displayName: 'Ada Lovelace'));
+      retry.complete(User(id: 'user-3', displayName: displayName));
       await tester.pumpAndSettle();
-      expect(find.text('Ada Lovelace'), findsOneWidget);
+      expect(find.text(displayName), findsOneWidget);
     });
 
     testWidgets('starts one read per retry, even on a double tap', (
       tester,
     ) async {
       // Arrange
+      const displayName = 'Ada Lovelace';
       final retry = Completer<User?>();
       var reads = 0;
       when(() => loadUserProfile.execute()).thenAnswer((_) {
@@ -302,18 +305,18 @@ void main() {
       // Act: both taps land before the frame that swaps the panel for the
       // spinner, so the second one hits a still-enabled Retry.
       await tester.tap(find.text(retryLabel));
-      await tester.tap(find.text(retryLabel), warnIfMissed: false);
+      await tester.tap(find.text(retryLabel));
       await tester.pump();
 
       // Assert
       expect(reads, 2);
 
-      retry.complete(User(id: 'user-4', displayName: 'Ada Lovelace'));
+      retry.complete(User(id: 'user-4', displayName: displayName));
       await tester.pumpAndSettle();
-      expect(find.text('Ada Lovelace'), findsOneWidget);
+      expect(find.text(displayName), findsOneWidget);
     });
 
-    testWidgets('leaves a disposed page alone when a read completes', (
+    testWidgets('leaves a disposed page alone when a read fails later', (
       tester,
     ) async {
       // Arrange

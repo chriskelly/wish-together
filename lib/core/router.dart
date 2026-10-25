@@ -1,6 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:wishtogether/core/logging/app_event.dart';
+import 'package:wishtogether/core/logging/app_log.dart';
+import 'package:wishtogether/core/logging/diagnostics.dart';
+import 'package:wishtogether/core/logging/redaction.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
@@ -27,7 +31,35 @@ class AuthListenable extends ChangeNotifier {
 
   AuthListenable(this.authService) {
     _stream = authService.authStateChanges;
-    _stream.listen((user) => notifyListeners());
+    _stream.listen(_handleAuthChange);
+  }
+
+  /// Owns the auth transition: derives the user reference and reports the
+  /// outcome on every change, including sign-out.
+  ///
+  /// Tolerates a missing [AppLog] because `createRouter` is called by tests
+  /// that register only a `UserRepository`.
+  void _handleAuthChange(firebase_auth.User? user) {
+    try {
+      final log = appLogOrNull;
+      if (log != null) {
+        log.setUserRef(user?.uid);
+        final outcome = authOutcomeFor(
+          signedIn: user != null,
+          providerIds:
+              user?.providerData
+                  .map((info) => info.providerId)
+                  .toList(growable: false) ??
+              const <String>[],
+        );
+        if (outcome != null) {
+          log.event(AuthStateEvent(outcome: outcome));
+        }
+      }
+    } catch (_) {
+      // Diagnostics must never stop the router refreshing.
+    }
+    notifyListeners();
   }
 }
 
@@ -39,6 +71,44 @@ class AuthListenable extends ChangeNotifier {
 UserRepository resolveUserRepository([UserRepository? injected]) =>
     injected ?? getIt<UserRepository>();
 
+/// Records one `routeChanged` per router location change.
+///
+/// `GoRouter.observers` only sees Navigator push/pop, so `go()`, redirects and
+/// deep links would be invisible there. The route-information notifier fires
+/// for every location change; the last-pattern gate keeps this to one record
+/// per change and stops a redirect re-entry from double-logging. The limitation
+/// is that two different ids on the same route (`/wishlist/a` → `/wishlist/b`)
+/// are one record, by design: the reported value is the pattern.
+class RouteChangeRecorder {
+  RouteChangeRecorder._(this._router, this._log, this._lastPattern);
+
+  /// Starts recording; the listener lives with the router.
+  factory RouteChangeRecorder.attach({
+    required GoRouter router,
+    required AppLog log,
+  }) {
+    final recorder = RouteChangeRecorder._(router, log, _patternOf(router));
+    router.routeInformationProvider.addListener(recorder._onLocationChanged);
+    return recorder;
+  }
+
+  final GoRouter _router;
+  final AppLog _log;
+  String _lastPattern;
+
+  static String _patternOf(GoRouter router) =>
+      redactRoute(router.routeInformationProvider.value.uri.toString());
+
+  void _onLocationChanged() {
+    final pattern = _patternOf(_router);
+    if (pattern == _lastPattern) {
+      return;
+    }
+    _lastPattern = pattern;
+    _log.routeChanged(pattern);
+  }
+}
+
 GoRouter createRouter(
   AuthService authService, {
   UserRepository? userRepository,
@@ -48,11 +118,13 @@ GoRouter createRouter(
   // same database target as the rest of the app.
   final repository = resolveUserRepository(userRepository);
 
-  return GoRouter(
+  final router = GoRouter(
     initialLocation: initialLocation,
     refreshListenable: AuthListenable(authService),
     redirect: (BuildContext context, GoRouterState state) =>
         handleRedirect(state.uri.toString(), authService, userRepo: repository),
+    // `logRouteLiterals` mirrors these page path constants; the literal test in
+    // test/core/logging/route_literals_test.dart fails if one is missing.
     routes: <RouteBase>[
       homePageRoute(),
       loginPageRoute(),
@@ -63,6 +135,12 @@ GoRouter createRouter(
       joinGroupPageRoute(),
     ],
   );
+
+  final log = appLogOrNull;
+  if (log != null) {
+    RouteChangeRecorder.attach(router: router, log: log);
+  }
+  return router;
 }
 
 Future<String?> handleRedirect(

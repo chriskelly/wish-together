@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:wishtogether/common/widgets/support_code_tile.dart';
+import 'package:wishtogether/core/logging/diagnostics.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/application/load_user_profile_use_case.dart';
 import 'package:wishtogether/features/auth/application/save_user_profile_use_case.dart';
@@ -232,23 +234,30 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Form _profilePageForm(BuildContext context) => Form(
-    key: _formKey,
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _headerText(context),
-        const SizedBox(height: 20),
-        _nameTextFormField(),
-        const SizedBox(height: 30),
-        _saveButton(context),
-        // The account exists as soon as the user signs in — even before they
-        // have picked a display name — so deletion must be reachable whenever
-        // the profile has loaded.
-        const DeleteAccountSection(),
-      ],
-    ),
-  );
+  Form _profilePageForm(BuildContext context) {
+    final supportCode = appLogOrNull?.session.supportCode;
+    return Form(
+      key: _formKey,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _headerText(context),
+          const SizedBox(height: 20),
+          _nameTextFormField(),
+          const SizedBox(height: 30),
+          _saveButton(context),
+          // The account exists as soon as the user signs in — even before they
+          // have picked a display name — so deletion must be reachable whenever
+          // the profile has loaded.
+          const DeleteAccountSection(),
+          if (supportCode != null) ...[
+            const SizedBox(height: 16),
+            SupportCodeTile(supportCode: supportCode),
+          ],
+        ],
+      ),
+    );
+  }
 
   Text _headerText(BuildContext context) => Text(
     _isNewUser

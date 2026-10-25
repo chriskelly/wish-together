@@ -97,39 +97,44 @@ jobs:
         env:
           PREVIEW_URL: ${{ steps.preview.outputs.url }}
         run: |
-          url="${PREVIEW_URL%/}/.well-known/apple-app-site-association"
+          url="${URL_BASE}/.well-known/apple-app-site-association"
           headers="$RUNNER_TEMP/aasa.headers"
           body="$RUNNER_TEMP/aasa.json"
-          body_norm="$RUNNER_TEMP/aasa.body.json"
+          body_norm="$RUNNER_TEMP/aasa.body.norm.json"
           expected="$RUNNER_TEMP/aasa.expected.json"
           expected_src="web/.well-known/apple-app-site-association"
           attempts=6
+          connect_timeout=3
+          request_timeout=10
 
-          # Normalise the committed file once, and fail fast if it is not JSON: a
-          # corrupt file must not normalise to the same empty output as an unparseable
-          # response and compare equal.
+          # The committed file must be valid JSON before anything is compared: a corrupt
+          # file must not normalise to the same empty output as an unparseable response.
+          if [ ! -f "$expected_src" ]; then
+            echo "::error::$expected_src is missing"
+            exit 1
+          fi
           if ! jq -Se . "$expected_src" > "$expected"; then
             echo "::error::$expected_src is not valid JSON"
             exit 1
           fi
 
-          # A freshly deployed channel can 404 (or still serve the previous file) while
-          # the CDN catches up, so each attempt re-evaluates all three assertions for
-          # about 25 s of sleeps before the failure is reported. A failed transfer
-          # (curl non-zero) counts against the same budget: under `bash -e` a bare
-          # assignment would abort the step before the retry. Each request is bounded
-          # (3 s connect, 10 s total), so even six hung attempts finish in under 90 s.
+          # A freshly deployed channel can 404, or still serve the previous file, while
+          # the CDN catches up, so every assertion is re-evaluated on each attempt. A
+          # failed transfer (non-zero curl) counts against the same budget: under
+          # `bash -e` a bare assignment would abort before the retry. Every request is
+          # bounded (3 s connect, 10 s total), so even hung attempts cannot outlast the
+          # step: at most 85 s, sleeps included.
           matched=""
+          cause=""
+          reason=""
           curl_rc=0
           http_status=""
-          reason=""
-          for attempt in $(seq "$attempts"); do
-            # Truncate first, so a failed transfer cannot leave a previous attempt's
-            # response behind to be reported or compared.
+          for ((attempt = 1; attempt <= attempts; attempt++)); do
+            # Truncate first, so a failed transfer cannot leave an earlier response to
+            # be reported or compared.
             : > "$headers"
             : > "$body"
-            if out=$(curl -sS --connect-timeout 3 --max-time 10 \
-              -H 'Cache-Control: no-cache' \
+            if out=$(curl -sS --connect-timeout "$connect_timeout" --max-time "$request_timeout" \
               -D "$headers" -o "$body" -w '%{http_code}' "$url"); then
               curl_rc=0
               http_status="$out"
@@ -139,13 +144,20 @@ jobs:
             fi
 
             if [ "$curl_rc" -ne 0 ]; then
-              reason="request failed (curl exit $curl_rc)"
+              cause="curl"
+              reason="request failed with curl exit $curl_rc"
             elif [ "$http_status" != "200" ]; then
+              cause="http"
               reason="HTTP $http_status"
             elif ! grep -qi '^content-type: *application/json' "$headers"; then
-              reason="content-type is not application/json"
-            elif ! jq -Se . "$body" > "$body_norm" 2>/dev/null \
-              || ! diff -q "$expected" "$body_norm" >/dev/null; then
+              cause="ctype"
+              ctype=$(grep -i '^content-type:' "$headers" | tr -d '\r' | sed 's/^[^:]*: *//' || true)
+              reason="content-type is ${ctype:-missing}"
+            elif ! jq -Se . "$body" > "$body_norm" 2>/dev/null; then
+              cause="json"
+              reason="body is not valid JSON"
+            elif ! diff -q "$expected" "$body_norm" >/dev/null; then
+              cause="body"
               reason="body does not match the committed file"
             else
               matched=1
@@ -159,25 +171,17 @@ jobs:
           done
 
           if [ -z "$matched" ]; then
-            if [ "$curl_rc" -ne 0 ]; then
-              echo "::error::AASA request failed on all $attempts attempts (curl exit $curl_rc)"
-              exit 1
-            fi
-            if [ "$http_status" != "200" ]; then
-              echo "::error::AASA returned HTTP $http_status after $attempts attempts"
-              exit 1
-            fi
-            if ! grep -qi '^content-type: *application/json' "$headers"; then
-              echo "::error::AASA is not served as application/json"
-              grep -i '^content-type:' "$headers" || true
-              exit 1
-            fi
-            echo "::error::AASA does not match the committed file"
-            if jq -Se . "$body" > "$body_norm" 2>/dev/null; then
-              diff -u "$expected" "$body_norm" || true
-            fi
+            echo "::error::AASA was not served correctly after $attempts attempts (last failure: $reason)"
+            case "$cause" in
+              curl) ;;
+              http) ;;
+              ctype) grep -i '^content-type:' "$headers" || true ;;
+              json) head -c 500 "$body" 2>/dev/null || true; echo ;;
+              body) diff -u "$expected" "$body_norm" || true ;;
+            esac
             exit 1
           fi
+
       - name: Comment the preview URL on the PR
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/github-script@v9

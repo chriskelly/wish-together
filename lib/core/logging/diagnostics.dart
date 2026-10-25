@@ -14,20 +14,6 @@ import 'session_context.dart';
 AppLog? get appLogOrNull =>
     getIt.isRegistered<AppLog>() ? getIt<AppLog>() : null;
 
-/// Reads a structured `code` without importing Firebase.
-///
-/// The same structural read as `AppLog._codeOf`, exposed because the Firestore
-/// and auth seams have to build a typed event with a code of their own.
-String? errorCodeOf(Object error) {
-  try {
-    final dynamic candidate = error;
-    final Object? code = candidate.code;
-    return code is String ? code : null;
-  } catch (_) {
-    return null;
-  }
-}
-
 /// The §4.2 auth outcome of a transition, or null when the provider is outside
 /// the vocabulary.
 ///

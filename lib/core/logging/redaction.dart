@@ -116,6 +116,21 @@ const int _maxDottedNameLength = 40;
 /// without a dot, or a phone number in an unusual format, can still pass: the
 /// caller must pass a real code, and the wire key is `error_code`, not free
 /// text.
+/// Reads a structured `code` from an error and keeps it only if it passes
+/// [redactCode].
+///
+/// Shared by `AppLog.error` and the seams that build a typed event from a
+/// caught error, so the structural read and its gate cannot drift apart.
+String? readErrorCode(Object error) {
+  try {
+    final dynamic candidate = error;
+    final Object? code = candidate.code;
+    return code is String ? redactCode(code) : null;
+  } catch (_) {
+    return null;
+  }
+}
+
 String? redactCode(String? code) {
   if (code == null ||
       !_codeShape.hasMatch(code) ||

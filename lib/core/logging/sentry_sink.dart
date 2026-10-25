@@ -77,7 +77,7 @@ class SentrySink implements LogSink {
   @override
   void add(LogRecord record) {
     try {
-      if (!_sameSession(_applied, record.session)) {
+      if (_applied != record.session) {
         _transport.applyScope(record.session);
         _applied = record.session;
       }
@@ -101,16 +101,5 @@ class SentrySink implements LogSink {
     } catch (_) {
       // A sink must never change the caller's decision.
     }
-  }
-
-  static bool _sameSession(SessionContext? previous, SessionContext next) {
-    if (previous == null) {
-      return false;
-    }
-    return previous.sessionId == next.sessionId &&
-        previous.userRef == next.userRef &&
-        previous.build == next.build &&
-        previous.platform == next.platform &&
-        previous.route == next.route;
   }
 }

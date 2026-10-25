@@ -148,4 +148,19 @@ class SessionContext {
     userRef: userRef,
     route: redactRoute(route),
   );
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SessionContext &&
+          other.sessionId == sessionId &&
+          other.supportCode == supportCode &&
+          other.userRef == userRef &&
+          other.build == build &&
+          other.platform == platform &&
+          other.route == route;
+
+  @override
+  int get hashCode =>
+      Object.hash(sessionId, supportCode, userRef, build, platform, route);
 }

@@ -114,6 +114,9 @@ class SentryStartup {
   final String environment;
   final BuildIdentity identity;
 
+  /// Whether this configuration starts Sentry.
+  bool get enabled => sentryDsnConfigured(dsn);
+
   /// True for the pre-merge host, which deploys without a release.
   bool get isStaging => environment == stagingEnvironment;
 

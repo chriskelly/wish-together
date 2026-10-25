@@ -89,4 +89,48 @@ void main() {
       reason: 'the session must carry the route it opened on',
     );
   });
+
+  group('startWithDiagnostics', () {
+    test('runs the plain startup without a DSN', () async {
+      var plain = 0;
+      var sentry = 0;
+
+      await startWithDiagnostics(
+        dsn: '',
+        start: () async => plain++,
+        startWithSentry: () async => sentry++,
+      );
+
+      expect(plain, 1);
+      expect(sentry, 0);
+    });
+
+    test('treats a whitespace-only DSN as absent', () async {
+      var plain = 0;
+      var sentry = 0;
+
+      await startWithDiagnostics(
+        dsn: '   ',
+        start: () async => plain++,
+        startWithSentry: () async => sentry++,
+      );
+
+      expect(plain, 1);
+      expect(sentry, 0);
+    });
+
+    test('runs the Sentry startup with a DSN', () async {
+      var plain = 0;
+      var sentry = 0;
+
+      await startWithDiagnostics(
+        dsn: 'https://public@example.invalid/1',
+        start: () async => plain++,
+        startWithSentry: () async => sentry++,
+      );
+
+      expect(plain, 0);
+      expect(sentry, 1);
+    });
+  });
 }

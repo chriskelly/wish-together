@@ -99,6 +99,28 @@ void main() {
     });
   });
 
+  group('SentryStartup.enabled', () {
+    test('stays disabled without a DSN', () {
+      final startup = SentryStartup.fromEnvironment(
+        identity: const BuildIdentity(build: webBuild, platform: 'web'),
+        releaseMode: true,
+        dsn: '',
+      );
+
+      expect(startup.enabled, isFalse);
+    });
+
+    test('treats a whitespace-only DSN as absent', () {
+      final startup = SentryStartup.fromEnvironment(
+        identity: const BuildIdentity(build: webBuild, platform: 'web'),
+        releaseMode: true,
+        dsn: '   ',
+      );
+
+      expect(startup.enabled, isFalse);
+    });
+  });
+
   group('platformTagFor', () {
     test('names web regardless of the host platform', () {
       expect(

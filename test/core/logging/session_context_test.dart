@@ -175,4 +175,32 @@ void main() {
       expect(context.withRoute('/group/abc123').route, '/group/:id');
     });
   });
+
+  group('SessionContext equality', () {
+    SessionContext context({
+      String id = '0123456789ABCDEFGHJKMNPQRST',
+      String route = '/',
+      String? userRef,
+    }) => SessionContext(
+      sessionId: id,
+      supportCode: supportCodeFor(id),
+      build: '57',
+      platform: 'ios',
+      userRef: userRef,
+      route: route,
+    );
+
+    test('equal fields make equal contexts', () {
+      expect(context(), equals(context()));
+      expect(context().hashCode, context().hashCode);
+    });
+
+    test('a changed field makes contexts unequal', () {
+      expect(context(route: '/'), isNot(equals(context(route: '/join'))));
+      expect(
+        context(userRef: userRefForUid('a')),
+        isNot(equals(context(userRef: userRefForUid('b')))),
+      );
+    });
+  });
 }

@@ -107,7 +107,12 @@ jobs:
           matched=""
           status=""
           for attempt in 1 2 3 4 5 6; do
-            status=$(curl -sS -D "$headers" -o "$body" -w '%{http_code}' "$url")
+            # A failed transfer counts against the same budget: under
+            # `bash -e` a bare assignment would abort the step before the
+            # retry, so a refused connection or a reset would redden the PR
+            # without ever reaching the assertions below.
+            status=$(curl -sS -D "$headers" -o "$body" -w '%{http_code}' "$url") \
+              || status="curl-exit-$?"
             if [ "$status" = "200" ] \
               && grep -qi '^content-type: *application/json' "$headers" \
               && diff -q \

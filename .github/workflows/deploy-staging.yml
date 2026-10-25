@@ -277,7 +277,10 @@ jobs:
           status=""
           matched=""
           for _ in 1 2 3 4 5; do
-            status=$(curl -sS -D "$headers" -o "$body" -w '%{http_code}' "$url")
+            # A failed transfer counts against the same budget (a bare
+            # assignment would abort the step under `bash -e` before the retry).
+            status=$(curl -sS -D "$headers" -o "$body" -w '%{http_code}' "$url") \
+              || status="curl-exit-$?"
             if [ "$status" = "200" ] \
               && grep -qi '^content-type: *application/json' "$headers" \
               && diff -q \

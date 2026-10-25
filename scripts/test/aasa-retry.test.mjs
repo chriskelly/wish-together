@@ -363,7 +363,7 @@ for (const target of TARGETS) {
   });
 
   test(`${target.workflow}: a hostile content type is sanitised and bounded`, (t) => {
-    const hostile = `text/plain${'x'.repeat(400)}\u001b[31m`;
+    const hostile = `\u001b[31mtext/plain${'x'.repeat(400)}`;
     const r = run(repeat(ATTEMPTS, { status: 200, contentType: hostile, body: COMMITTED }), { t });
     assert.equal(r.status, 1);
     assert.doesNotMatch(r.output, /\u001b/, 'an escape sequence reached the log');
@@ -373,9 +373,10 @@ for (const target of TARGETS) {
   });
 
   test(`${target.workflow}: an escape sequence in the body excerpt is sanitised`, (t) => {
-    const r = run(repeat(ATTEMPTS, { status: 200, contentType: 'application/json', body: '\u001b[31mboom' }), { t });
+    const r = run(repeat(ATTEMPTS, { status: 200, contentType: 'application/json', body: '\u001b[31mboom\r::error::x' }), { t });
     assert.equal(r.status, 1);
     assert.doesNotMatch(r.output, /\u001b/, 'an escape sequence reached the log');
+    assert.doesNotMatch(r.output, /\r/, 'a CR survived the body excerpt');
     assert.ok(r.output.includes('boom'));
   });
 

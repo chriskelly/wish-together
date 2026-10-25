@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:wishtogether/core/logging/app_event.dart';
 import 'package:wishtogether/core/logging/diagnostics.dart';
+import 'package:wishtogether/core/logging/redaction.dart';
 
 /// The allowlisted collection name behind a collection path.
 ///
@@ -35,7 +36,7 @@ abstract class FirebaseRepository<T> {
       FirestoreErrorEvent(
         op: op,
         collection: collectionName,
-        code: errorCodeOf(error),
+        code: readErrorCode(error),
       ),
     );
   }

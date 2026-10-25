@@ -1,5 +1,6 @@
 import 'package:wishtogether/core/logging/app_event.dart';
 import 'package:wishtogether/core/logging/diagnostics.dart';
+import 'package:wishtogether/core/logging/redaction.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 
@@ -14,7 +15,7 @@ class UnclaimItemUseCase {
       await itemRepository.unclaim(itemId);
     } catch (error) {
       log?.event(
-        ClaimActionEvent(phase: ClaimPhase.denied, code: errorCodeOf(error)),
+        ClaimActionEvent(phase: ClaimPhase.denied, code: readErrorCode(error)),
       );
       rethrow;
     }

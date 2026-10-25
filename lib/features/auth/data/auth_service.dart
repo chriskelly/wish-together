@@ -15,6 +15,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:wishtogether/core/logging/app_event.dart';
 import 'package:wishtogether/core/logging/diagnostics.dart';
+import 'package:wishtogether/core/logging/redaction.dart';
 import 'package:wishtogether/features/auth/data/apple_auth_error.dart';
 import 'package:wishtogether/features/auth/data/phone_verification.dart';
 
@@ -452,7 +453,7 @@ class AuthService {
   /// what S4's auth-failure alert counts.
   void _reportAuthFailure(AuthOutcome outcome, Object error) {
     appLogOrNull?.event(
-      AuthStateEvent(outcome: outcome, code: errorCodeOf(error)),
+      AuthStateEvent(outcome: outcome, code: readErrorCode(error)),
     );
   }
 

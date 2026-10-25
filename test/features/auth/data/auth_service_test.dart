@@ -7,6 +7,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:wishtogether/core/logging/app_event.dart';
+import 'package:wishtogether/core/logging/app_log.dart';
+import 'package:wishtogether/core/logging/log_sink.dart';
+
+import '../../../core/logging/recording_sink.dart';
+
+import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/apple_auth_error.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
 import 'package:wishtogether/features/auth/data/phone_verification.dart';
@@ -775,6 +782,120 @@ void main() {
               as PhoneAuthCredential;
       expect(captured.verificationId, credential.verificationId);
       expect(captured.smsCode, credential.smsCode);
+    });
+  });
+
+  group('AuthService diagnostics', () {
+    late RecordingSink sink;
+
+    setUp(() async {
+      await getIt.reset();
+      sink = RecordingSink();
+      getIt.registerSingleton<AppLog>(
+        AppLog(session: testSession, sinks: <LogSink>[sink]),
+      );
+    });
+
+    tearDown(getIt.reset);
+
+    AuthStateEvent singleAuthEvent() => sink.records
+        .map((record) => record.event)
+        .whereType<AuthStateEvent>()
+        .single;
+
+    test('reports a failed Apple sign-in with its code', () async {
+      const missingTokenCode = appleMissingIdTokenCode;
+      final service = AuthService(
+        auth: mockAuth,
+        appleCredentialFetcher:
+            ({
+              required List<AppleIDAuthorizationScopes> scopes,
+              String? nonce,
+            }) async => AuthorizationCredentialAppleID(
+              userIdentifier: 'apple-user-id',
+              givenName: null,
+              familyName: null,
+              authorizationCode: 'code',
+              email: null,
+              identityToken: null,
+              state: null,
+            ),
+      );
+
+      await expectLater(
+        service.signInWithApple(),
+        throwsA(isA<FirebaseAuthException>()),
+      );
+
+      final event = singleAuthEvent();
+      expect(event.outcome, AuthOutcome.apple);
+      expect(event.code, missingTokenCode);
+    });
+
+    test('reports a failed web phone request with its code', () async {
+      const code = 'invalid-phone-number';
+      when(() => mockAuth.signInWithPhoneNumber(any()))
+          .thenThrow(FirebaseAuthException(code: code));
+      final service = AuthService(auth: mockAuth, isWeb: true);
+
+      await expectLater(
+        service.startWebPhoneSignIn('+15550001111'),
+        throwsA(isA<FirebaseAuthException>()),
+      );
+
+      final event = singleAuthEvent();
+      expect(event.outcome, AuthOutcome.phone);
+      expect(event.code, code);
+    });
+
+    test('reports a failed phone-code confirmation with its code', () async {
+      const code = 'invalid-verification-code';
+      when(() => mockAuth.signInWithCredential(any()))
+          .thenThrow(FirebaseAuthException(code: code));
+      final service = AuthService(auth: mockAuth, isWeb: false);
+
+      await expectLater(
+        service.confirmPhoneCode(
+          verificationId: 'verification-id',
+          smsCode: '000000',
+        ),
+        throwsA(isA<FirebaseAuthException>()),
+      );
+
+      final event = singleAuthEvent();
+      expect(event.outcome, AuthOutcome.phone);
+      expect(event.code, code);
+    });
+
+    test('reports a failed Google revocation after deletion', () async {
+      final user = MockUser();
+      final googleSignIn = MockGoogleSignIn();
+      when(() => mockAuth.currentUser).thenReturn(user);
+      when(() => user.delete()).thenAnswer((_) async {});
+      when(() => googleSignIn.onCurrentUserChanged)
+          .thenAnswer((_) => const Stream<GoogleSignInAccount?>.empty());
+      when(() => googleSignIn.disconnect())
+          .thenThrow(StateError('revocation failed'));
+      final service = AuthService(auth: mockAuth, googleSignIn: googleSignIn);
+
+      await service.deleteAccount();
+
+      final event = sink.records.single.event;
+      expect(event, isA<ErrorEvent>());
+      expect((event as ErrorEvent).code, 'google-revoke-failed');
+    });
+
+    test('leaves the sign-out outcome to the auth listener', () async {
+      final googleSignIn = MockGoogleSignIn();
+      when(() => googleSignIn.onCurrentUserChanged)
+          .thenAnswer((_) => const Stream<GoogleSignInAccount?>.empty());
+      when(() => googleSignIn.signOut()).thenAnswer((_) async => null);
+      when(() => mockAuth.signOut()).thenAnswer((_) async {});
+      final service = AuthService(auth: mockAuth, googleSignIn: googleSignIn);
+
+      await service.signOut();
+
+      expect(sink.records, isEmpty);
     });
   });
 }

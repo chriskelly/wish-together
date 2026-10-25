@@ -2,6 +2,13 @@ import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wishtogether/core/data/firebase_repository.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:wishtogether/core/logging/app_event.dart';
+import 'package:wishtogether/core/logging/app_log.dart';
+import 'package:wishtogether/core/logging/log_sink.dart';
+
+import '../logging/recording_sink.dart';
+
+import 'package:wishtogether/core/service_locator.dart';
 
 class TestModel {
   final String? id;
@@ -193,6 +200,68 @@ void main() {
 
       expect(models.length, 1);
       expect(models.first.name, matchName);
+    });
+  });
+
+  group('FirebaseRepository diagnostics', () {
+    const String nestedPath = 'wishlists/some-id/items';
+
+    late FakeFirebaseFirestore fakeFirestore;
+    late RecordingSink sink;
+
+    setUp(() {
+      fakeFirestore = FakeFirebaseFirestore();
+      sink = RecordingSink();
+      getIt.registerSingleton<AppLog>(
+        AppLog(session: testSession, sinks: <LogSink>[sink]),
+      );
+      addTearDown(getIt.reset);
+    });
+
+    TestModelRepository nestedRepository() =>
+        TestModelRepository(nestedPath, firestore: fakeFirestore);
+
+    test('reports the collection name, never the document path', () async {
+      await expectLater(
+        nestedRepository().get('missing'),
+        throwsA(isA<TypeError>()),
+      );
+
+      final event = sink.records.single.event;
+      expect(event, isA<FirestoreErrorEvent>());
+      expect((event as FirestoreErrorEvent).collection, 'items');
+      expect(event.op, FirestoreOp.get);
+    });
+
+    test('does not report a successful one-shot list', () async {
+      await expectLater(
+        nestedRepository().listWhere('name', isEqualTo: 'x'),
+        completes,
+      );
+
+      expect(sink.records, isEmpty);
+    });
+
+    test('reports a stream error without consuming it', () async {
+      final stream = nestedRepository().streamOne('missing');
+
+      await expectLater(stream, emitsError(isA<TypeError>()));
+
+      final event = sink.records.single.event;
+      expect(event, isA<FirestoreErrorEvent>());
+      expect((event as FirestoreErrorEvent).op, FirestoreOp.get);
+    });
+
+    test('rethrows the original error unchanged', () async {
+      Object? caught;
+      try {
+        await nestedRepository().get('missing');
+      } catch (error) {
+        caught = error;
+      }
+
+      expect(caught, isA<TypeError>());
+      expect(caught, isNot(isA<FirestoreErrorEvent>()));
     });
   });
 }

@@ -118,10 +118,7 @@ class _ProfilePageState extends State<ProfilePage> {
     try {
       user = await _loadUserProfileUseCase.execute();
     } catch (error, stackTrace) {
-      debugPrintStack(
-        label: 'Profile load failed: $error',
-        stackTrace: stackTrace,
-      );
+      appLogOrNull?.error(error, stackTrace, code: 'profile-load-failed');
     }
     if (!mounted) return;
     if (user == null) {

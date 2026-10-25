@@ -2,15 +2,12 @@ import 'dart:async';
 
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/foundation.dart'
-    show debugPrint, defaultTargetPlatform, kDebugMode, kIsWeb, TargetPlatform;
+    show defaultTargetPlatform, kDebugMode, kIsWeb, TargetPlatform;
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:wishtogether/core/logging/app_event.dart';
+import 'package:wishtogether/core/logging/diagnostics.dart';
+import 'package:wishtogether/core/platform_info.dart';
 import 'package:wishtogether/features/app_update/domain/update_decision.dart';
-
-/// Loads the running app's package metadata.
-///
-/// Injectable because the production implementation, `PackageInfo.fromPlatform`,
-/// is a plugin call that cannot run in a unit test.
-typedef PackageInfoLoader = Future<PackageInfo> Function();
 
 /// Whether the update gate applies on a platform.
 ///
@@ -105,15 +102,29 @@ class AppUpdateService {
   /// inconclusive decision, so the app starts.
   Future<UpdateDecision> check() async {
     if (!_gateApplies || _bypassGate) {
+      _report(
+        UpdateGateEvent(
+          result: UpdateGateResult.allowed,
+          reason: _gateApplies ? 'debug-bypass' : 'gate-not-applicable',
+        ),
+      );
       return const UpdateDecision.allowed(isConclusive: true);
     }
     try {
       return await _check().timeout(totalTimeout);
-    } catch (error) {
-      debugPrint('App update gate: check failed, failing open: $error');
+    } catch (_) {
+      _report(
+        const UpdateGateEvent(
+          result: UpdateGateResult.failedOpen,
+          reason: 'check-failed',
+        ),
+      );
       return const UpdateDecision.allowed();
     }
   }
+
+  /// Reports one gate decision; the event is the gate's only diagnostic.
+  void _report(UpdateGateEvent event) => appLogOrNull?.event(event);
 
   Future<UpdateDecision> _check() async {
     // Start both plugin calls together so a slow PackageInfo cannot eat the
@@ -124,6 +135,7 @@ class AppUpdateService {
     final values = await valuesFuture;
 
     if (values == null) {
+      // _fetchRemoteConfigValues already reported why it failed.
       return const UpdateDecision.allowed();
     }
 
@@ -135,13 +147,16 @@ class AppUpdateService {
       conclusive: runningBuild != null,
     );
 
-    if (decision.blockedForMissingUpdateUrl) {
-      debugPrint(
-        'App update gate: min_supported_build requires an update, but '
-        'update_url is missing or is not a usable Apple App Store URL. '
-        'Failing open; set update_url in Remote Config.',
-      );
-    }
+    _report(
+      UpdateGateEvent(
+        result: decision.isBlocked
+            ? UpdateGateResult.blocked
+            : UpdateGateResult.allowed,
+        min: values.minSupportedBuild,
+        running: runningBuild,
+        reason: _reasonFor(decision, runningBuild: runningBuild),
+      ),
+    );
 
     return decision;
   }
@@ -171,13 +186,33 @@ class AppUpdateService {
         message: message,
         updateUrl: updateUrl,
       );
-    } catch (error) {
+    } catch (_) {
       // Fail open. Never lock a user out because the network failed.
-      debugPrint(
-        'App update gate: Remote Config unavailable, failing open: $error',
+      _report(
+        const UpdateGateEvent(
+          result: UpdateGateResult.failedOpen,
+          reason: 'remote-config-unavailable',
+        ),
       );
       return null;
     }
+  }
+
+  /// Why a decision came out the way it did, for the `reason` wire key.
+  ///
+  /// `null` means an ordinary, conclusive result; a non-null code is the part
+  /// worth alerting on or querying later.
+  String? _reasonFor(UpdateDecision decision, {required int? runningBuild}) {
+    if (runningBuild == null) {
+      return 'build-unreadable';
+    }
+    if (decision.blockedForMissingUpdateUrl) {
+      return 'missing-update-url';
+    }
+    if (!decision.isConclusive) {
+      return 'inconclusive';
+    }
+    return null;
   }
 
   /// A string-typed value silently decodes to 0, which leaves the gate inert.
@@ -192,9 +227,11 @@ class AppUpdateService {
       if (raw.isEmpty || int.tryParse(raw) != null) {
         return;
       }
-      debugPrint(
-        'App update gate: min_supported_build is not an integer ("$raw"); '
-        'the gate is inert.',
+      _report(
+        const UpdateGateEvent(
+          result: UpdateGateResult.allowed,
+          reason: 'min-not-integer',
+        ),
       );
     } catch (_) {
       // Diagnostics must never change the decision.
@@ -214,8 +251,13 @@ class AppUpdateService {
       // open until a parse succeeds, so retrying is harmless.
       _cachedRunningBuild = build;
       return build;
-    } catch (error) {
-      debugPrint('App update gate: could not read the running build: $error');
+    } catch (_) {
+      _report(
+        const UpdateGateEvent(
+          result: UpdateGateResult.failedOpen,
+          reason: 'build-unreadable',
+        ),
+      );
       return null;
     }
   }

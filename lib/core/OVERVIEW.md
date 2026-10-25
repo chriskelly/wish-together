@@ -30,9 +30,16 @@ is a feature; features import from `core/`.
 ### `FirebaseRepository<T>`
 
 Holds a `FirebaseFirestore instance` (injectable via the `firestore:` constructor argument
-for tests) and a `collectionPath`. Provides generic
-`streamAll`, `streamWhere(...)`, `streamOne`, `get`, `add`, `update`, `updateData`, and
-`delete`. Subclasses implement `fromFirestore(DocumentSnapshot)` and `toFirestore(T)`.
+for tests), a `collectionPath` and its `collectionName` (the path's last segment).
+Provides generic `streamAll`, `streamWhere(...)`, `streamOne`, `get`, `add`, `update`,
+`updateData`, and `delete`. Subclasses implement `fromFirestore(DocumentSnapshot)` and
+`toFirestore(T)`.
+
+Every operation reports a `FirestoreErrorEvent` at this one seam, tagged with the
+`collectionName` and the structured code, and then behaves exactly as before: a future
+`rethrow`s the original error and a stream re-emits it through a transformer (not
+`Stream.handleError`, which would make the stream forget the error and break
+`StreamListBuilder`'s error UI). Diagnostics never change the outcome.
 
 In the running app the instance comes from `getIt<FirebaseFirestore>()`, created by
 `createFirestoreInstance()`: `FirebaseFirestore.instance` when the build passes no
@@ -63,6 +70,8 @@ as `/join?group=123`), which is how an iOS Universal Link starts the router.
 ## Invariants
 
 - `FirebaseRepository.instance` is `late final`, assigned once in the constructor.
+- `FirebaseRepository.collectionName` is what a diagnostics event reports; the path never is,
+  because a nested path (`wishlists/<id>/items`) contains a document id.
 - A logged-out user is redirected to `/login`, preserving the original destination in the
   `redirect_to` query parameter. `/login` and `/verify` never redirect while logged out.
 - A logged-in user with no `displayName` is redirected to `/profile` (also preserving

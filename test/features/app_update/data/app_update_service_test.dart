@@ -6,6 +6,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:wishtogether/core/logging/app_event.dart';
+import 'package:wishtogether/core/logging/app_log.dart';
+import 'package:wishtogether/core/logging/log_sink.dart';
+
+import '../../../core/logging/recording_sink.dart';
+
+import 'package:wishtogether/core/platform_info.dart';
+import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/app_update/data/app_update_service.dart';
 import 'package:wishtogether/features/app_update/domain/update_decision.dart';
 
@@ -23,12 +31,14 @@ PackageInfo packageInfoWith({String buildNumber = '1'}) => PackageInfo(
   buildNumber: buildNumber,
 );
 
-List<String?> captureDebugPrints() {
-  final messages = <String?>[];
-  final original = debugPrint;
-  debugPrint = (String? message, {int? wrapWidth}) => messages.add(message);
-  addTearDown(() => debugPrint = original);
-  return messages;
+/// Captures the gate's own events, which replaced its debugPrint calls.
+RecordingSink captureGateEvents() {
+  final sink = RecordingSink();
+  getIt.registerSingleton<AppLog>(
+    AppLog(session: testSession, sinks: <LogSink>[sink]),
+  );
+  addTearDown(getIt.reset);
+  return sink;
 }
 
 void main() {
@@ -331,7 +341,7 @@ void main() {
       // Arrange
       when(() => remoteConfig.getInt(AppUpdateService.minSupportedBuildKey))
           .thenReturn(20);
-      final messages = captureDebugPrints();
+      final events = captureGateEvents();
       final service = serviceWith(buildNumber: '19');
 
       // Act
@@ -341,8 +351,8 @@ void main() {
       expect(decision.isBlocked, isFalse);
       expect(decision.isConclusive, isFalse);
       expect(
-        messages.any(
-          (message) => message?.contains('update_url is missing') ?? false,
+        events.eventsOf<UpdateGateEvent>().any(
+          (event) => event.reason == 'missing-update-url',
         ),
         isTrue,
       );
@@ -409,7 +419,7 @@ void main() {
 
     test('warns when min_supported_build is not an integer', () async {
       // Arrange
-      final messages = captureDebugPrints();
+      final events = captureGateEvents();
       when(() => remoteConfig.getValue(AppUpdateService.minSupportedBuildKey))
           .thenReturn(
             _FakeRemoteConfigValue(utf8.encode('v20'), ValueSource.valueRemote),
@@ -421,14 +431,16 @@ void main() {
 
       // Assert
       expect(
-        messages.any((message) => message?.contains('not an integer') ?? false),
+        events.eventsOf<UpdateGateEvent>().any(
+          (event) => event.reason == 'min-not-integer',
+        ),
         isTrue,
       );
     });
 
     test('stays quiet when min_supported_build is an integer', () async {
       // Arrange
-      final messages = captureDebugPrints();
+      final events = captureGateEvents();
       when(() => remoteConfig.getValue(AppUpdateService.minSupportedBuildKey))
           .thenReturn(
             _FakeRemoteConfigValue(utf8.encode('20'), ValueSource.valueRemote),
@@ -442,7 +454,9 @@ void main() {
 
       // Assert
       expect(
-        messages.any((message) => message?.contains('not an integer') ?? false),
+        events.eventsOf<UpdateGateEvent>().any(
+          (event) => event.reason == 'min-not-integer',
+        ),
         isFalse,
       );
     });

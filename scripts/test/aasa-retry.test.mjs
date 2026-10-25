@@ -21,6 +21,19 @@ const COMMITTED = readFileSync(
 // Same document, different bytes: only normalised equality may accept it.
 const RESERIALISED = JSON.stringify(JSON.parse(COMMITTED), null, 4);
 const OTHER = JSON.stringify({ applinks: { apps: [], details: [] } });
+// Same document with the keys in a different order: only jq -S can accept it.
+const REORDERED = JSON.stringify({
+  applinks: { details: JSON.parse(COMMITTED).applinks.details, apps: [] },
+});
+const ATTEMPTS = 6;
+const RETRY_DELAY = '5';
+const CONNECT_TIMEOUT = 3;
+const REQUEST_TIMEOUT = 10;
+const MAX_BUDGET_SECONDS = 85;
+const NOT_FOUND = 404;
+const TRANSPORT_FAILURE = 7;
+const HTML_TYPE = 'text/html';
+const HTML_BODY = '<html>oops';
 
 /**
  * Pull the `run: |` body out of a named step, so the tests exercise the real
@@ -193,8 +206,8 @@ for (const target of TARGETS) {
   const run = (scenario, extra = {}) => runBlock({ ...target, scenario, ...extra });
   const repeat = (n, entry) => Array.from({ length: n }, () => entry);
   const ok = { status: 200, body: COMMITTED };
-  const notFound = { status: 404, contentType: 'text/html', body: 'not here' };
-  const noConnection = { rc: 7, body: '' };
+  const notFound = { status: NOT_FOUND, contentType: HTML_TYPE, body: 'not here' };
+  const noConnection = { rc: TRANSPORT_FAILURE, body: '' };
 
   test(`${target.workflow}: a first-attempt success costs one request`, (t) => {
     const r = run([ok], { t });
@@ -213,13 +226,13 @@ for (const target of TARGETS) {
   });
 
   test(`${target.workflow}: a persistent 404 fails after the full budget`, (t) => {
-    const r = run(repeat(6, notFound), { t });
+    const r = run(repeat(ATTEMPTS, notFound), { t });
     assert.equal(r.status, 1);
-    assert.equal(r.requests, 6);
-    assert.equal(r.sleeps.length, 5);
+    assert.equal(r.requests, ATTEMPTS);
+    assert.equal(r.sleeps.length, ATTEMPTS - 1);
     assert.match(r.output, /::error::/);
-    assert.match(r.output, /last failure: HTTP 404/);
-    assert.deepEqual(r.sleeps, Array(5).fill('5'));
+    assert.match(r.output, new RegExp(`last failure: HTTP ${NOT_FOUND}`));
+    assert.deepEqual(r.sleeps, Array(ATTEMPTS - 1).fill(RETRY_DELAY));
   });
 
   test(`${target.workflow}: a stalled connection that clears is retried`, (t) => {
@@ -229,11 +242,11 @@ for (const target of TARGETS) {
   });
 
   test(`${target.workflow}: a persistent transport failure names curl, not an HTTP code`, (t) => {
-    const r = run(repeat(6, noConnection), { t });
+    const r = run(repeat(ATTEMPTS, noConnection), { t });
     assert.equal(r.status, 1);
-    assert.equal(r.requests, 6);
+    assert.equal(r.requests, ATTEMPTS);
     assert.match(r.output, /::error::/);
-    assert.match(r.output, /last failure: request failed with curl exit 7/);
+    assert.match(r.output, new RegExp(`last failure: request failed with curl exit ${TRANSPORT_FAILURE}`));
     assert.doesNotMatch(r.output, /HTTP curl/);
   });
 
@@ -244,9 +257,9 @@ for (const target of TARGETS) {
   });
 
   test(`${target.workflow}: a persistent body mismatch fails with the wording for its target`, (t) => {
-    const r = run(repeat(6, { status: 200, body: OTHER }), { t });
+    const r = run(repeat(ATTEMPTS, { status: 200, body: OTHER }), { t });
     assert.equal(r.status, 1);
-    assert.equal(r.requests, 6);
+    assert.equal(r.requests, ATTEMPTS);
     assert.match(r.output, /::error::/);
     assert.match(r.output, new RegExp(`last failure: body does not match the ${target.kind} file`));
     assert.match(r.output, /^--- /m, 'the diff is not printed');
@@ -259,7 +272,7 @@ for (const target of TARGETS) {
 
   test(`${target.workflow}: json-like content types are rejected`, (t) => {
     for (const contentType of ['application/jsonp', 'application/json-seq']) {
-      const r = run(repeat(6, { status: 200, contentType, body: COMMITTED }), { t });
+      const r = run(repeat(ATTEMPTS, { status: 200, contentType, body: COMMITTED }), { t });
       assert.equal(r.status, 1, contentType);
       assert.match(r.output, new RegExp(`content-type is ${contentType.replace('/', '\\/')}`));
     }
@@ -270,7 +283,7 @@ for (const target of TARGETS) {
       { status: 200, body: COMMITTED, omitContentType: true },
       { status: 200, body: COMMITTED, extraContentType: 'application/json' },
     ]) {
-      const r = run(repeat(6, scenario), { t });
+      const r = run(repeat(ATTEMPTS, scenario), { t });
       assert.equal(r.status, 1, JSON.stringify(scenario));
       assert.match(r.output, /content-type header is missing or duplicated/);
     }
@@ -291,7 +304,7 @@ for (const target of TARGETS) {
   });
 
   test(`${target.workflow}: a whitespace-only body is not valid JSON`, (t) => {
-    const r = run(repeat(6, { status: 200, body: '  \n' }), { t });
+    const r = run(repeat(ATTEMPTS, { status: 200, body: '  \n' }), { t });
     assert.equal(r.status, 1);
     assert.match(r.output, /body is not valid JSON/);
   });
@@ -302,20 +315,38 @@ for (const target of TARGETS) {
     assert.equal(r.requests, 1);
   });
 
+  test(`${target.workflow}: a body with reordered keys passes (sorted equality)`, (t) => {
+    const r = run([{ status: 200, body: REORDERED }], { t });
+    assert.equal(r.status, 0, r.output);
+    assert.equal(r.requests, 1);
+  });
+
+  test(`${target.workflow}: a 2xx that is not 200 fails`, (t) => {
+    const status = 204;
+    const r = run(repeat(ATTEMPTS, { status, body: '' }), { t });
+    assert.equal(r.status, 1);
+    assert.match(r.output, new RegExp(`last failure: HTTP ${status}`));
+  });
+
+  test(`${target.workflow}: a capitalised content-type name and value are accepted`, (t) => {
+    const r = run([{ status: 200, contentType: 'APPLICATION/JSON', body: COMMITTED }], { t });
+    assert.equal(r.status, 0, r.output);
+  });
+
   test(`${target.workflow}: a wrong content type fails and names it`, (t) => {
-    const r = run(repeat(6, { status: 200, contentType: 'text/html', body: COMMITTED }), { t });
+    const r = run(repeat(ATTEMPTS, { status: 200, contentType: HTML_TYPE, body: COMMITTED }), { t });
     assert.equal(r.status, 1);
     assert.match(r.output, /::error::/);
-    assert.match(r.output, /content-type is text\/html/);
-    assert.match(r.output, /^content-type: text\/html/im, 'the header dump is not printed');
+    assert.match(r.output, new RegExp(`content-type is ${HTML_TYPE.replace('/', '\\/')}`));
+    assert.match(r.output, new RegExp(`^content-type: ${HTML_TYPE}`, 'im'), 'the header dump is not printed');
   });
 
   test(`${target.workflow}: a non-JSON body is reported as such, not as a diff`, (t) => {
-    const r = run(repeat(6, { status: 200, contentType: 'application/json', body: '<html>oops' }), { t });
+    const r = run(repeat(ATTEMPTS, { status: 200, contentType: 'application/json', body: HTML_BODY }), { t });
     assert.equal(r.status, 1);
     assert.match(r.output, /::error::/);
     assert.match(r.output, /body is not valid JSON/);
-    assert.match(r.output, /<html>oops/);
+    assert.ok(r.output.includes(HTML_BODY));
     assert.doesNotMatch(r.output, /does not match/);
   });
 
@@ -330,16 +361,16 @@ for (const target of TARGETS) {
     const r = run([ok], { t, expected: null });
     assert.equal(r.status, 1);
     assert.equal(r.requests, 0);
-    assert.match(r.output, /is missing/);
+    assert.match(r.output, /^::error::.*is missing/m);
   });
 
   test(`${target.workflow}: every request is time-bounded and the total budget holds`, (t) => {
-    const r = run(repeat(6, noConnection), { t });
+    const r = run(repeat(ATTEMPTS, noConnection), { t });
     assert.equal(r.bounds.length, 6);
-    for (const bound of r.bounds) assert.equal(bound, '3 10');
+    for (const bound of r.bounds) assert.equal(bound, `${CONNECT_TIMEOUT} ${REQUEST_TIMEOUT}`);
     const seconds =
       r.bounds.reduce((sum, b) => sum + Number(b.split(' ')[1] ?? 0), 0) +
       r.sleeps.reduce((sum, s) => sum + Number(s), 0);
-    assert.ok(seconds <= 85, `the retry budget is ${seconds}s, over the 85s bound`);
+    assert.ok(seconds <= MAX_BUDGET_SECONDS, `the retry budget is ${seconds}s, over the ${MAX_BUDGET_SECONDS}s bound`);
   });
 }

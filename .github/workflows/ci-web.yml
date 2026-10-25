@@ -109,6 +109,8 @@ jobs:
 
           # The committed file must be valid JSON before anything is compared: a corrupt
           # file must not normalise to the same empty output as an unparseable response.
+          command -v jq >/dev/null || { echo "::error::jq is required for this check"; exit 1; }
+
           if [ ! -f "$expected_src" ]; then
             echo "::error::$expected_src is missing"
             exit 1
@@ -179,8 +181,9 @@ jobs:
               curl) ;;
               http) ;;
               ctype) grep -i '^content-type:' "$headers" || true ;;
-              json) head -c 500 "$body" 2>/dev/null || true; echo ;;
-              body) diff -u "$expected" "$body_norm" || true ;;
+              json) head -c 500 "$body" 2>/dev/null | tr -d '\000-\010\013\014\016-\037' || true; echo ;;
+              body) diff -u "$expected" "$body_norm" 2>/dev/null | head -c 4000 || true ;;
+              *) echo "unclassified failure" ;;
             esac
             exit 1
           fi

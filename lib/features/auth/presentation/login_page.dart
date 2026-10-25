@@ -8,6 +8,8 @@ import 'dart:developer' as developer;
 
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:wishtogether/common/widgets/support_code_tile.dart';
+import 'package:wishtogether/core/logging/diagnostics.dart';
 import 'package:wishtogether/core/router.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/apple_auth_error.dart';
@@ -75,6 +77,9 @@ class _LoginPageState extends State<LoginPage>
 
   @override
   Widget build(BuildContext context) {
+    // Signed out is exactly when a user cannot reach Profile: a failed OTP
+    // leaves them here, and this is the only place they can read the code.
+    final supportCode = appLogOrNull?.session.supportCode;
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
@@ -134,6 +139,10 @@ class _LoginPageState extends State<LoginPage>
                     if (kIsWeb) ..._buildAppInfoSection(context),
                     const SizedBox(height: 24),
                     _buildPrivacyPolicyLink(context),
+                    if (supportCode != null) ...[
+                      const SizedBox(height: 24),
+                      SupportCodeTile(supportCode: supportCode),
+                    ],
                   ],
                 ),
               ),

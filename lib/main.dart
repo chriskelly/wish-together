@@ -4,14 +4,21 @@ import 'package:flutter/foundation.dart'
     show
         debugPrint,
         defaultTargetPlatform,
+        kDebugMode,
         kIsWeb,
+        kReleaseMode,
         TargetPlatform,
         visibleForTesting;
 import 'package:flutter/material.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:go_router/go_router.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:wishtogether/core/deep_links.dart';
+import 'package:wishtogether/core/logging/app_event.dart';
+import 'package:wishtogether/core/logging/diagnostics.dart';
+import 'package:wishtogether/core/logging/sentry_sink.dart';
+import 'package:wishtogether/core/logging/sentry_startup.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/app_update/application/check_for_update.dart';
 import 'package:wishtogether/features/app_update/application/retry_update_gate.dart';
@@ -28,12 +35,66 @@ import 'core/theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Installed before any plugin runs, so a Universal Link queued during startup
+  // is kept and web routes are real paths before Sentry sees them.
   usePathUrlStrategy();
   _deepLinks = DeepLinkService();
 
+  // No DSN means Sentry is never initialised: no SDK, no native handler, no
+  // network. The app then runs exactly the startup it ran before Sentry.
+  if (!sentryDsnConfigured(wtSentryDsn)) {
+    await _startUp();
+    return;
+  }
+
+  final identity = await SentryStartup.readIdentity();
+  final startup = SentryStartup.fromEnvironment(
+    identity: identity,
+    releaseMode: kReleaseMode,
+  );
+  var appRunnerStarted = false;
+  try {
+    await SentryFlutter.init(
+      startup.configure,
+      appRunner: () async {
+        appRunnerStarted = true;
+        await _startUp(identity: identity, sentryEnabled: true);
+      },
+    );
+  } catch (error, stackTrace) {
+    // A malformed or rotated DSN must not leave the user on a blank screen.
+    if (!appRunnerStarted) {
+      await _startUp(identity: identity);
+    } else {
+      // The app runner had already begun; a real startup failure must stay
+      // visible instead of turning into a silent blank screen.
+      Error.throwWithStackTrace(error, stackTrace);
+    }
+  }
+}
+
+/// The startup without Sentry, plus the diagnostics that are inert without a
+/// DSN.
+Future<void> _startUp({
+  BuildIdentity? identity,
+  bool sentryEnabled = false,
+}) async {
+  // Started before Firebase so the iOS package-info call overlaps its init.
+  final identityFuture = identity == null
+      ? SentryStartup.readIdentity()
+      : Future<BuildIdentity>.value(identity);
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  final launchIdentity = await identityFuture;
+
+  final diagnostics = createLaunchDiagnostics(
+    identity: launchIdentity,
+    consoleEnabled: kDebugMode,
+    sentryTransport: sentryEnabled ? LiveSentryTransport() : null,
+  );
+  setupServiceLocator(appLog: diagnostics.log);
+
   await _activateAppCheck();
-  setupServiceLocator();
 
   // The update gate runs at startup, after Firebase is ready. It fails open:
   // only an explicit minimum from Remote Config can block the app.
@@ -75,10 +136,24 @@ void startApp({
   required AuthService auth,
   required void Function(WishTogetherApp app) mount,
 }) {
-  final router = createRouter(
-    auth,
-    initialLocation: links.takePendingLocation(),
-  );
+  final initialLocation = links.takePendingLocation();
+  final log = appLogOrNull;
+  if (log != null) {
+    // Seed the session route before anything else is reported, so an event on a
+    // deep-link cold start carries the page the user actually opened.
+    // routeChanged redacts the location; the event then reports the pattern
+    // the session actually holds.
+    log.routeChanged(initialLocation ?? '/');
+    log.event(
+      SessionStartEvent(
+        build: log.session.build,
+        platform: log.session.platform,
+        route: log.session.route,
+      ),
+    );
+  }
+
+  final router = createRouter(auth, initialLocation: initialLocation);
   mount(WishTogetherApp(router: router));
   links.attach((location) => router.go(location));
 }

@@ -88,6 +88,8 @@ String redactCollection(String collection) =>
 final RegExp _codeShape = RegExp(r'^[A-Za-z0-9._-]{1,64}$');
 final RegExp _codeSeparator = RegExp(r'[-_.]');
 final RegExp _digitsOnly = RegExp(r'^[0-9]+$');
+final RegExp _digitGroups = RegExp(r'^[0-9]+(?:[.-][0-9]+)+$');
+final RegExp _dottedLowercaseName = RegExp(r'^[a-z.]+$');
 
 /// A bare token at or above this length is uid/document-id shaped.
 ///
@@ -95,23 +97,35 @@ final RegExp _digitsOnly = RegExp(r'^[0-9]+$');
 /// alphanumeric, so a separator-free token that long cannot be a real code.
 const int _maxBareCodeLength = 16;
 
+/// A dotted value at or below this length can be name-shaped.
+const int _maxDottedNameLength = 40;
+
 /// Keeps a code only when it is shaped like one.
 ///
 /// Codes are the structured identifiers Firebase and the platforms already
-/// return (`permission-denied`, `ERROR_OPERATION_NOT_SUPPORTED`). The gate is a
-/// shape check, not a value allowlist, and it is defence in depth behind the
-/// typed events, so it also drops values shaped like the two secrets §S3 names:
+/// return (`permission-denied`, `ERROR_OPERATION_NOT_SUPPORTED`). This is a
+/// **shape gate for a structured field, not a general PII classifier**, and it
+/// is defence in depth behind the typed events. It drops values shaped like the
+/// secrets §S3 names plus the two the contract check found:
 ///
-/// - a bare all-digit value is shaped like a phone number;
-/// - a bare alphanumeric token of 16+ characters is shaped like a Firebase uid
-///   or a Firestore document id.
+/// - a bare all-digit value, or digit groups joined by `-`/`.` — phone-shaped;
+/// - a bare alphanumeric token of 16+ characters — uid- or document-id-shaped;
+/// - a dotted lowercase value up to 40 characters — name-shaped (`jane.doe`).
 ///
-/// A message, an email or a display name cannot pass the character set, so a
-/// careless `code:` cannot become the leak channel that `$error` used to be.
+/// A message with spaces or an email cannot pass the character set. A name
+/// without a dot, or a phone number in an unusual format, can still pass: the
+/// caller must pass a real code, and the wire key is `error_code`, not free
+/// text.
 String? redactCode(String? code) {
   if (code == null ||
       !_codeShape.hasMatch(code) ||
-      _digitsOnly.hasMatch(code)) {
+      _digitsOnly.hasMatch(code) ||
+      _digitGroups.hasMatch(code)) {
+    return null;
+  }
+  if (code.length <= _maxDottedNameLength &&
+      code.contains('.') &&
+      _dottedLowercaseName.hasMatch(code)) {
     return null;
   }
   final isBareToken = !_codeSeparator.hasMatch(code);

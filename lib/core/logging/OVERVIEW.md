@@ -38,9 +38,13 @@ The app's only reporting seam: typed events in, allowlisted records out. It is p
   query/fragment is dropped). Callers pass a router location or pattern, never a
   `GoRouterState.name`: a bare name is not a path segment and is masked. Collections pass
   `redactCollection` (anything outside the four names becomes `other`), and every
-  code/reason/provider/result passes `redactCode`. A value that is not code-shaped is dropped —
-  including a bare all-digit value (phone-shaped) and a bare 16+ character alphanumeric token
-  (uid- or document-id-shaped).
+  code/reason/provider/result passes `redactCode`.
+- **`redactCode` is a shape gate for a structured field, not a general PII classifier.** It
+  drops a bare all-digit value or digit groups joined by `-`/`.` (phone-shaped), a bare 16+
+  character alphanumeric token (uid- or document-id-shaped), and a dotted lowercase value up to
+  40 characters (name-shaped, `jane.doe`). A message with spaces or an email cannot pass the
+  character set, but a name without a dot or an unusual phone format can still pass: the caller
+  must still pass a real code, and this wire key is `error_code`, not free text.
 - **S2's Firestore seam passes the collection name constant** (`items`, `wishlists`, …), never
   `FirebaseRepository.collectionPath`: the item repository's path is `wishlists/<id>/items`,
   which the allowlist masks as `other`.

@@ -141,6 +141,18 @@ void main() {
       expect(redactCode(phoneNumber), isNull);
     });
 
+    test('drops a punctuated phone-number-shaped value', () {
+      expect(redactCode('555-1234'), isNull);
+      expect(redactCode('555.1234'), isNull);
+      expect(redactCode('555-123-4567'), isNull);
+    });
+
+    test('drops a dotted lowercase name-like value', () {
+      const name = 'jane.doe';
+
+      expect(redactCode(name), isNull);
+    });
+
     test('drops an empty or overlong value', () {
       final tooLong = List.filled(65, 'a').join();
 

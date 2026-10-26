@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:wishtogether/core/logging/sentry_startup.dart';
+import 'package:wishtogether/core/logging/sentry_policy.dart';
 import 'package:wishtogether/core/logging/session_context.dart';
 
 const String dsn = 'https://public@example.invalid/1';
@@ -94,8 +95,8 @@ void main() {
       expect(options.maxBreadcrumbs, 30);
       expect(options.replay.sessionSampleRate, 0);
       expect(options.replay.onErrorSampleRate, 0);
-      expect(options.beforeSend, isNotNull);
-      expect(options.beforeBreadcrumb, isNotNull);
+      expect(options.beforeSend, same(scrubEvent));
+      expect(options.beforeBreadcrumb, same(scrubBreadcrumb));
     });
   });
 
@@ -111,13 +112,20 @@ void main() {
     });
 
     test('treats a whitespace-only DSN as absent', () {
+      const whitespaceDsn = '   ';
       final startup = SentryStartup.fromEnvironment(
         identity: const BuildIdentity(build: webBuild, platform: 'web'),
         releaseMode: true,
-        dsn: '   ',
+        dsn: whitespaceDsn,
       );
 
+      expect(startup.dsn, isEmpty);
       expect(sentryDsnConfigured(startup.dsn), isFalse);
+      expect(
+        sentryDsnConfigured(whitespaceDsn),
+        isFalse,
+        reason: 'the raw define is what the composition root gates on',
+      );
     });
   });
 

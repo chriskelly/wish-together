@@ -199,6 +199,14 @@ void main() {
       expect(tags.containsKey('user_ref'), isFalse);
       expect(tags, hasLength(5));
     });
+
+    test('uses only tag keys the scrubber accepts', () {
+      // `scrubEvent` fails closed on an unknown tag key, so a renamed or added
+      // scope tag would silently erase every event.
+      final tags = scopeTagsFor(session());
+
+      expect(tags.keys.where((key) => !logRecordKeys.contains(key)), isEmpty);
+    });
   });
 
   group('scrubEvent', () {

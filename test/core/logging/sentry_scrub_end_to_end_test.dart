@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wishtogether/core/logging/sentry_policy.dart';
+import 'package:wishtogether/core/logging/sentry_startup.dart';
 
 const String phone = '555-123-4567';
 const String documentId = 'aB3dE5fG7hJ9kL1mN3pQ';
@@ -31,10 +32,14 @@ class CapturingTransport implements Transport {
 
 void main() {
   test('no free text survives beforeSend into the serialised event', () async {
-    final options = SentryOptions(dsn: dsn)
-      ..tracesSampleRate = 0
-      ..beforeSend = scrubEvent
-      ..beforeBreadcrumb = scrubBreadcrumb;
+    // The options come from the real §4.5 configuration, so this test also
+    // proves `SentryStartup.configure` installs the policy.
+    final options = SentryFlutterOptions();
+    SentryStartup.fromEnvironment(
+      identity: const BuildIdentity(build: '57', platform: 'web'),
+      releaseMode: true,
+      dsn: dsn,
+    ).configure(options);
     final transport = CapturingTransport();
     options.transport = transport;
     final client = SentryClient(options);

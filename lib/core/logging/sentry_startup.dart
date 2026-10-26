@@ -87,8 +87,10 @@ Future<BuildIdentity> readBuildIdentity({
 
 /// The Sentry configuration of §4.5, as data.
 ///
-/// Pure: it reads no globals, so the option values can be asserted in a VM
-/// test. `main.dart` only decides whether to hand it to `SentryFlutter.init`.
+/// The option values are pure: constructing one reads no globals, so they can
+/// be asserted in a VM test. [readIdentity] is the composition-root helper that
+/// does read the platform. `main.dart` only decides whether to hand this to
+/// `SentryFlutter.init`.
 class SentryStartup {
   const SentryStartup({
     required this.dsn,

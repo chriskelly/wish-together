@@ -53,7 +53,8 @@ missing `AppLog` so tests can build a router with only a `UserRepository`.
 `GoRouter.observers` sees only Navigator push/pop and would miss `go()`, redirects and deep
 links. It records one `routeChanged` per *pattern* change, seeded with the initial location, so
 startup and redirect re-entry are not double-logged; two ids on the same route are one record by
-design.
+design. The value is the *requested* location (go_router leaves the notifier at the pre-redirect
+URI), so a signed-out `/wishlist/abc` records `/wishlist/:id` before the router shows login.
 `createRouter` takes an optional `userRepository`, defaulting to
 `getIt<UserRepository>()`; `main.dart` relies on that default, while tests and alternative
 composition roots may inject one. It also takes an optional `initialLocation` (a path such

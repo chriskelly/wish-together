@@ -97,9 +97,12 @@ Sentry sink, its policy and the startup wiring are the files that know about the
 - **The scrubber's reach is Dart-only, and must not be described otherwise.** `beforeSend` does
   not see a native iOS crash (the Cocoa SDK's path), and on web the SDK's JS client installs
   `globalHandlers` with its own `beforeSend`, so a JS-level uncaught error posted by the JS
-  client does not pass through `scrubEvent`. On those two paths the protections are
-  `sendDefaultPii: false` and the absence of any PII-bearing custom key. S4's policy text must
-  say so instead of claiming the scrubber covers every crash.
+  client does not pass through `scrubEvent`. iOS also emits its own native lifecycle and HTTP
+  breadcrumbs (`enableAutoNativeBreadcrumbs` and `recordHttpBreadcrumbs` default on), which never
+  pass through `scrubBreadcrumb`. On those paths the protections are `sendDefaultPii: false` and
+  the absence of any PII-bearing custom key; check the native breadcrumbs on the manual iOS run
+  before S4 relies on the guarantee. Its policy text must not claim the scrubber covers every
+  crash.
 - **The scope is written from the record's own session**, not from a second writer: the auth
   listener calls `setUserRef` and then emits an `AuthStateEvent`, so both the `user_ref` tag and
   `SentryUser` follow on sign-in and clear on sign-out. The six tag names come from

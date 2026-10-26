@@ -79,17 +79,18 @@ UserRepository resolveUserRepository([UserRepository? injected]) =>
 /// per change and stops a redirect re-entry from double-logging. The limitation
 /// is that two different ids on the same route (`/wishlist/a` → `/wishlist/b`)
 /// are one record, by design: the reported value is the pattern.
+///
+/// The value is the *requested* location: go_router leaves the notifier at the
+/// pre-redirect URI, so after a redirect it names the destination the user
+/// asked for, not the page finally rendered (a signed-out `/wishlist/abc`
+/// records `/wishlist/:id`, then the router shows login).
 class RouteChangeRecorder {
   RouteChangeRecorder._(this._router, this._log, this._lastPattern);
 
   /// Starts recording; the listener lives with the router.
-  factory RouteChangeRecorder.attach({
-    required GoRouter router,
-    required AppLog log,
-  }) {
+  static void attach({required GoRouter router, required AppLog log}) {
     final recorder = RouteChangeRecorder._(router, log, _patternOf(router));
     router.routeInformationProvider.addListener(recorder._onLocationChanged);
-    return recorder;
   }
 
   final GoRouter _router;

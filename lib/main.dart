@@ -80,7 +80,10 @@ Future<void> _startWithSentry(String dsn) async {
       startup.configure,
       appRunner: () async {
         appRunnerStarted = true;
-        await _startUp(identity: identity, sentryEnabled: true);
+        await _startUp(
+          identity: identity,
+          sentryTransport: LiveSentryTransport(),
+        );
       },
     );
   } catch (error, stackTrace) {
@@ -99,7 +102,7 @@ Future<void> _startWithSentry(String dsn) async {
 /// DSN.
 Future<void> _startUp({
   BuildIdentity? identity,
-  bool sentryEnabled = false,
+  SentryTransport? sentryTransport,
 }) async {
   // Without a Sentry identity already in hand, start the read before Firebase so
   // the iOS package-info call overlaps its init.
@@ -112,7 +115,7 @@ Future<void> _startUp({
   final diagnostics = createLaunchDiagnostics(
     identity: launchIdentity,
     consoleEnabled: kDebugMode,
-    sentryTransport: sentryEnabled ? LiveSentryTransport() : null,
+    sentryTransport: sentryTransport,
   );
   setupServiceLocator(appLog: diagnostics.log);
 

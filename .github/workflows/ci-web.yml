@@ -100,20 +100,94 @@ jobs:
           url="${PREVIEW_URL%/}/.well-known/apple-app-site-association"
           headers="$RUNNER_TEMP/aasa.headers"
           body="$RUNNER_TEMP/aasa.json"
-          status=$(curl -sS -D "$headers" -o "$body" -w '%{http_code}' "$url")
-          if [ "$status" != "200" ]; then
-            echo "::error::AASA returned HTTP $status"
+          body_norm="$RUNNER_TEMP/aasa.body.norm.json"
+          expected="$RUNNER_TEMP/aasa.expected.json"
+          expected_src="web/.well-known/apple-app-site-association"
+          attempts=6
+          retry_delay=5
+          connect_timeout=3
+          request_timeout=10
+
+          # The committed file must be valid JSON before anything is compared: a corrupt
+          # file must not normalise to the same empty output as an unparseable response.
+          command -v jq >/dev/null || { echo "::error::jq is required for this check"; exit 1; }
+
+          if [ ! -f "$expected_src" ]; then
+            echo "::error::$expected_src is missing"
             exit 1
           fi
-          if ! grep -qi '^content-type: *application/json' "$headers"; then
-            echo "::error::AASA is not served as application/json"
-            grep -i '^content-type:' "$headers" || true
+          if ! jq -S . "$expected_src" > "$expected" || [ ! -s "$expected" ]; then
+            echo "::error::$expected_src is not valid JSON"
             exit 1
           fi
-          if ! diff -u \
-            <(jq -S . web/.well-known/apple-app-site-association) \
-            <(jq -S . "$body"); then
-            echo "::error::AASA does not match the committed file"
+
+          # A freshly deployed channel can 404, or still serve the previous file, while
+          # the CDN catches up, so every assertion is re-evaluated on each attempt. A
+          # failed transfer (non-zero curl) counts against the same budget: under
+          # `bash -e` a bare assignment would abort before the retry. Every request is
+          # bounded (3 s connect, 10 s total), so even hung attempts cannot outlast the
+          # step: at most 85 s, sleeps included.
+          matched=""
+          cause=""
+          reason=""
+          curl_rc=0
+          http_status=""
+          for ((attempt = 1; attempt <= attempts; attempt++)); do
+            # Truncate first, so a failed transfer cannot leave an earlier response to
+            # be reported or compared.
+            : > "$headers"
+            : > "$body"
+            if out=$(curl -sS --connect-timeout "$connect_timeout" --max-time "$request_timeout" \
+              -D "$headers" -o "$body" -w '%{http_code}' "$url"); then
+              curl_rc=0
+              http_status="$out"
+            else
+              curl_rc=$?
+              http_status=""
+            fi
+
+            if [ "$curl_rc" -ne 0 ]; then
+              cause="curl"
+              reason="request failed with curl exit $curl_rc"
+            elif [ "$http_status" != "200" ]; then
+              cause="http"
+              reason="HTTP $http_status"
+            elif [ "$(grep -ic '^content-type:' "$headers")" -ne 1 ]; then
+              cause="ctype"
+              reason="content-type header is missing or duplicated"
+            elif ! grep -qiE '^content-type:[[:space:]]*application/json[[:space:]]*(;.*)?$' "$headers"; then
+              cause="ctype"
+              ctype=$(grep -i '^content-type:' "$headers" | sed 's/^[^:]*: *//' | tr -d '\000-\010\013-\037' | head -c 200 || true)
+              reason="content-type is ${ctype:-missing}"
+            elif [ ! -s "$body" ] || ! jq -S . "$body" > "$body_norm" 2>/dev/null || [ ! -s "$body_norm" ]; then
+              cause="json"
+              reason="body is not valid JSON"
+            elif ! diff -q "$expected" "$body_norm" >/dev/null; then
+              cause="body"
+              reason="body does not match the committed file"
+            else
+              matched=1
+              break
+            fi
+
+            if [ "$attempt" -lt "$attempts" ]; then
+              echo "AASA not served correctly yet ($reason); retrying in ${retry_delay} s..."
+              sleep "$retry_delay"
+            fi
+          done
+
+          if [ -z "$matched" ]; then
+            echo "::error::AASA was not served correctly after $attempts attempts (last failure: $reason)"
+            case "$cause" in
+              curl) ;;
+              http) ;;
+              ctype) grep -i '^content-type:' "$headers" | tr -d '\000-\010\013-\037' | head -c 200 || true ;;
+              # Drop control bytes but keep TAB and LF, so the excerpt stays readable;
+              # CR and ESC must never reach the log or an annotation.
+              json) head -c 500 "$body" 2>/dev/null | tr -d '\000-\010\013-\037' | sed 's/^/  /' || true; echo ;;
+              body) diff -u "$expected" "$body_norm" 2>/dev/null | sed 's/^/  /' | head -c 4000 || true ;;
+              *) echo "unclassified failure" ;;
+            esac
             exit 1
           fi
 

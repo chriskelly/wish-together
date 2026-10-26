@@ -12,6 +12,8 @@ import 'package:wishtogether/core/logging/session_context.dart';
 const String homeRoute = '/';
 const String wishlistRoute = '/wishlist/:id';
 const String userRef = '0123456789ab';
+const String itemsCollection = 'items';
+const String deniedCode = 'permission-denied';
 
 SessionContext session({String route = homeRoute, String? ref = userRef}) =>
     testSession.withRoute(route).withUserRef(ref);
@@ -80,8 +82,8 @@ void main() {
         LogRecord(
           event: const FirestoreErrorEvent(
             op: FirestoreOp.list,
-            collection: 'items',
-            code: 'permission-denied',
+            collection: itemsCollection,
+            code: deniedCode,
           ),
           session: session(),
         ),
@@ -92,7 +94,7 @@ void main() {
       expect(
         transport.events.single.event.tags,
         allOf(
-          containsPair('collection', 'items'),
+          containsPair('collection', itemsCollection),
           // scrubEvent keys message provenance on this tag; without it every
           // captured event would silently lose its message.
           containsPair('event', 'firestoreError'),

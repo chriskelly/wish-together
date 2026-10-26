@@ -4,13 +4,8 @@ import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/foundation.dart'
     show debugPrint, defaultTargetPlatform, kDebugMode, kIsWeb, TargetPlatform;
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:wishtogether/core/platform_info.dart';
 import 'package:wishtogether/features/app_update/domain/update_decision.dart';
-
-/// Loads the running app's package metadata.
-///
-/// Injectable because the production implementation, `PackageInfo.fromPlatform`,
-/// is a plugin call that cannot run in a unit test.
-typedef PackageInfoLoader = Future<PackageInfo> Function();
 
 /// Whether the update gate applies on a platform.
 ///

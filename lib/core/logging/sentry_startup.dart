@@ -21,9 +21,9 @@ const String wtSentryEnvironment = String.fromEnvironment(
   'WT_SENTRY_ENVIRONMENT',
 );
 
-const String productionEnvironment = 'production';
-const String stagingEnvironment = 'staging';
-const String debugEnvironment = 'debug';
+const String _productionEnvironment = 'production';
+const String _stagingEnvironment = 'staging';
+const String _debugEnvironment = 'debug';
 
 /// Whether a configured DSN should start Sentry.
 ///
@@ -43,7 +43,7 @@ String environmentFor({required bool releaseMode, required String override}) {
   if (value.isNotEmpty) {
     return value;
   }
-  return releaseMode ? productionEnvironment : debugEnvironment;
+  return releaseMode ? _productionEnvironment : _debugEnvironment;
 }
 
 /// `wishtogether@<build>`, the release name of §4.4.
@@ -118,7 +118,7 @@ class SentryStartup {
   bool get enabled => sentryDsnConfigured(dsn);
 
   /// True for the pre-merge host, which deploys without a release.
-  bool get isStaging => environment == stagingEnvironment;
+  bool get isStaging => environment == _stagingEnvironment;
 
   String? get release => isStaging ? null : releaseNameFor(identity.build);
 

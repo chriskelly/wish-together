@@ -1,22 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wishtogether/core/logging/app_event.dart';
 import 'package:wishtogether/core/logging/diagnostics.dart';
-import 'package:wishtogether/core/logging/redaction.dart';
 
 import 'recording_sink.dart';
 import 'recording_transport.dart';
 
 import 'package:wishtogether/core/logging/sentry_startup.dart';
-
-class ErrorWithCode {
-  const ErrorWithCode(this.code);
-
-  final Object? code;
-}
-
-class ThrowingCode {
-  Object? get code => throw StateError('no code');
-}
 
 void main() {
   group('createLaunchDiagnostics', () {
@@ -50,24 +39,6 @@ void main() {
       );
 
       expect(transport.breadcrumbs, hasLength(1));
-    });
-  });
-
-  group('readErrorCode', () {
-    test('reads a structured code', () {
-      expect(
-        readErrorCode(const ErrorWithCode('permission-denied')),
-        'permission-denied',
-      );
-    });
-
-    test('ignores a non-string or missing code', () {
-      expect(readErrorCode(const ErrorWithCode(42)), isNull);
-      expect(readErrorCode(StateError('plain')), isNull);
-    });
-
-    test('survives a code getter that throws', () {
-      expect(readErrorCode(ThrowingCode()), isNull);
     });
   });
 

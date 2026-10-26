@@ -449,11 +449,7 @@ void main() {
         when(() => user.providerData)
             .thenReturn(<firebase_auth.UserInfo>[phone]);
         when(() => phone.providerId).thenReturn('phone');
-        final router = createRouter(
-          mockAuthService,
-          userRepository: mockUserRepository,
-        );
-        addTearDown(router.dispose);
+        buildRouter();
 
         authChanges.add(user);
         await pumpEventQueue();

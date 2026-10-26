@@ -109,7 +109,9 @@ void main() {
       );
     });
 
-    test('never carries the user reference as a raw uid', () {
+    test('carries the derived user reference', () {
+      // The raw-uid guarantee is pinned in app_log_test.dart and router_test.dart
+      // (hashing happens in AppLog.setUserRef); this test only fixes the wire key.
       final breadcrumb = sentryBreadcrumbFor(recordFor(routeChanged));
 
       expect(breadcrumb.data, containsPair('user_ref', userRef));
@@ -340,6 +342,18 @@ void main() {
       final breadcrumb = Breadcrumb(
         category: sentryBreadcrumbCategory,
         message: 'user entered phone 555-0100',
+        data: const <String, String>{'event': 'error'},
+      );
+
+      expect(scrubBreadcrumb(breadcrumb, Hint()), isNull);
+    });
+
+    test('drops a message outside the closed event vocabulary', () {
+      // Even a harmless-looking message is not forwarded: the message is an
+      // allowlist of event names, not a PII heuristic.
+      final breadcrumb = Breadcrumb(
+        category: sentryBreadcrumbCategory,
+        message: 'hello',
         data: const <String, String>{'event': 'error'},
       );
 

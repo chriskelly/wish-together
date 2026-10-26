@@ -25,9 +25,12 @@ abstract class SentryTransport {
 
 /// The production transport, backed by the `sentry_flutter` statics.
 ///
-/// Breadcrumbs live in the SDK's scope and travel with the next event, and
-/// `captureEvent` is already queued internally, so [flush] has nothing to
-/// drain (the SDK has no static `flush` in v10).
+/// Breadcrumbs live in the SDK's scope and travel with the next event;
+/// `captureEvent` and `addBreadcrumb` enqueue synchronously, so there is no
+/// buffer here to drain. `sentry` 10.2 has no static `flush` (only `close()`,
+/// which tears the client down), so [flush] is intentionally inert; the SDK
+/// owns delivery, and the `LogSink` contract keeps the method for sinks that do
+/// buffer.
 class LiveSentryTransport implements SentryTransport {
   LiveSentryTransport();
 
@@ -66,6 +69,11 @@ class LiveSentryTransport implements SentryTransport {
 /// events (see [shouldCapture]). The scope is written from the record's own
 /// session snapshot, so `setUserRef` reaches Sentry without the facade having
 /// to notify sinks.
+///
+/// The transport calls are not awaited: the SDK runs their synchronous prefix
+/// (enqueueing) before its first `await`, so the scope write is visible to the
+/// breadcrumb and the event that follow. A failure after that point would be
+/// the SDK's own async error, not this sink's.
 class SentrySink implements LogSink {
   SentrySink(this._transport);
 

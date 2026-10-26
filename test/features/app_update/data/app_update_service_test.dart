@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:wishtogether/core/platform_info.dart';
 import 'package:wishtogether/features/app_update/data/app_update_service.dart';
 import 'package:wishtogether/features/app_update/domain/update_decision.dart';
 

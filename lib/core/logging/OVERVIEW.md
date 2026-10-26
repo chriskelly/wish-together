@@ -23,11 +23,11 @@ Sentry sink, its policy and the startup wiring are the files that know about the
 | `LogRecord` | `log_record.dart` | One event plus the session snapshot; `toMap()` is the only serialisation boundary. |
 | `AppEvent` | `app_event.dart` | Sealed vocabulary: session start/end, auth, Firestore, route, update gate, App Check, claim, error. |
 | `SessionContext` | `session_context.dart` | Immutable identifiers of one launch, plus the pure id helpers. |
-| `logRecordKeys`, `redactRoute`, `redactCollection`, `redactCode` | `redaction.dart` | The §4.3 allowlist and the redactions every record passes through. |
+| `logRecordKeys`, `redactRoute`, `redactCollection`, `redactCode`, `readErrorCode` | `redaction.dart` | The §4.3 allowlist, the redactions every record passes through, and the one structural error-code reader. |
 | `SentrySink` / `SentryTransport` | `sentry_sink.dart` | One breadcrumb per record; errors and warnings are also events. The transport isolates the SDK statics so the mapping is testable. |
 | `sentryLevelFor`, `shouldCapture`, `scrubEvent`, `scrubBreadcrumb` | `sentry_policy.dart` | The §4.2 level mapping and the second line of defence behind the typed façade. |
 | `SentryStartup`, `BuildIdentity`, `readBuildIdentity` | `sentry_startup.dart` | The §4.5 option values as pure data, plus the web/iOS build identity. |
-| `appLogOrNull`, `readErrorCode`, `authOutcomeFor`, `createLaunchDiagnostics` | `diagnostics.dart` | Null-safe accessor and the pure helpers the seams share. |
+| `appLogOrNull`, `authOutcomeFor`, `createLaunchDiagnostics` | `diagnostics.dart` | Null-safe accessor, the auth-outcome mapping and the launch composition. |
 | `RouteChangeRecorder` | `../router.dart` | Records one `routeChanged` per router location change. |
 | `SupportCodeTile` | `../../common/widgets/support_code_tile.dart` | The six-character code with a copy action. |
 
@@ -59,15 +59,18 @@ Sentry sink, its policy and the startup wiring are the files that know about the
   `firestore.rules`; the allowlist masks anything outside the four names as `other`.
 - **`clean` belongs only to `sessionEnd`;** `min`/`running`/`reason` only to `updateGate`.
   The wire-key contract is in the epic spec §4.2.
-- **Breadcrumbs are capped at 30** (`maxBreadcrumbs`), oldest dropped, and errors are not
-  breadcrumbs.
+- **The facade's breadcrumb ring and Sentry's breadcrumb buffer are separate 30s.**
+  `AppLog.maxBreadcrumbs` caps the in-memory ring that `AppLog.breadcrumbs` exposes (oldest
+  dropped, errors excluded); the Sentry option `maxBreadcrumbs: 30` caps the SDK scope. The
+  Sentry trail is built by `SentrySink` from every record, so the ring is no longer its source.
 - **`SessionContext` is immutable.** `AppLog` replaces it on auth/route changes; each
   `LogRecord` carries the snapshot from when it was emitted.
 - **`ConsoleSink(enabled: …)` takes the debug gate as an argument** (the composition root
   passes `kDebugMode`), so the branch is testable in a VM test. Release builds pass `false`.
 - No barrel file: import the concrete path (`package:wishtogether/core/logging/app_log.dart`).
-- **No `debugPrint` outside `log_sink.dart`.** `test/no_debug_print_test.dart` enforces it.
-  `debugPrintStack` is not used either: a caught error goes through `AppLog.error`.
+- **S2b removes the remaining `debugPrint` call sites and adds
+  `test/no_debug_print_test.dart`.** S2a does not touch those sites, so this branch has no
+  such guard; `debugPrintStack` at `profile_page.dart` likewise stays until S2b replaces it.
 - **The Firestore seam passes the collection name constant** (`items`, `wishlists`, …), never
   `FirebaseRepository.collectionPath`: the item repository's path is `wishlists/<id>/items`,
   which the allowlist masks as `other`.
@@ -85,11 +88,17 @@ Sentry sink, its policy and the startup wiring are the files that know about the
   `flutter_error_details`, whose `informationCollector` text can quote a typed name or a text
   span — nulls the request, reduces the user to a validated `SentryUser(id:)`, strips every
   exception's `value`, and keeps a message only when the event carries this app's `event` tag —
-  a zone or native error has no such tag, so its `toString()` never ships. That last part matters
-  on **web**: `sentry_flutter` runs the app runner inside its own `runZonedGuarded` there,
-  materialises an uncaught error's `toString()` into `exceptions[].value` before `beforeSend`,
-  and Flutter web never routes those errors to `PlatformDispatcher.onError` — so the scrubber is
-  the only thing between a `FirebaseAuthException` message and the store.
+  a Dart error captured outside the sink has no such tag, so its materialised `toString()` is
+  dropped. That last part matters on **web**: `sentry_flutter` runs the app runner inside its
+  own `runZonedGuarded` there, materialises an uncaught error's `toString()` into
+  `exceptions[].value` before `beforeSend`, and Flutter web never routes those errors to
+  `PlatformDispatcher.onError`.
+- **The scrubber's reach is Dart-only, and must not be described otherwise.** `beforeSend` does
+  not see a native iOS crash (the Cocoa SDK's path), and on web the SDK's JS client installs
+  `globalHandlers` with its own `beforeSend`, so a JS-level uncaught error posted by the JS
+  client does not pass through `scrubEvent`. On those two paths the protections are
+  `sendDefaultPii: false` and the absence of any PII-bearing custom key. S4's policy text must
+  say so instead of claiming the scrubber covers every crash.
 - **The scope is written from the record's own session**, not from a second writer: the auth
   listener calls `setUserRef` and then emits an `AuthStateEvent`, so both the `user_ref` tag and
   `SentryUser` follow on sign-in and clear on sign-out. The six tag names come from
@@ -105,7 +114,7 @@ Sentry sink, its policy and the startup wiring are the files that know about the
   `PackageInfo` read still runs (it supplies the build identity), and `ConsoleSink` prints the
   launch and route records in debug.
 - **`WT_SENTRY_ENVIRONMENT` overrides the environment**; `staging` also omits `release`/`dist`,
-  because the pre-merge deploy uploads no symbols. The staging deploy workflow passes it.
+  because the pre-merge deploy uploads no symbols. S3's staging dispatch must pass the define.
 - **Sentry's own handlers are the only global error handlers.** `SentryFlutter.init` installs
   `FlutterErrorIntegration` and `PlatformDispatcher.onError` (on web, its own
   `runZonedGuarded`), so the app does not install a second pair; `beforeSend` is what keeps the
@@ -133,7 +142,8 @@ allowlist.
 
 - `session_context_test.dart` — Crockford encoding (known vectors), support-code alphabet and
   length, `user_ref` shape/stability/uniqueness, build resolution, route redaction.
-- `redaction_test.dart` — route patterns and masks, collection mask, code shape rejection.
+- `redaction_test.dart` — route patterns and masks, collection mask, code shape rejection, and
+  the shared `readErrorCode` reader.
 - `log_record_test.dart` — every event's name/fields, allowlisted keys, code dropping,
   `user_ref` absent when signed out, stack outside the map.
 - `app_log_test.dart` — fan-out to sinks, error message never captured, uid never emitted,
@@ -146,7 +156,7 @@ allowlist.
   message scrubbing, and every drop rule.
 - `sentry_sink_test.dart` — breadcrumb vs event, stack passthrough, one scope write per session
   change, sign-out clears the user, transport failures swallowed.
-- `diagnostics_test.dart` — Sentry sink present only with a transport, structural code read,
-  provider mapping.
+- `diagnostics_test.dart` — Sentry sink present only with a transport, provider mapping.
+- `sentry_scrub_end_to_end_test.dart` — a real `SentryClient`/`beforeSend` round trip: the
+  serialised envelope carries no phone number, document id, uid, device name or typed name.
 - `route_literals_test.dart` — every page route constant is in `logRouteLiterals` (gap 5).
-- `test/no_debug_print_test.dart` — the "no `debugPrint` in `lib/`" invariant.

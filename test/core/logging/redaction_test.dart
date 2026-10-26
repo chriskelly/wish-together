@@ -164,4 +164,31 @@ void main() {
       expect(redactCode(null), isNull);
     });
   });
+
+  group('readErrorCode', () {
+    const code = 'permission-denied';
+
+    test('reads a structured code', () {
+      expect(readErrorCode(const ErrorWithCode(code)), code);
+    });
+
+    test('ignores a non-string or missing code', () {
+      expect(readErrorCode(const ErrorWithCode(42)), isNull);
+      expect(readErrorCode(StateError('plain')), isNull);
+    });
+
+    test('survives a code getter that throws', () {
+      expect(readErrorCode(ThrowingCode()), isNull);
+    });
+  });
+}
+
+class ErrorWithCode {
+  const ErrorWithCode(this.code);
+
+  final Object? code;
+}
+
+class ThrowingCode {
+  Object? get code => throw StateError('no code');
 }

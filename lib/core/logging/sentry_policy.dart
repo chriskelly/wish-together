@@ -152,6 +152,11 @@ SentryEvent? scrubEvent(SentryEvent event, Hint hint) {
   // Neither is ever set by this app's sink.
   event.transaction = null;
   event.culprit = null;
+  // A native scope can copy these onto a Dart event, and `fingerprint` is part
+  // of the epic's outbound-field list. This app sets none of them.
+  event.fingerprint = null;
+  event.logger = null;
+  event.serverName = null;
   // The SDK materialises an exception's `toString()` into `value` before this
   // callback runs (on web it owns `runZonedGuarded`), so the message text has
   // to be stripped here. Type, mechanism and frames survive. The rebuild also

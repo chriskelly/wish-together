@@ -85,7 +85,10 @@ Sentry sink, its policy and the startup wiring are the files that know about the
   tags or extra carry a key outside `logRecordKeys` — except the SDK's two constant provenance
   tags (`event.origin`, `event.environment`), which `LoadContextsIntegration` adds to every
   native event before `beforeSend` (without that exemption every Dart event on iOS would be
-  dropped) — rebuilds `contexts` to an allowlist
+  dropped). The exemption is by key only: the values stay the SDK's `flutter`/`dart` constants,
+  and no app code writes those keys — do not put user data there. `beforeSend` also nulls
+  `fingerprint`, `logger` and `serverName`, which a native scope can copy across and which this
+  app never sets. It rebuilds `contexts` to an allowlist
   (`os.name`, `os.version`, `app.version`, `app.build`) — which drops the device name and
   Flutter's `flutter_error_details`, whose `informationCollector` text can quote a typed name or
   a text span — nulls the request, **the SDK transaction and culprit** (on web the enricher

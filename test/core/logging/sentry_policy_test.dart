@@ -357,6 +357,21 @@ void main() {
       expect(scrubbed.culprit, isNull);
     });
 
+    test('clears the remaining outbound identity fields', () {
+      final event = SentryEvent(
+        tags: const {'event': 'error'},
+        fingerprint: const ['{{ default }}', 'user-supplied'],
+        logger: 'app.logger',
+        serverName: 'a-device-hostname',
+      );
+
+      final scrubbed = scrubEvent(event, Hint())!;
+
+      expect(scrubbed.fingerprint, isNull);
+      expect(scrubbed.logger, isNull);
+      expect(scrubbed.serverName, isNull);
+    });
+
     test('drops a user id that is not a derived reference', () {
       final event = SentryEvent(
         tags: const {'event': 'error'},

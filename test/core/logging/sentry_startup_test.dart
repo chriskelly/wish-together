@@ -129,6 +129,44 @@ void main() {
     });
   });
 
+  group('staging release', () {
+    test('drops the SDK release integration for staging', () {
+      final startup = SentryStartup.fromEnvironment(
+        identity: const BuildIdentity(build: webBuild, platform: 'web'),
+        releaseMode: true,
+        dsn: dsn,
+        environment: 'staging',
+      );
+      final options = SentryFlutterOptions()
+        ..addIntegration(LoadReleaseIntegration());
+
+      startup.configure(options);
+
+      expect(options.release, isNull);
+      expect(options.dist, isNull);
+      expect(options.integrations.whereType<LoadReleaseIntegration>(), isEmpty);
+    });
+
+    test('keeps the SDK release integration outside staging', () {
+      final startup = SentryStartup.fromEnvironment(
+        identity: const BuildIdentity(build: webBuild, platform: 'web'),
+        releaseMode: true,
+        dsn: dsn,
+        environment: 'production',
+      );
+      final options = SentryFlutterOptions()
+        ..addIntegration(LoadReleaseIntegration());
+
+      startup.configure(options);
+
+      expect(options.release, releaseNameFor(webBuild));
+      expect(
+        options.integrations.whereType<LoadReleaseIntegration>(),
+        hasLength(1),
+      );
+    });
+  });
+
   group('platformTagFor', () {
     test('names web regardless of the host platform', () {
       expect(

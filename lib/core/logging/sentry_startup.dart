@@ -144,6 +144,14 @@ class SentryStartup {
     options.replay
       ..sessionSampleRate = 0
       ..onErrorSampleRate = 0;
+    if (isStaging) {
+      // The SDK's release integration fills release/dist from PackageInfo when
+      // they are null, which would give staging a release §4.5 says it has not.
+      for (final integration
+          in options.integrations.whereType<LoadReleaseIntegration>()) {
+        options.removeIntegration(integration);
+      }
+    }
   }
 
   /// The identity of this launch, read from the platform.

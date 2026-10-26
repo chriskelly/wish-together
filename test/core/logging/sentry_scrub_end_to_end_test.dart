@@ -62,6 +62,10 @@ void main() {
     });
     // Mirrors the web enricher, which defaults `transaction` to the pathname.
     scope.transaction = '/wishlist/$documentId';
+    // Mirrors LoadContextsIntegration on a native platform: these two constants
+    // are added to every event before beforeSend.
+    await scope.setTag('event.origin', 'flutter');
+    await scope.setTag('event.environment', 'dart');
 
     await client.captureException(
       Exception('call me on $phone about $documentId for $rawUid'),

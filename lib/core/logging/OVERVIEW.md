@@ -82,7 +82,10 @@ Sentry sink, its policy and the startup wiring are the files that know about the
 - **`beforeBreadcrumb` keeps only category `applog` and no message or one from the closed
   vocabulary.** An SDK breadcrumb (an HTTP URL, a lifecycle event), or one whose message is free
   text, cannot carry an id or a phone number into the store. `beforeSend` drops an event whose
-  tags or extra carry a key outside `logRecordKeys`, rebuilds `contexts` to an allowlist
+  tags or extra carry a key outside `logRecordKeys` — except the SDK's two constant provenance
+  tags (`event.origin`, `event.environment`), which `LoadContextsIntegration` adds to every
+  native event before `beforeSend` (without that exemption every Dart event on iOS would be
+  dropped) — rebuilds `contexts` to an allowlist
   (`os.name`, `os.version`, `app.version`, `app.build`) — which drops the device name and
   Flutter's `flutter_error_details`, whose `informationCollector` text can quote a typed name or
   a text span — nulls the request, **the SDK transaction and culprit** (on web the enricher
@@ -97,12 +100,13 @@ Sentry sink, its policy and the startup wiring are the files that know about the
 - **The scrubber's reach is Dart-only, and must not be described otherwise.** `beforeSend` does
   not see a native iOS crash (the Cocoa SDK's path), and on web the SDK's JS client installs
   `globalHandlers` with its own `beforeSend`, so a JS-level uncaught error posted by the JS
-  client does not pass through `scrubEvent`. iOS also emits its own native lifecycle and HTTP
-  breadcrumbs (`enableAutoNativeBreadcrumbs` and `recordHttpBreadcrumbs` default on), which never
-  pass through `scrubBreadcrumb`. On those paths the protections are `sendDefaultPii: false` and
-  the absence of any PII-bearing custom key; check the native breadcrumbs on the manual iOS run
-  before S4 relies on the guarantee. Its policy text must not claim the scrubber covers every
-  crash.
+  client does not pass through `scrubEvent`. iOS also emits native lifecycle and HTTP breadcrumbs
+  (`enableAutoNativeBreadcrumbs` and `recordHttpBreadcrumbs` default on);
+  `LoadContextsIntegration` merges them into a Dart event through `beforeBreadcrumb` — where the
+  category/message allowlist drops them — but the native-crash envelope bypasses both callbacks.
+  On those paths the protections are `sendDefaultPii: false` and the absence of any PII-bearing
+  custom key; check the native breadcrumbs on the manual iOS run before S4 relies on the
+  guarantee. Its policy text must not claim the scrubber covers every crash.
 - **The scope is written from the record's own session**, not from a second writer: the auth
   listener calls `setUserRef` and then emits an `AuthStateEvent`, so both the `user_ref` tag and
   `SentryUser` follow on sign-in and clear on sign-out. The six tag names come from
@@ -118,7 +122,9 @@ Sentry sink, its policy and the startup wiring are the files that know about the
   `PackageInfo` read still runs (it supplies the build identity), and `ConsoleSink` prints the
   launch and route records in debug.
 - **`WT_SENTRY_ENVIRONMENT` overrides the environment**; `staging` also omits `release`/`dist`,
-  because the pre-merge deploy uploads no symbols. S3's staging dispatch must pass the define.
+  because the pre-merge deploy uploads no symbols. `configure` removes the SDK's
+  `LoadReleaseIntegration` for staging, since that integration would otherwise fill both from
+  `PackageInfo`. S3's staging dispatch must pass the define.
 - **Sentry's own handlers are the only global error handlers.** `SentryFlutter.init` installs
   `FlutterErrorIntegration` and `PlatformDispatcher.onError` (on web, its own
   `runZonedGuarded`), so the app does not install a second pair; `beforeSend` is what keeps the

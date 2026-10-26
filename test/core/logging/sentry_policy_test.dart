@@ -216,6 +216,27 @@ void main() {
       expect(scrubEvent(event, Hint()), isNotNull);
     });
 
+    test('keeps the SDK provenance tags and still strips the value', () {
+      // Mirrors LoadContextsIntegration, which tags every native event with
+      // these two constants before beforeSend. Dropping them would silently
+      // erase every Dart event on iOS and Android.
+      final event = SentryEvent(
+        tags: const {
+          'event': 'error',
+          'event.origin': 'flutter',
+          'event.environment': 'dart',
+        },
+        exceptions: <SentryException>[
+          SentryException(type: 'StateError', value: 'call me on 555 0100'),
+        ],
+      );
+
+      final scrubbed = scrubEvent(event, Hint());
+
+      expect(scrubbed, isNotNull);
+      expect(scrubbed!.exceptions!.single.value, isNull);
+    });
+
     test('drops an event carrying a non-allowlisted tag', () {
       final event = SentryEvent(tags: const {'email': 'a@example.com'});
 

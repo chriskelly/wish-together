@@ -29,6 +29,20 @@ const List<String> _messageKeys = <String>[
   'error_code',
 ];
 
+/// Tags the SDK itself adds before `beforeSend` on a native platform.
+///
+/// `sentry_flutter`'s `LoadContextsIntegration` marks every event from
+/// `sentry.dart.flutter` with these two constants. They carry no app data, but
+/// without this exemption the strict allowlist would drop every Dart event on
+/// iOS and Android.
+const Set<String> _sdkProvenanceTags = <String>{
+  'event.origin',
+  'event.environment',
+};
+
+bool _isAllowedEventTag(String key) =>
+    logRecordKeys.contains(key) || _sdkProvenanceTags.contains(key);
+
 /// The §4.2 level of a record.
 SentryLevel sentryLevelFor(LogRecord record) => switch (record.event) {
   ErrorEvent() => SentryLevel.error,
@@ -106,7 +120,7 @@ SentryEvent sentryEventFor(LogRecord record, [Map<String, Object?>? fields]) {
 /// behind it, and the one that also covers events the SDK captured on its own.
 SentryEvent? scrubEvent(SentryEvent event, Hint hint) {
   final tags = event.tags;
-  if (tags != null && !tags.keys.every(logRecordKeys.contains)) {
+  if (tags != null && !tags.keys.every(_isAllowedEventTag)) {
     return null;
   }
   // ignore: deprecated_member_use

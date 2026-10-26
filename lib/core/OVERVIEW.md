@@ -20,7 +20,7 @@ is a feature; features import from `core/`.
 | `resolveFirestoreDatabaseId` / `createFirestoreInstance` | `firestore_target.dart` | Build-time Firestore database selection (`WT_FIRESTORE_DATABASE`). |
 | `createRouter(AuthService, {UserRepository?, String? initialLocation})` / `handleRedirect(...)` | `router.dart` | The `go_router` graph and the redirect contract. |
 | `RouteChangeRecorder` / `AuthListenable` | `router.dart` | The two instrumentation seams: one `routeChanged` per location change, and the auth transition that owns `AppLog.setUserRef`. |
-| `AppLog` / `LogSink` / `SessionContext` / `AppEvent` / `LogRecord` | `logging/` | The dependency-free reporting seam, its typed vocabulary, and the §4.3 allowlist (`logging/OVERVIEW.md`). |
+| `AppLog` / `LogSink` / `SessionContext` / `AppEvent` / `LogRecord` | `logging/` | The typed reporting seam (the facade is pure Dart; only the Sentry files know the SDK), its vocabulary, and the §4.3 allowlist (`logging/OVERVIEW.md`). |
 | `appOrigin` / `locationFromUniversalLink(...)` | `app_urls.dart` | Canonical URL and the allowlisted Universal-Link → location mapping. |
 | `DeepLinkService` | `deep_links.dart` | iOS link delivery (`app_links`) with a startup queue and a warm-link callback. |
 | `setupServiceLocator()` / `getIt` | `service_locator.dart` | Registers the log (eagerly, when supplied), repositories and use cases. |
@@ -81,9 +81,10 @@ as `/join?group=123`), which is how an iOS Universal Link starts the router.
 ## Data flow
 
 `lib/main.dart` installs the path URL strategy and constructs `DeepLinkService` before
-Firebase, so an iOS link received while startup is still working is queued. It then starts the
-build-identity read and initializes Firebase concurrently (the iOS package-info call overlaps
-init), builds the launch diagnostics (`SessionContext`,
+Firebase, so an iOS link received while startup is still working is queued. It then reads the
+build identity: with a DSN the Sentry wrapper reads it before `SentryFlutter.init`; without one,
+`_startUp` starts the read and initializes Firebase concurrently (the iOS package-info call
+overlaps init) and awaits it afterwards. It builds the launch diagnostics (`SessionContext`,
 `AppLog`, `ConsoleSink`, and `SentrySink` when a DSN is configured), registers the log in the
 locator, activates App Check, and asks `AppUpdateService`
 whether the running build is still supported. If it is, `_startApp` takes the queued link (if

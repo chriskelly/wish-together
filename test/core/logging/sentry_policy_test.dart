@@ -312,6 +312,22 @@ void main() {
       expect(app.name, isNull);
     });
 
+    test('drops the SDK transaction, which can carry a document id', () {
+      // On web the enricher defaults `transaction` to the pathname, so an event
+      // raised on /wishlist/<id> would otherwise ship the id as a searchable
+      // field. `culprit` is derived from the transaction.
+      final event = SentryEvent(
+        tags: const {'event': 'error'},
+        transaction: '/wishlist/abc123',
+        culprit: 'wishlistDetails',
+      );
+
+      final scrubbed = scrubEvent(event, Hint())!;
+
+      expect(scrubbed.transaction, isNull);
+      expect(scrubbed.culprit, isNull);
+    });
+
     test('drops a user id that is not a derived reference', () {
       final event = SentryEvent(
         tags: const {'event': 'error'},

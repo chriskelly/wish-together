@@ -56,7 +56,8 @@ Sentry sink, its policy and the startup wiring are the files that know about the
   must still pass a real code, and this wire key is `error_code`, not free text.
 - **A collection is reported by name, never by path.** A nested path
   (`wishlists/<id>/items`) contains a document id, which is a capability under
-  `firestore.rules`; the allowlist masks anything outside the four names as `other`.
+  `firestore.rules`; the allowlist masks anything outside the four names as `other`. Callers pass
+  the collection name constant, never `FirebaseRepository.collectionPath`.
 - **`clean` belongs only to `sessionEnd`;** `min`/`running`/`reason` only to `updateGate`.
   The wire-key contract is in the epic spec §4.2.
 - **The facade's breadcrumb ring and Sentry's breadcrumb buffer are separate 30s.**
@@ -69,25 +70,25 @@ Sentry sink, its policy and the startup wiring are the files that know about the
   passes `kDebugMode`), so the branch is testable in a VM test. Release builds pass `false`.
 - No barrel file: import the concrete path (`package:wishtogether/core/logging/app_log.dart`).
 - **S2b removes the remaining `debugPrint` call sites and adds
-  `test/no_debug_print_test.dart`.** S2a does not touch those sites, so this branch has no
-  such guard; `debugPrintStack` at `profile_page.dart` likewise stays until S2b replaces it.
-- **The Firestore seam passes the collection name constant** (`items`, `wishlists`, …), never
-  `FirebaseRepository.collectionPath`: the item repository's path is `wishlists/<id>/items`,
-  which the allowlist masks as `other`.
+  `test/no_debug_print_test.dart`, whose guard must exempt `log_sink.dart`** (the console sink's
+  two calls are the feature). S2a does not touch those sites, so this branch has no such guard;
+  `debugPrintStack` at `profile_page.dart` likewise stays until S2b replaces it.
 - **Every record is a Sentry breadcrumb; only the diagnostic families are events.**
   `ErrorEvent` → `error`; `FirestoreErrorEvent`, a failed `AuthStateEvent` and an
   `UpdateGateEvent` with `result: failedOpen` → `warning`; everything else → `info`, breadcrumb
   only. Capturing every info record would spend the free error quota on route changes, while a
   warning is queryable on demand — a gate that silently fails open is exactly what an agent
   needs to find afterwards.
-- **`beforeBreadcrumb` keeps only category `applog` and a message from the closed vocabulary.**
-  An SDK breadcrumb (an HTTP URL, a lifecycle event), or one whose message is free text, cannot
-  carry an id or a phone number into the store. `beforeSend` drops an event whose tags or extra
-  carry a key outside `logRecordKeys`, rebuilds `contexts` to an allowlist (`os.name`,
-  `os.version`, `app.version`, `app.build`) — which drops the device name and Flutter's
-  `flutter_error_details`, whose `informationCollector` text can quote a typed name or a text
-  span — nulls the request, reduces the user to a validated `SentryUser(id:)`, strips every
-  exception's `value`, and keeps a message only when the event carries this app's `event` tag —
+- **`beforeBreadcrumb` keeps only category `applog` and no message or one from the closed
+  vocabulary.** An SDK breadcrumb (an HTTP URL, a lifecycle event), or one whose message is free
+  text, cannot carry an id or a phone number into the store. `beforeSend` drops an event whose
+  tags or extra carry a key outside `logRecordKeys`, rebuilds `contexts` to an allowlist
+  (`os.name`, `os.version`, `app.version`, `app.build`) — which drops the device name and
+  Flutter's `flutter_error_details`, whose `informationCollector` text can quote a typed name or
+  a text span — nulls the request, **the SDK transaction and culprit** (on web the enricher
+  defaults `transaction` to `window.location.pathname`, which under the path URL strategy is a
+  document id), reduces the user to a validated `SentryUser(id:)`, strips every exception's
+  `value`, and keeps a message only when the event carries this app's `event` tag —
   a Dart error captured outside the sink has no such tag, so its materialised `toString()` is
   dropped. That last part matters on **web**: `sentry_flutter` runs the app runner inside its
   own `runZonedGuarded` there, materialises an uncaught error's `toString()` into

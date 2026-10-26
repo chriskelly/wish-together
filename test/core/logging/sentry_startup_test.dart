@@ -99,7 +99,7 @@ void main() {
     });
   });
 
-  group('SentryStartup.enabled', () {
+  group('DSN gating', () {
     test('stays disabled without a DSN', () {
       final startup = SentryStartup.fromEnvironment(
         identity: const BuildIdentity(build: webBuild, platform: 'web'),
@@ -107,7 +107,7 @@ void main() {
         dsn: '',
       );
 
-      expect(startup.enabled, isFalse);
+      expect(sentryDsnConfigured(startup.dsn), isFalse);
     });
 
     test('treats a whitespace-only DSN as absent', () {
@@ -117,7 +117,7 @@ void main() {
         dsn: '   ',
       );
 
-      expect(startup.enabled, isFalse);
+      expect(sentryDsnConfigured(startup.dsn), isFalse);
     });
   });
 

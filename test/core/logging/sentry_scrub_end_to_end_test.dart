@@ -55,6 +55,8 @@ void main() {
     await scope.setContexts('flutter_error_details', <String, String>{
       'information': 'TextEditingValue(text: "$typedName")',
     });
+    // Mirrors the web enricher, which defaults `transaction` to the pathname.
+    scope.transaction = '/wishlist/$documentId';
 
     await client.captureException(
       Exception('call me on $phone about $documentId for $rawUid'),
@@ -83,6 +85,11 @@ void main() {
     }
     expect(text, isNot(contains(deviceName)), reason: 'device name leaked');
     expect(text, isNot(contains(typedName)), reason: 'typed name leaked');
+    expect(
+      text,
+      isNot(contains('"transaction"')),
+      reason: 'the SDK transaction can carry a document id',
+    );
     expect(text, contains('17.2'), reason: 'OS version is allowed');
     expect(text, contains('1.2.3'), reason: 'app version is allowed');
   });

@@ -65,7 +65,7 @@ void main() {
       );
     });
 
-    test('prefers the most recently used provider on a linked account', () {
+    test('names the last linked provider on a linked account', () {
       expect(
         authOutcomeFor(
           signedIn: true,

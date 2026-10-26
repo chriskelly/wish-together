@@ -98,7 +98,7 @@ void main() {
       await startWithDiagnostics(
         dsn: '',
         start: () async => plain++,
-        startWithSentry: () async => sentry++,
+        startWithSentry: (_) async => sentry++,
       );
 
       expect(plain, 1);
@@ -112,7 +112,7 @@ void main() {
       await startWithDiagnostics(
         dsn: '   ',
         start: () async => plain++,
-        startWithSentry: () async => sentry++,
+        startWithSentry: (_) async => sentry++,
       );
 
       expect(plain, 1);
@@ -120,17 +120,27 @@ void main() {
     });
 
     test('runs the Sentry startup with a DSN', () async {
+      const dsn = 'https://public@example.invalid/1';
       var plain = 0;
       var sentry = 0;
+      String? sentryDsn;
 
       await startWithDiagnostics(
-        dsn: 'https://public@example.invalid/1',
+        dsn: dsn,
         start: () async => plain++,
-        startWithSentry: () async => sentry++,
+        startWithSentry: (received) async {
+          sentryDsn = received;
+          sentry++;
+        },
       );
 
       expect(plain, 0);
       expect(sentry, 1);
+      expect(
+        sentryDsn,
+        dsn,
+        reason: 'the gate and the configured DSN must be the same value',
+      );
     });
   });
 }

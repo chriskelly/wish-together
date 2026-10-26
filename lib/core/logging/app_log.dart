@@ -35,8 +35,9 @@ class AppLog {
 
   /// The most recent events, newest last, capped at [maxBreadcrumbs].
   ///
-  /// Errors are not breadcrumbs; they are the headline. Sinks that need the
-  /// trail (S2's Sentry scope) read it here.
+  /// Errors are not breadcrumbs; they are the headline. The Sentry trail is no
+  /// longer read from here — `SentrySink` pushes each record as its own
+  /// breadcrumb — so this ring remains for in-process inspection and tests.
   List<LogRecord> get breadcrumbs => List<LogRecord>.unmodifiable(_breadcrumbs);
 
   /// Reports one typed event.

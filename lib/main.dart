@@ -51,25 +51,28 @@ void main() async {
 ///
 /// An empty DSN means Sentry is never initialised: no SDK, no native handler,
 /// no network. Testing the branch itself — not only the predicate — is what
-/// keeps a future refactor from waking the SDK in tests and CI.
+/// keeps a future refactor from waking the SDK in tests and CI. The DSN is
+/// passed to the Sentry runner so the gate and the configured value cannot
+/// diverge.
 @visibleForTesting
 Future<void> startWithDiagnostics({
   required String dsn,
   required Future<void> Function() start,
-  required Future<void> Function() startWithSentry,
+  required Future<void> Function(String dsn) startWithSentry,
 }) async {
   if (!sentryDsnConfigured(dsn)) {
     await start();
     return;
   }
-  await startWithSentry();
+  await startWithSentry(dsn);
 }
 
-Future<void> _startWithSentry() async {
+Future<void> _startWithSentry(String dsn) async {
   final identity = await SentryStartup.readIdentity();
   final startup = SentryStartup.fromEnvironment(
     identity: identity,
     releaseMode: kReleaseMode,
+    dsn: dsn,
   );
   var appRunnerStarted = false;
   try {
@@ -98,7 +101,8 @@ Future<void> _startUp({
   BuildIdentity? identity,
   bool sentryEnabled = false,
 }) async {
-  // Started before Firebase so the iOS package-info call overlaps its init.
+  // Without a Sentry identity already in hand, start the read before Firebase so
+  // the iOS package-info call overlaps its init.
   final identityFuture = identity == null
       ? SentryStartup.readIdentity()
       : Future<BuildIdentity>.value(identity);

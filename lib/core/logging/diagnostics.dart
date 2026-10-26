@@ -18,7 +18,9 @@ AppLog? get appLogOrNull =>
 /// the vocabulary.
 ///
 /// Firebase can link several providers onto one account, so the last matching
-/// entry wins: provider data is ordered by when the provider was linked.
+/// entry wins: provider data is ordered by link time, not by last use. The
+/// outcome therefore names a provider on the account, not necessarily the one
+/// used for this sign-in.
 AuthOutcome? authOutcomeFor({
   required bool signedIn,
   required List<String> providerIds,

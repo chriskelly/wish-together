@@ -132,6 +132,12 @@ SentryEvent? scrubEvent(SentryEvent event, Hint hint) {
   }
   // A request carries the endpoint and, on some platforms, an IP.
   event.request = null;
+  // On web, the SDK's enricher fills `transaction` with
+  // `window.location.pathname`, which under the path URL strategy carries
+  // document ids (`/wishlist/<id>`), and the server derives `culprit` from it.
+  // Neither is ever set by this app's sink.
+  event.transaction = null;
+  event.culprit = null;
   // The SDK materialises an exception's `toString()` into `value` before this
   // callback runs (on web it owns `runZonedGuarded`), so the message text has
   // to be stripped here. Type, mechanism and frames survive. The rebuild also

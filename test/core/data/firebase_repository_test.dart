@@ -2,6 +2,12 @@ import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wishtogether/core/data/firebase_repository.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:wishtogether/core/logging/app_event.dart';
+import 'package:wishtogether/core/logging/app_log.dart';
+import 'package:wishtogether/core/logging/log_sink.dart';
+import 'package:wishtogether/core/service_locator.dart';
+
+import '../logging/recording_sink.dart';
 
 class TestModel {
   final String? id;
@@ -22,6 +28,27 @@ class TestModelRepository extends FirebaseRepository<TestModel> {
   @override
   Map<String, dynamic> toFirestore(TestModel model) {
     return {'name': model.name};
+  }
+}
+
+class FailingModelRepository extends TestModelRepository {
+  FailingModelRepository(
+    super.collectionPath, {
+    super.firestore,
+    required this.error,
+  });
+
+  final Object error;
+
+  @override
+  TestModel fromFirestore(DocumentSnapshot doc) => throw error;
+}
+
+/// Fails before any Firestore call, to pin a write path's guard.
+class ThrowingFirestore extends FakeFirebaseFirestore {
+  @override
+  CollectionReference<Map<String, dynamic>> collection(String collectionPath) {
+    throw StateError('write failed');
   }
 }
 
@@ -193,6 +220,124 @@ void main() {
 
       expect(models.length, 1);
       expect(models.first.name, matchName);
+    });
+  });
+
+  group('FirebaseRepository diagnostics', () {
+    const String nestedPath = 'wishlists/some-id/items';
+
+    late FakeFirebaseFirestore fakeFirestore;
+    late RecordingSink sink;
+
+    setUp(() {
+      fakeFirestore = FakeFirebaseFirestore();
+      sink = RecordingSink();
+      getIt.registerSingleton<AppLog>(
+        AppLog(session: testSession, sinks: <LogSink>[sink]),
+      );
+      addTearDown(getIt.reset);
+    });
+
+    TestModelRepository nestedRepository() =>
+        TestModelRepository(nestedPath, firestore: fakeFirestore);
+
+    FailingModelRepository throwingRepository() => FailingModelRepository(
+      nestedPath,
+      firestore: fakeFirestore,
+      error: TypeError(),
+    );
+
+    test('reports the collection name, never the document path', () async {
+      await expectLater(
+        nestedRepository().get('missing'),
+        throwsA(isA<TypeError>()),
+      );
+
+      final event = sink.eventsOf<FirestoreErrorEvent>().single;
+      expect(event.collection, 'items');
+      expect(event.op, FirestoreOp.get);
+    });
+
+    test('reports a structured error code', () async {
+      const code = 'permission-denied';
+      final repository = FailingModelRepository(
+        nestedPath,
+        firestore: fakeFirestore,
+        error: const CodedError(code),
+      );
+
+      await expectLater(repository.get('missing'), throwsA(isA<CodedError>()));
+
+      expect(sink.eventsOf<FirestoreErrorEvent>().single.code, code);
+    });
+
+    test('does not report a successful one-shot list', () async {
+      await expectLater(
+        nestedRepository().listWhere('name', isEqualTo: 'x'),
+        completes,
+      );
+
+      expect(sink.eventsOf<FirestoreErrorEvent>(), isEmpty);
+    });
+
+    test('rethrows the original failure unchanged', () async {
+      Object? caught;
+      try {
+        await throwingRepository().get('missing');
+      } catch (error) {
+        caught = error;
+      }
+
+      expect(caught, isA<TypeError>());
+      expect(sink.eventsOf<FirestoreErrorEvent>(), hasLength(1));
+    });
+
+    test('reports a failed partial update as a write', () async {
+      final repository = TestModelRepository(
+        nestedPath,
+        firestore: ThrowingFirestore(),
+      );
+
+      await expectLater(
+        repository.updateData('missing', {'name': 'x'}),
+        throwsA(isA<StateError>()),
+      );
+
+      final event = sink.eventsOf<FirestoreErrorEvent>().single;
+      expect(event.op, FirestoreOp.write);
+      expect(event.collection, 'items');
+    });
+
+    test('streamAll reports and forwards a mapping failure', () async {
+      await fakeFirestore.collection(nestedPath).add({'name': 'x'});
+      final stream = throwingRepository().streamAll();
+
+      await expectLater(stream, emitsError(isA<TypeError>()));
+
+      final event = sink.eventsOf<FirestoreErrorEvent>().single;
+      expect(event.collection, 'items');
+      expect(event.op, FirestoreOp.list);
+    });
+
+    test('streamWhere reports and forwards a mapping failure', () async {
+      await fakeFirestore.collection(nestedPath).add({'name': 'x'});
+      final stream = throwingRepository().streamWhere('name', isEqualTo: 'x');
+
+      await expectLater(stream, emitsError(isA<TypeError>()));
+
+      final event = sink.eventsOf<FirestoreErrorEvent>().single;
+      expect(event.collection, 'items');
+      expect(event.op, FirestoreOp.list);
+    });
+
+    test('streamOne reports and forwards a mapping failure', () async {
+      final stream = throwingRepository().streamOne('missing');
+
+      await expectLater(stream, emitsError(isA<TypeError>()));
+
+      final event = sink.eventsOf<FirestoreErrorEvent>().single;
+      expect(event.collection, 'items');
+      expect(event.op, FirestoreOp.get);
     });
   });
 }

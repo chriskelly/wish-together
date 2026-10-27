@@ -37,9 +37,8 @@ class StreamListBuilder<T> extends StatelessWidget {
               const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          // For debugging, it's useful to log the error.
-          debugPrint('Error in ResourceStreamListBuilder: ${snapshot.error}');
-          debugPrint(snapshot.stackTrace.toString());
+          // Reported at the data seam (FirebaseRepository); this widget only
+          // decides what to render.
           return errorWidget ??
               Center(child: Text('An error occurred: ${snapshot.error}'));
         }

@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wishtogether/common/widgets/confirmation_dialog.dart';
+import 'package:wishtogether/core/logging/diagnostics.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/application/delete_account_use_case.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
@@ -124,8 +125,8 @@ class _DeleteAccountSectionState extends State<DeleteAccountSection> {
       if (mounted) {
         context.go(LoginPage.route);
       }
-    } catch (error) {
-      debugPrint('Delete-account follow-up failed: $error');
+    } catch (error, stackTrace) {
+      appLogOrNull?.error(error, stackTrace, code: 'delete-follow-up-failed');
     }
   }
 

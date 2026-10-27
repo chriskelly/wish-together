@@ -81,7 +81,9 @@ class RouteChangedEvent extends AppEvent {
 }
 
 /// The update gate decided. [min] and [running] are the integer builds, and
-/// [reason] is a code such as `below-minimum` or `config-unavailable`.
+/// [reason] is a code such as `build-unreadable`, `remote-config-unavailable`,
+/// `missing-update-url`, `min-not-integer`, `check-failed`,
+/// `unexpected-failure`, `debug-bypass` or `gate-not-applicable`.
 class UpdateGateEvent extends AppEvent {
   const UpdateGateEvent({
     required this.result,

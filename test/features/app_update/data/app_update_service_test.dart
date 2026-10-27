@@ -6,9 +6,15 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:wishtogether/core/logging/app_event.dart';
+import 'package:wishtogether/core/logging/app_log.dart';
+import 'package:wishtogether/core/logging/log_sink.dart';
 import 'package:wishtogether/core/platform_info.dart';
+import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/app_update/data/app_update_service.dart';
 import 'package:wishtogether/features/app_update/domain/update_decision.dart';
+
+import '../../../core/logging/recording_sink.dart';
 
 class MockRemoteConfig extends Mock implements FirebaseRemoteConfig {}
 
@@ -24,12 +30,14 @@ PackageInfo packageInfoWith({String buildNumber = '1'}) => PackageInfo(
   buildNumber: buildNumber,
 );
 
-List<String?> captureDebugPrints() {
-  final messages = <String?>[];
-  final original = debugPrint;
-  debugPrint = (String? message, {int? wrapWidth}) => messages.add(message);
-  addTearDown(() => debugPrint = original);
-  return messages;
+/// Captures the gate's own events, which replace its direct debug output.
+RecordingSink captureGateEvents() {
+  final sink = RecordingSink();
+  getIt.registerSingleton<AppLog>(
+    AppLog(session: testSession, sinks: <LogSink>[sink]),
+  );
+  addTearDown(getIt.reset);
+  return sink;
 }
 
 void main() {
@@ -90,6 +98,7 @@ void main() {
       // Arrange
       when(() => remoteConfig.fetchAndActivate())
           .thenThrow(Exception('offline'));
+      final events = captureGateEvents();
       final service = serviceWith();
 
       // Act
@@ -98,12 +107,16 @@ void main() {
       // Assert
       expect(decision.isBlocked, isFalse);
       expect(decision.isConclusive, isFalse);
+      final event = events.eventsOf<UpdateGateEvent>().single;
+      expect(event.result, UpdateGateResult.failedOpen);
+      expect(event.reason, 'remote-config-unavailable');
     });
 
     test('fails open when Remote Config does not answer in time', () async {
       // Arrange
       when(() => remoteConfig.fetchAndActivate())
           .thenAnswer((_) => Completer<bool>().future);
+      final events = captureGateEvents();
       final service = serviceWith(
         fetchTimeout: const Duration(milliseconds: 10),
       );
@@ -114,10 +127,14 @@ void main() {
       // Assert
       expect(decision.isBlocked, isFalse);
       expect(decision.isConclusive, isFalse);
+      final event = events.eventsOf<UpdateGateEvent>().single;
+      expect(event.result, UpdateGateResult.failedOpen);
+      expect(event.reason, 'remote-config-unavailable');
     });
 
     test('fails open when the whole check hangs', () async {
       // Arrange
+      final events = captureGateEvents();
       final service = serviceWith(
         packageInfoLoader: () => Completer<PackageInfo>().future,
         totalTimeout: const Duration(milliseconds: 10),
@@ -129,6 +146,9 @@ void main() {
       // Assert
       expect(decision.isBlocked, isFalse);
       expect(decision.isConclusive, isFalse);
+      final event = events.eventsOf<UpdateGateEvent>().single;
+      expect(event.result, UpdateGateResult.failedOpen);
+      expect(event.reason, 'check-failed');
     });
 
     test(
@@ -224,6 +244,7 @@ void main() {
           .thenReturn(message);
       when(() => remoteConfig.getString(AppUpdateService.updateUrlKey))
           .thenReturn(updateUrl);
+      final events = captureGateEvents();
       final service = serviceWith(buildNumber: '$runningBuild');
 
       // Act
@@ -234,6 +255,10 @@ void main() {
       expect(decision.isConclusive, isTrue);
       expect(decision.message, message);
       expect(decision.updateUrl, updateUrl);
+      final event = events.eventsOf<UpdateGateEvent>().single;
+      expect(event.result, UpdateGateResult.blocked);
+      expect(event.min, minSupportedBuild);
+      expect(event.running, runningBuild);
     });
 
     test('stays inert when the minimum is zero', () async {
@@ -252,6 +277,7 @@ void main() {
       // Arrange
       when(() => remoteConfig.getInt(AppUpdateService.minSupportedBuildKey))
           .thenReturn(20);
+      final events = captureGateEvents();
       final service = serviceWith(buildNumber: 'not-a-number');
 
       // Act
@@ -260,12 +286,16 @@ void main() {
       // Assert
       expect(decision.isBlocked, isFalse);
       expect(decision.isConclusive, isFalse);
+      final event = events.eventsOf<UpdateGateEvent>().single;
+      expect(event.result, UpdateGateResult.failedOpen);
+      expect(event.reason, 'build-unreadable');
     });
 
     test('fails open when the build number is missing', () async {
       // Arrange
       when(() => remoteConfig.getInt(AppUpdateService.minSupportedBuildKey))
           .thenReturn(20);
+      final events = captureGateEvents();
       final service = serviceWith(buildNumber: '');
 
       // Act
@@ -274,12 +304,16 @@ void main() {
       // Assert
       expect(decision.isBlocked, isFalse);
       expect(decision.isConclusive, isFalse);
+      final event = events.eventsOf<UpdateGateEvent>().single;
+      expect(event.result, UpdateGateResult.failedOpen);
+      expect(event.reason, 'build-unreadable');
     });
 
     test('fails open when the build loader throws', () async {
       // Arrange
       when(() => remoteConfig.getInt(AppUpdateService.minSupportedBuildKey))
           .thenReturn(20);
+      final events = captureGateEvents();
       final service = serviceWith(
         packageInfoLoader: () async => throw Exception('unavailable'),
       );
@@ -290,11 +324,15 @@ void main() {
       // Assert
       expect(decision.isBlocked, isFalse);
       expect(decision.isConclusive, isFalse);
+      final event = events.eventsOf<UpdateGateEvent>().single;
+      expect(event.result, UpdateGateResult.failedOpen);
+      expect(event.reason, 'build-unreadable');
     });
 
     test('honours the maintainer bypass', () async {
       // Arrange
       var loads = 0;
+      final events = captureGateEvents();
       final service = serviceWith(
         bypassGate: true,
         packageInfoLoader: () async {
@@ -311,6 +349,7 @@ void main() {
       expect(decision.isConclusive, isTrue);
       expect(loads, 0);
       verifyNever(() => remoteConfig.fetchAndActivate());
+      expect(events.eventsOf<UpdateGateEvent>().single.reason, 'debug-bypass');
     });
 
     test('uses the default message when Remote Config provides none', () async {
@@ -332,7 +371,7 @@ void main() {
       // Arrange
       when(() => remoteConfig.getInt(AppUpdateService.minSupportedBuildKey))
           .thenReturn(20);
-      final messages = captureDebugPrints();
+      final events = captureGateEvents();
       final service = serviceWith(buildNumber: '19');
 
       // Act
@@ -341,12 +380,9 @@ void main() {
       // Assert
       expect(decision.isBlocked, isFalse);
       expect(decision.isConclusive, isFalse);
-      expect(
-        messages.any(
-          (message) => message?.contains('update_url is missing') ?? false,
-        ),
-        isTrue,
-      );
+      final event = events.eventsOf<UpdateGateEvent>().single;
+      expect(event.result, UpdateGateResult.failedOpen);
+      expect(event.reason, 'missing-update-url');
     });
 
     test('fails open when the update URL is not a store URL', () async {
@@ -410,7 +446,7 @@ void main() {
 
     test('warns when min_supported_build is not an integer', () async {
       // Arrange
-      final messages = captureDebugPrints();
+      final events = captureGateEvents();
       when(() => remoteConfig.getValue(AppUpdateService.minSupportedBuildKey))
           .thenReturn(
             _FakeRemoteConfigValue(utf8.encode('v20'), ValueSource.valueRemote),
@@ -421,15 +457,15 @@ void main() {
       await service.check();
 
       // Assert
-      expect(
-        messages.any((message) => message?.contains('not an integer') ?? false),
-        isTrue,
+      final event = events.eventsOf<UpdateGateEvent>().singleWhere(
+        (event) => event.reason == 'min-not-integer',
       );
+      expect(event.result, UpdateGateResult.failedOpen);
     });
 
     test('stays quiet when min_supported_build is an integer', () async {
       // Arrange
-      final messages = captureDebugPrints();
+      final events = captureGateEvents();
       when(() => remoteConfig.getValue(AppUpdateService.minSupportedBuildKey))
           .thenReturn(
             _FakeRemoteConfigValue(utf8.encode('20'), ValueSource.valueRemote),
@@ -443,7 +479,9 @@ void main() {
 
       // Assert
       expect(
-        messages.any((message) => message?.contains('not an integer') ?? false),
+        events.eventsOf<UpdateGateEvent>().any(
+          (event) => event.reason == 'min-not-integer',
+        ),
         isFalse,
       );
     });
@@ -464,6 +502,7 @@ void main() {
       test('does not apply on Android', () async {
         // Arrange
         debugDefaultTargetPlatformOverride = TargetPlatform.android;
+        final events = captureGateEvents();
         final service = serviceWith(gateApplies: null);
 
         // Act
@@ -472,6 +511,10 @@ void main() {
         // Assert
         expect(decision.isBlocked, isFalse);
         verifyNever(() => remoteConfig.fetchAndActivate());
+        expect(
+          events.eventsOf<UpdateGateEvent>().single.reason,
+          'gate-not-applicable',
+        );
       });
 
       test('does not apply on macOS', () async {

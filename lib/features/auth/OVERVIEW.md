@@ -43,7 +43,13 @@ profile).
   `reauthenticateWithPhoneCode(...)` / `reauthenticateWithPhoneCredential(...)`,
   `startPhoneVerification(...)` (returns a `PhoneVerification`: a sent SMS code, or
   a credential the platform verified itself on Android), `isWeb`, and
-  `deleteAccount()`.
+  `deleteAccount()`. Failed sign-ins report an `authState` event with the provider
+  outcome and the structured error code; the identifier the user typed and the
+  exception message are never reported. A user cancelling a prompt reports the
+  outcome with no code (a breadcrumb, not an S4 auth-failure event). Provider-SDK
+  errors whose `code` is not a string (Apple authorization errors, some Google
+  sign-in errors) also stay breadcrumbs; only `FirebaseAuthException` codes reach
+  the auth-failure event family.
 - `reauthCancelledCode` — the `FirebaseAuthException` code the re-authentication
   helpers throw when the user dismisses a prompt; `deleteAccountErrorMessage`
   turns it into silence rather than an error.

@@ -36,7 +36,9 @@ of the product.
   and a Firestore `Timestamp` (storage); `unclaim(itemId)` nulls `claimedBy` and
   `claimedAt` in one update.
 - Use cases: create/update wishlist; create/update item; `ClaimItemUseCase` (sets
-  `claimedBy` to the current uid and `claimedAt` to now); `UnclaimItemUseCase`.
+  `claimedBy` to the current uid and `claimedAt` to now); `UnclaimItemUseCase`. The claim
+  use cases report a `claimAction` phase (`started`, `completed`, or `denied` with the
+  error code) and rethrow a failed write unchanged.
 
 ## Invariants
 

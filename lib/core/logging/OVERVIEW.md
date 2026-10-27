@@ -69,10 +69,10 @@ Sentry sink, its policy and the startup wiring are the files that know about the
 - **`ConsoleSink(enabled: …)` takes the debug gate as an argument** (the composition root
   passes `kDebugMode`), so the branch is testable in a VM test. Release builds pass `false`.
 - No barrel file: import the concrete path (`package:wishtogether/core/logging/app_log.dart`).
-- **S2b removes the remaining `debugPrint` call sites and adds
-  `test/no_debug_print_test.dart`, whose guard must exempt `log_sink.dart`** (the console sink's
-  two calls are the feature). S2a does not touch those sites, so this branch has no such guard;
-  `debugPrintStack` at `profile_page.dart` likewise stays until S2b replaces it.
+- **No direct `debugPrint`/`debugPrintStack` in `lib/` except `log_sink.dart`.**
+  `test/no_debug_print_test.dart` scans every `lib/**/*.dart` and exempts only the console
+  sink's two calls. The Profile page's former `debugPrintStack` now reports
+  `profile-load-failed` through `AppLog`.
 - **Every record is a Sentry breadcrumb; only the diagnostic families are events.**
   `ErrorEvent` → `error`; `FirestoreErrorEvent`, a failed `AuthStateEvent` and an
   `UpdateGateEvent` with `result: failedOpen` → `warning`; everything else → `info`, breadcrumb

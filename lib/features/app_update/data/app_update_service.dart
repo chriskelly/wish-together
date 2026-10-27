@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/foundation.dart'
-    show debugPrint, defaultTargetPlatform, kDebugMode, kIsWeb, TargetPlatform;
+    show defaultTargetPlatform, kDebugMode, kIsWeb, TargetPlatform;
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:wishtogether/core/logging/app_event.dart';
+import 'package:wishtogether/core/logging/diagnostics.dart';
 import 'package:wishtogether/core/platform_info.dart';
 import 'package:wishtogether/features/app_update/domain/update_decision.dart';
 
@@ -100,12 +102,23 @@ class AppUpdateService {
   /// inconclusive decision, so the app starts.
   Future<UpdateDecision> check() async {
     if (!_gateApplies || _bypassGate) {
+      _report(
+        UpdateGateEvent(
+          result: UpdateGateResult.allowed,
+          reason: _gateApplies ? 'debug-bypass' : 'gate-not-applicable',
+        ),
+      );
       return const UpdateDecision.allowed(isConclusive: true);
     }
     try {
       return await _check().timeout(totalTimeout);
-    } catch (error) {
-      debugPrint('App update gate: check failed, failing open: $error');
+    } catch (_) {
+      _report(
+        const UpdateGateEvent(
+          result: UpdateGateResult.failedOpen,
+          reason: 'check-failed',
+        ),
+      );
       return const UpdateDecision.allowed();
     }
   }
@@ -119,6 +132,12 @@ class AppUpdateService {
     final values = await valuesFuture;
 
     if (values == null) {
+      _report(
+        const UpdateGateEvent(
+          result: UpdateGateResult.failedOpen,
+          reason: 'remote-config-unavailable',
+        ),
+      );
       return const UpdateDecision.allowed();
     }
 
@@ -130,15 +149,48 @@ class AppUpdateService {
       conclusive: runningBuild != null,
     );
 
-    if (decision.blockedForMissingUpdateUrl) {
-      debugPrint(
-        'App update gate: min_supported_build requires an update, but '
-        'update_url is missing or is not a usable Apple App Store URL. '
-        'Failing open; set update_url in Remote Config.',
+    if (runningBuild == null) {
+      _report(
+        UpdateGateEvent(
+          result: UpdateGateResult.failedOpen,
+          min: values.minSupportedBuild,
+          reason: 'build-unreadable',
+        ),
       );
+      return decision;
     }
 
+    final result = decision.isBlocked
+        ? UpdateGateResult.blocked
+        : decision.blockedForMissingUpdateUrl
+        ? UpdateGateResult.failedOpen
+        : UpdateGateResult.allowed;
+    _report(
+      UpdateGateEvent(
+        result: result,
+        min: values.minSupportedBuild,
+        running: runningBuild,
+        reason: _reasonFor(decision),
+      ),
+    );
+
     return decision;
+  }
+
+  /// Reports one gate record; its `result` decides breadcrumb versus event.
+  void _report(UpdateGateEvent event) => appLogOrNull?.event(event);
+
+  /// Why a decision came out the way it did, for the `reason` key.
+  ///
+  /// `null` means an ordinary, conclusive result; `missing-update-url` is the
+  /// one decision-level reason that needs a code. The other fail-open reasons
+  /// are reported where the failure is known (`build-unreadable`,
+  /// `remote-config-unavailable`, `check-failed`, `min-not-integer`).
+  String? _reasonFor(UpdateDecision decision) {
+    if (decision.blockedForMissingUpdateUrl) {
+      return 'missing-update-url';
+    }
+    return null;
   }
 
   Future<({int minSupportedBuild, String message, String updateUrl})?>
@@ -166,11 +218,9 @@ class AppUpdateService {
         message: message,
         updateUrl: updateUrl,
       );
-    } catch (error) {
-      // Fail open. Never lock a user out because the network failed.
-      debugPrint(
-        'App update gate: Remote Config unavailable, failing open: $error',
-      );
+    } catch (_) {
+      // Fail open. Never lock a user out because the network failed; _check
+      // reports the failed-open decision.
       return null;
     }
   }
@@ -187,9 +237,11 @@ class AppUpdateService {
       if (raw.isEmpty || int.tryParse(raw) != null) {
         return;
       }
-      debugPrint(
-        'App update gate: min_supported_build is not an integer ("$raw"); '
-        'the gate is inert.',
+      _report(
+        const UpdateGateEvent(
+          result: UpdateGateResult.failedOpen,
+          reason: 'min-not-integer',
+        ),
       );
     } catch (_) {
       // Diagnostics must never change the decision.
@@ -209,8 +261,8 @@ class AppUpdateService {
       // open until a parse succeeds, so retrying is harmless.
       _cachedRunningBuild = build;
       return build;
-    } catch (error) {
-      debugPrint('App update gate: could not read the running build: $error');
+    } catch (_) {
+      // _check reports the failed-open decision.
       return null;
     }
   }

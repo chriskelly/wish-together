@@ -32,7 +32,7 @@ class LogRecord {
   Map<String, Object?> toMap() {
     final userRef = session.userRef;
     final map = <String, Object?>{
-      'event': _eventName(event),
+      'event': eventNameFor(event),
       'session_id': session.sessionId,
       'support_code': session.supportCode,
       'build': session.build,
@@ -102,7 +102,24 @@ class LogRecord {
   }
 }
 
-String _eventName(AppEvent event) => switch (event) {
+/// The wire name of every event in the closed vocabulary.
+///
+/// Kept next to [eventNameFor] so a new `AppEvent` subtype has one obvious
+/// place to register its name; `log_record_test.dart` checks the two agree.
+const Set<String> logEventNames = <String>{
+  'sessionStart',
+  'sessionEnd',
+  'authState',
+  'firestoreError',
+  'routeChanged',
+  'updateGate',
+  'appCheck',
+  'claimAction',
+  'error',
+};
+
+/// The wire name of [event].
+String eventNameFor(AppEvent event) => switch (event) {
   SessionStartEvent() => 'sessionStart',
   SessionEndEvent() => 'sessionEnd',
   AuthStateEvent() => 'authState',

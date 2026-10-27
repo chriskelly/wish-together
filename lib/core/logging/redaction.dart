@@ -134,3 +134,18 @@ String? redactCode(String? code) {
   }
   return code;
 }
+
+/// Reads a structured `code` from an error and keeps it only if it passes
+/// [redactCode].
+///
+/// Shared by `AppLog.error` and the seams that build a typed event from a
+/// caught error, so the structural read and its gate cannot drift apart.
+String? readErrorCode(Object error) {
+  try {
+    final dynamic candidate = error;
+    final Object? code = candidate.code;
+    return code is String ? redactCode(code) : null;
+  } catch (_) {
+    return null;
+  }
+}

@@ -1,6 +1,15 @@
-import 'package:flutter/foundation.dart' show TargetPlatform;
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:wishtogether/core/logging/app_log.dart';
+
+import '../../../core/logging/recording_sink.dart';
+
+import 'package:wishtogether/core/service_locator.dart';
+import 'package:wishtogether/features/auth/data/auth_service.dart';
 import 'package:wishtogether/features/auth/presentation/login_page.dart';
+
+class MockAuthService extends Mock implements AuthService {}
 
 void main() {
   group('shouldShowAppleSignInButton', () {
@@ -46,6 +55,25 @@ void main() {
         ),
         isFalse,
       );
+    });
+  });
+
+  group('LoginPage support code', () {
+    setUp(() async {
+      await getIt.reset();
+      getIt.registerSingleton<AuthService>(MockAuthService());
+      getIt.registerSingleton<AppLog>(
+        AppLog(session: testSession, sinks: const []),
+      );
+    });
+
+    tearDown(getIt.reset);
+
+    testWidgets('shows the support code to a signed-out user', (tester) async {
+      await tester.pumpWidget(const MaterialApp(home: LoginPage()));
+      await tester.pump();
+
+      expect(find.text(testSession.supportCode), findsOneWidget);
     });
   });
 }

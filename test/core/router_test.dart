@@ -1,7 +1,16 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
+import 'package:wishtogether/core/logging/app_event.dart';
+import 'package:wishtogether/core/logging/app_log.dart';
+import 'package:wishtogether/core/logging/log_sink.dart';
+
+import 'logging/recording_sink.dart';
+
+import 'package:wishtogether/core/logging/session_context.dart';
 import 'package:wishtogether/core/router.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
@@ -15,6 +24,10 @@ import 'package:wishtogether/features/auth/presentation/verification_page.dart';
 class MockAuthService extends Mock implements AuthService {}
 
 class MockUserRepository extends Mock implements UserRepository {}
+
+class MockFirebaseUser extends Mock implements firebase_auth.User {}
+
+class MockProviderInfo extends Mock implements firebase_auth.UserInfo {}
 
 const joinPath = '/join?group=123';
 
@@ -316,6 +329,150 @@ void main() {
         result,
         '${LoginPage.route}?$redirectToParam=${Uri.encodeComponent(hashLogin)}',
       );
+    });
+  });
+
+  group('route diagnostics', () {
+    late RecordingSink sink;
+
+    setUp(() async {
+      await getIt.reset();
+      sink = RecordingSink();
+      getIt.registerSingleton<AppLog>(
+        AppLog(session: testSession, sinks: <LogSink>[sink]),
+      );
+      when(() => mockAuthService.authStateChanges)
+          .thenAnswer((_) => const Stream.empty());
+      when(() => mockAuthService.currentUserId).thenReturn('user-1');
+      when(
+        () => mockUserRepository.getOrCreateUser(
+          any(),
+          email: any(named: 'email'),
+          phoneNumber: any(named: 'phoneNumber'),
+        ),
+      ).thenAnswer((_) async => User(id: 'user-1', displayName: 'Grace'));
+    });
+
+    tearDown(getIt.reset);
+
+    List<String> patterns() =>
+        sink.eventsOf<RouteChangedEvent>().map((event) => event.route).toList();
+
+    GoRouter buildRouter({String? initialLocation}) {
+      final router = createRouter(
+        mockAuthService,
+        userRepository: mockUserRepository,
+        initialLocation: initialLocation,
+      );
+      addTearDown(router.dispose);
+      return router;
+    }
+
+    test('records a go() location as a route pattern', () async {
+      final router = buildRouter();
+
+      router.go('/wishlist/abc123?tab=1');
+      await pumpEventQueue();
+
+      expect(patterns(), contains('/wishlist/:id'));
+    });
+
+    test('records one entry for two ids on the same route', () async {
+      final router = buildRouter();
+
+      router.go('/wishlist/first');
+      await pumpEventQueue();
+      router.go('/wishlist/second');
+      await pumpEventQueue();
+
+      expect(
+        patterns().where((pattern) => pattern == '/wishlist/:id'),
+        hasLength(1),
+      );
+    });
+
+    test('does not record the initial location twice', () async {
+      buildRouter(initialLocation: '/join?group=123');
+
+      await pumpEventQueue();
+
+      expect(patterns(), isEmpty);
+    });
+
+    test('never records a document id', () async {
+      final router = buildRouter();
+
+      router.go('/wishlist/abc123');
+      await pumpEventQueue();
+
+      expect(patterns().join(' '), isNot(contains('abc123')));
+    });
+  });
+
+  group('auth diagnostics', () {
+    late RecordingSink sink;
+    late StreamController<firebase_auth.User?> authChanges;
+
+    setUp(() async {
+      await getIt.reset();
+      sink = RecordingSink();
+      authChanges = StreamController<firebase_auth.User?>();
+      addTearDown(authChanges.close);
+      getIt.registerSingleton<AppLog>(
+        AppLog(session: testSession, sinks: <LogSink>[sink]),
+      );
+      when(() => mockAuthService.authStateChanges)
+          .thenAnswer((_) => authChanges.stream);
+    });
+
+    tearDown(getIt.reset);
+
+    List<AuthStateEvent> authEvents() =>
+        sink.eventsOf<AuthStateEvent>().toList();
+
+    GoRouter buildRouter() {
+      final router = createRouter(
+        mockAuthService,
+        userRepository: mockUserRepository,
+      );
+      addTearDown(router.dispose);
+      return router;
+    }
+
+    test(
+      'reports the signed-in provider and stores only the derived ref',
+      () async {
+        const uid = 'firebase-uid-1';
+        final user = MockFirebaseUser();
+        final phone = MockProviderInfo();
+        when(() => user.uid).thenReturn(uid);
+        when(() => user.providerData)
+            .thenReturn(<firebase_auth.UserInfo>[phone]);
+        when(() => phone.providerId).thenReturn('phone');
+        buildRouter();
+
+        authChanges.add(user);
+        await pumpEventQueue();
+
+        expect(authEvents().single.outcome, AuthOutcome.phone);
+        final record = sink.records.last;
+        expect(record.session.userRef, userRefForUid(uid));
+        expect(
+          record.toMap().values.join(' '),
+          isNot(contains(uid)),
+          reason: 'a raw uid must never reach a record',
+        );
+      },
+    );
+
+    test('reports a sign-out transition', () async {
+      buildRouter();
+
+      authChanges.add(null);
+      await pumpEventQueue();
+
+      expect(authEvents().single.outcome, AuthOutcome.signedOut);
+      expect(sink.records.last.session.userRef, isNull);
     });
   });
 }

@@ -3,6 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:wishtogether/common/widgets/support_code_tile.dart';
+import 'package:wishtogether/core/logging/app_log.dart';
+
+import '../../../core/logging/recording_sink.dart';
+
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/application/delete_account_use_case.dart';
 import 'package:wishtogether/features/auth/application/load_user_profile_use_case.dart';
@@ -389,6 +394,57 @@ void main() {
         profileExitTarget('${ProfilePage.route}?redirect_to=%2F'),
         HomePage.route,
       );
+    });
+  });
+
+  group('ProfilePage support code', () {
+    late MockLoadUserProfileUseCase loadUserProfile;
+
+    setUp(() async {
+      await getIt.reset();
+      loadUserProfile = MockLoadUserProfileUseCase();
+      getIt.registerSingleton<LoadUserProfileUseCase>(loadUserProfile);
+      getIt.registerSingleton<SaveUserProfileUseCase>(SaveUserProfileUseCase());
+      getIt.registerSingleton<AuthService>(MockAuthService());
+      getIt.registerSingleton<DeleteAccountUseCase>(DeleteAccountUseCase());
+      getIt.registerSingleton<AppLog>(
+        AppLog(session: testSession, sinks: const []),
+      );
+    });
+
+    tearDown(getIt.reset);
+
+    testWidgets('shows the support code once the profile has loaded', (
+      tester,
+    ) async {
+      // Arrange
+      when(() => loadUserProfile.execute()).thenAnswer(
+        (_) async => User(id: 'user-1', displayName: 'Grace Hopper'),
+      );
+
+      // Act
+      await tester.pumpWidget(const MaterialApp(home: ProfilePage()));
+      await tester.pumpAndSettle();
+
+      // Assert
+      expect(find.text(testSession.supportCode), findsOneWidget);
+      expect(find.text(SupportCodeTile.explanation), findsOneWidget);
+    });
+
+    testWidgets('keeps the support code off the failed-load screen', (
+      tester,
+    ) async {
+      // Arrange
+      when(() => loadUserProfile.execute())
+          .thenAnswer((_) async => throw Exception('offline'));
+
+      // Act
+      await tester.pumpWidget(const MaterialApp(home: ProfilePage()));
+      await tester.pumpAndSettle();
+
+      // Assert
+      expect(find.text(testSession.supportCode), findsNothing);
+      expect(find.text(loadFailedHeadline), findsOneWidget);
     });
   });
 }

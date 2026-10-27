@@ -2,16 +2,22 @@ import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart'
     show
-        debugPrint,
         defaultTargetPlatform,
+        kDebugMode,
         kIsWeb,
+        kReleaseMode,
         TargetPlatform,
         visibleForTesting;
 import 'package:flutter/material.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:go_router/go_router.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:wishtogether/core/deep_links.dart';
+import 'package:wishtogether/core/logging/app_event.dart';
+import 'package:wishtogether/core/logging/diagnostics.dart';
+import 'package:wishtogether/core/logging/sentry_sink.dart';
+import 'package:wishtogether/core/logging/sentry_startup.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/app_update/application/check_for_update.dart';
 import 'package:wishtogether/features/app_update/application/retry_update_gate.dart';
@@ -28,12 +34,92 @@ import 'core/theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Installed before any plugin runs, so a Universal Link queued during startup
+  // is kept and web routes are real paths before Sentry sees them.
   usePathUrlStrategy();
   _deepLinks = DeepLinkService();
 
+  await startWithDiagnostics(
+    dsn: wtSentryDsn,
+    start: () => _startUp(),
+    startWithSentry: _startWithSentry,
+  );
+}
+
+/// Pins the composition root's DSN decision.
+///
+/// An empty DSN means Sentry is never initialised: no SDK, no native handler,
+/// no network. Testing the branch itself — not only the predicate — is what
+/// keeps a future refactor from waking the SDK in tests and CI. The DSN is
+/// passed to the Sentry runner so the gate and the configured value cannot
+/// diverge.
+@visibleForTesting
+Future<void> startWithDiagnostics({
+  required String dsn,
+  required Future<void> Function() start,
+  required Future<void> Function(String dsn) startWithSentry,
+}) async {
+  if (!sentryDsnConfigured(dsn)) {
+    await start();
+    return;
+  }
+  await startWithSentry(dsn);
+}
+
+Future<void> _startWithSentry(String dsn) async {
+  final identity = await SentryStartup.readIdentity();
+  final startup = SentryStartup.fromEnvironment(
+    identity: identity,
+    releaseMode: kReleaseMode,
+    dsn: dsn,
+  );
+  var appRunnerStarted = false;
+  try {
+    await SentryFlutter.init(
+      startup.configure,
+      appRunner: () async {
+        appRunnerStarted = true;
+        await _startUp(
+          identity: identity,
+          sentryTransport: LiveSentryTransport(),
+        );
+      },
+    );
+  } catch (error, stackTrace) {
+    // A malformed or rotated DSN must not leave the user on a blank screen.
+    if (!appRunnerStarted) {
+      await _startUp(identity: identity);
+    } else {
+      // The app runner had already begun; a real startup failure must stay
+      // visible instead of turning into a silent blank screen.
+      Error.throwWithStackTrace(error, stackTrace);
+    }
+  }
+}
+
+/// The startup without Sentry, plus the diagnostics that are inert without a
+/// DSN.
+Future<void> _startUp({
+  BuildIdentity? identity,
+  SentryTransport? sentryTransport,
+}) async {
+  // Without a Sentry identity already in hand, start the read before Firebase so
+  // the iOS package-info call overlaps its init.
+  final identityFuture = identity == null
+      ? SentryStartup.readIdentity()
+      : Future<BuildIdentity>.value(identity);
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  final launchIdentity = await identityFuture;
+
+  final diagnostics = createLaunchDiagnostics(
+    identity: launchIdentity,
+    consoleEnabled: kDebugMode,
+    sentryTransport: sentryTransport,
+  );
+  setupServiceLocator(appLog: diagnostics.log);
+
   await _activateAppCheck();
-  setupServiceLocator();
 
   // The update gate runs at startup, after Firebase is ready. It fails open:
   // only an explicit minimum from Remote Config can block the app.
@@ -75,10 +161,24 @@ void startApp({
   required AuthService auth,
   required void Function(WishTogetherApp app) mount,
 }) {
-  final router = createRouter(
-    auth,
-    initialLocation: links.takePendingLocation(),
-  );
+  final initialLocation = links.takePendingLocation();
+  final log = appLogOrNull;
+  if (log != null) {
+    // Seed the session route before anything else is reported, so an event on a
+    // deep-link cold start carries the page the user actually opened.
+    // routeChanged redacts the location; the event then reports the pattern
+    // the session actually holds.
+    log.routeChanged(initialLocation ?? '/');
+    log.event(
+      SessionStartEvent(
+        build: log.session.build,
+        platform: log.session.platform,
+        route: log.session.route,
+      ),
+    );
+  }
+
+  final router = createRouter(auth, initialLocation: initialLocation);
   mount(WishTogetherApp(router: router));
   links.attach((location) => router.go(location));
 }
@@ -106,11 +206,16 @@ Future<bool> Function()? _updateLauncher(String updateUrl) {
     try {
       final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!opened) {
-        debugPrint('App update gate: could not open $uri');
+        appLogOrNull?.event(
+          const UpdateGateEvent(
+            result: UpdateGateResult.blocked,
+            reason: 'store-not-opened',
+          ),
+        );
       }
       return opened;
-    } catch (error) {
-      debugPrint('App update gate: could not open $uri: $error');
+    } catch (error, stackTrace) {
+      appLogOrNull?.error(error, stackTrace, code: 'store-open-failed');
       return false;
     }
   };
@@ -126,6 +231,9 @@ Future<void> _activateAppCheck() async {
   }
   await FirebaseAppCheck.instance.activate(
     providerApple: const AppleDeviceCheckProvider(),
+  );
+  appLogOrNull?.event(
+    const AppCheckEvent(result: 'activated', provider: 'devicecheck'),
   );
 }
 

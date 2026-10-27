@@ -57,6 +57,7 @@ dependencies:
   firebase_remote_config: 6.1.0
   package_info_plus: ^9.0.1
   app_links: ^7.2.2
+  sentry_flutter: ^10.2.0
   flutter_web_plugins:
     sdk: flutter
 

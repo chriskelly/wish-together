@@ -4,6 +4,20 @@ import 'package:wishtogether/core/logging/log_record.dart';
 import 'package:wishtogether/core/logging/redaction.dart';
 import 'package:wishtogether/core/logging/session_context.dart';
 
+/// Every event in the vocabulary, shared by the two completeness tests so one
+/// inventory cannot drift from the other.
+final List<AppEvent> allEvents = <AppEvent>[
+  const SessionStartEvent(build: '57', platform: 'ios', route: '/'),
+  const SessionEndEvent(build: '57', platform: 'ios', route: '/', clean: true),
+  const AuthStateEvent(outcome: AuthOutcome.signedOut),
+  const FirestoreErrorEvent(op: FirestoreOp.get, collection: 'items'),
+  const RouteChangedEvent(route: '/'),
+  const UpdateGateEvent(result: UpdateGateResult.allowed),
+  const AppCheckEvent(result: 'activated'),
+  const ClaimActionEvent(phase: ClaimPhase.started),
+  const ErrorEvent(runtimeTypeName: 'StateError', route: '/'),
+];
+
 void main() {
   const session = SessionContext(
     sessionId: 'ABCDEFGHJKMNPQRSTVWXYZ0123',
@@ -204,28 +218,7 @@ void main() {
     });
 
     test('uses only allowlisted keys for every event', () {
-      final events = <AppEvent>[
-        const SessionStartEvent(build: '54', platform: 'web', route: '/'),
-        const SessionEndEvent(
-          build: '53',
-          platform: 'ios',
-          route: '/',
-          clean: true,
-        ),
-        const AuthStateEvent(outcome: AuthOutcome.google),
-        const FirestoreErrorEvent(op: FirestoreOp.write, collection: 'items'),
-        const RouteChangedEvent(route: '/'),
-        const UpdateGateEvent(result: UpdateGateResult.failedOpen),
-        const AppCheckEvent(result: 'failed'),
-        const ClaimActionEvent(phase: ClaimPhase.started),
-        ErrorEvent(
-          runtimeTypeName: 'StateError',
-          stackTrace: StackTrace.current,
-          route: '/',
-        ),
-      ];
-
-      for (final event in events) {
+      for (final event in allEvents) {
         final keys = record(event).toMap().keys;
 
         expect(
@@ -311,5 +304,13 @@ void main() {
 
       expect(record.stackTrace, isNull);
     });
+  });
+
+  test('every event name in the vocabulary is registered', () {
+    expect(
+      allEvents.map(eventNameFor).toSet(),
+      logEventNames,
+      reason: 'a new AppEvent subtype must register its name in logEventNames',
+    );
   });
 }

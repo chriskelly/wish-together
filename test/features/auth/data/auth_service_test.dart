@@ -975,6 +975,42 @@ void main() {
       },
     );
 
+    test('counts a timeout and a late platform failure once', () async {
+      // Arrange: the platform reports its failure only after the bound fired.
+      final failure = FirebaseAuthException(code: 'invalid-phone-number');
+      when(
+        () => mockAuth.verifyPhoneNumber(
+          phoneNumber: any(named: 'phoneNumber'),
+          verificationCompleted: any(named: 'verificationCompleted'),
+          verificationFailed: any(named: 'verificationFailed'),
+          codeSent: any(named: 'codeSent'),
+          codeAutoRetrievalTimeout: any(named: 'codeAutoRetrievalTimeout'),
+        ),
+      ).thenAnswer((invocation) async {
+        final failed =
+            invocation.namedArguments[#verificationFailed]
+                as void Function(FirebaseAuthException);
+        await Future<void>.delayed(const Duration(milliseconds: 40));
+        failed(failure);
+      });
+      final service = AuthService(auth: mockAuth, isWeb: false);
+
+      // Act: time out first ...
+      await expectLater(
+        service.startPhoneVerification(
+          '+15550001111',
+          timeout: const Duration(milliseconds: 10),
+        ),
+        throwsA(isA<TimeoutException>()),
+      );
+      // ... then let the late platform failure arrive.
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+
+      // Assert: one failure for the attempt, and it is the timeout's.
+      final event = sink.eventsOf<AuthStateEvent>().single;
+      expect(event.code, 'timeout');
+    });
+
     test(
       'a failed phone sign-in reports no identifier or message text',
       () async {
@@ -998,7 +1034,12 @@ void main() {
           throwsA(isA<FirebaseAuthException>()),
         );
 
-        // Assert
+        // Assert: checked at the emitter too — the wire redactor would drop a
+        // raw message that reached the code, hiding exactly this leak.
+        expect(
+          sink.eventsOf<AuthStateEvent>().single.code,
+          'invalid-phone-number',
+        );
         expectNoSensitiveValues(sink.records, <String>[
           phoneNumber,
           itemId,

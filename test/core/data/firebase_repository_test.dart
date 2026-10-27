@@ -305,7 +305,10 @@ void main() {
       // Act
       await expectLater(repository.get(itemId), throwsA(isA<CodedError>()));
 
-      // Assert
+      // Assert: the event carries the collection constant, not the path — the
+      // wire redactor alone would map a leaked path to `other` and hide it.
+      final event = sink.eventsOf<FirestoreErrorEvent>().single;
+      expect(event.collection, 'items');
       expectNoSensitiveValues(sink.records, <String>[
         phoneNumber,
         itemId,

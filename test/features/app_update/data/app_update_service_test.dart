@@ -510,8 +510,13 @@ void main() {
       // Act
       final decision = await service.check();
 
-      // Assert
+      // Assert: the message reaches the screen but not the record — checked at
+      // the emitter as well as on the wire, because the wire redactor would
+      // hide a leak that reached the event.
       expect(decision.message, contains(updateMessageToken));
+      final event = events.eventsOf<UpdateGateEvent>().single;
+      expect(event.reason, isNull, reason: 'the message must not ride reason');
+      expect(event.result, UpdateGateResult.blocked);
       expectNoSensitiveValues(events.records, <String>[
         phoneNumber,
         itemId,

@@ -142,15 +142,19 @@ class AuthService {
     required Function(FirebaseAuthException) verificationFailed,
     required Function(String, int?) codeSent,
     required Function(String) codeAutoRetrievalTimeout,
+    bool Function()? claimFailureReport,
   }) async {
     // The plugin can report the same failure through both the callback and the
-    // returned future; count it once for the auth-failure alert.
-    var failureReported = false;
+    // returned future; count it once for the auth-failure alert. A caller that
+    // reports failures of its own — the timeout guard in
+    // [startPhoneVerification] — passes [claimFailureReport] so the attempt is
+    // counted once overall, not once per path.
+    final localOnce = _FailureOnce();
+    final claim = claimFailureReport ?? localOnce.claim;
     void reportFailure(Object error) {
-      if (failureReported) {
+      if (!claim()) {
         return;
       }
-      failureReported = true;
       _reportAuthFailure(AuthOutcome.phone, error);
     }
 
@@ -355,9 +359,17 @@ class AuthService {
     }
 
     final result = Completer<PhoneVerification>();
+    // One failure per attempt, shared by the timeout guard and the platform
+    // callbacks: a platform that times out and then reports the same failure
+    // must not produce two auth-failure events.
+    final failureOnce = _FailureOnce();
     // Start the clock before calling the platform: a method channel that never
     // returns must not defeat the bound.
-    final verification = _boundedVerification(result.future, timeout);
+    final verification = _boundedVerification(
+      result.future,
+      timeout,
+      failureOnce,
+    );
     // The callbacks can fire before the caller awaits the future. Mark it as
     // observed now, so a failure is not *also* reported as an unhandled async
     // error; the caller's await still sees it.
@@ -368,6 +380,7 @@ class AuthService {
     unawaited(
       verifyPhoneNumber(
         phoneNumber: phoneNumber,
+        claimFailureReport: failureOnce.claim,
         verificationCompleted: (credential) {
           if (!result.isCompleted) {
             result.complete(PhoneVerificationAutoVerified(credential));
@@ -411,13 +424,18 @@ class AuthService {
   Future<PhoneVerification> _boundedVerification(
     Future<PhoneVerification> verification,
     Duration timeout,
+    _FailureOnce failureOnce,
   ) async {
     try {
       return await verification.timeout(timeout);
     } on TimeoutException {
-      appLogOrNull?.event(
-        const AuthStateEvent(outcome: AuthOutcome.phone, code: 'timeout'),
-      );
+      // The platform may still report its own failure after the bound fired;
+      // [failureOnce] keeps the attempt to a single event.
+      if (failureOnce.claim()) {
+        appLogOrNull?.event(
+          const AuthStateEvent(outcome: AuthOutcome.phone, code: 'timeout'),
+        );
+      }
       rethrow;
     }
   }
@@ -505,5 +523,18 @@ class AuthService {
       );
     }
     return user;
+  }
+}
+
+/// A one-shot claim, so one auth attempt reports at most one failure.
+class _FailureOnce {
+  bool _claimed = false;
+
+  bool claim() {
+    if (_claimed) {
+      return false;
+    }
+    _claimed = true;
+    return true;
   }
 }

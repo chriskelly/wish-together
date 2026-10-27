@@ -42,7 +42,9 @@ profile).
   `reauthenticateWithGoogle()` / `reauthenticateWithApple()` /
   `reauthenticateWithPhoneCode(...)` / `reauthenticateWithPhoneCredential(...)`,
   `startPhoneVerification(...)` (returns a `PhoneVerification`: a sent SMS code, or
-  a credential the platform verified itself on Android), `isWeb`, and
+  a credential the platform verified itself on Android; a native verification that
+  never reports a callback is bounded by its `timeout` — 60 s by default,
+  injectable — and reports an `authState` failure with `code: 'timeout'`), `isWeb`, and
   `deleteAccount()`. Failed sign-ins report an `authState` event with the provider
   outcome and the structured error code; the identifier the user typed and the
   exception message are never reported. A user cancelling a prompt reports the
@@ -161,7 +163,9 @@ Logged out: `LoginPage` requests an SMS code; the flow branches once on `kIsWeb`
   confirms the stashed `ConfirmationResult` with the SMS code.
 - **Native:** `AuthService.verifyPhoneNumber` reports progress through callbacks; the
   `codeSent` callback navigates to `VerificationPage`, and `confirmPhoneCode` builds a
-  `PhoneAuthProvider` credential and signs in with it.
+  `PhoneAuthProvider` credential and signs in with it. `startPhoneVerification` bounds
+  that callback wait: a platform that never reports fails with a `TimeoutException`
+  **and** an `authState` record (`code: 'timeout'`) instead of failing silently.
 
 On iOS, the Apple button (from `sign_in_with_apple`) calls `AuthService.signInWithApple`, which
 exchanges the Apple identity token for a Firebase session. Email lands on the Firebase user

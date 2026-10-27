@@ -15,6 +15,7 @@ import 'package:wishtogether/features/app_update/data/app_update_service.dart';
 import 'package:wishtogether/features/app_update/domain/update_decision.dart';
 
 import '../../../core/logging/recording_sink.dart';
+import '../../../core/logging/wire_absence.dart';
 
 class MockRemoteConfig extends Mock implements FirebaseRemoteConfig {}
 
@@ -444,23 +445,29 @@ void main() {
       expect(settings.minimumFetchInterval, Duration.zero);
     });
 
-    test('warns when min_supported_build is not an integer', () async {
+    test('warns on the decision record when min is not an integer', () async {
       // Arrange
+      const minSupportedBuild = 20;
+      const runningBuild = 1;
       final events = captureGateEvents();
+      when(() => remoteConfig.getInt(AppUpdateService.minSupportedBuildKey))
+          .thenReturn(minSupportedBuild);
       when(() => remoteConfig.getValue(AppUpdateService.minSupportedBuildKey))
           .thenReturn(
             _FakeRemoteConfigValue(utf8.encode('v20'), ValueSource.valueRemote),
           );
-      final service = serviceWith();
+      final service = serviceWith(buildNumber: '$runningBuild');
 
       // Act
       await service.check();
 
-      // Assert
-      final event = events.eventsOf<UpdateGateEvent>().singleWhere(
-        (event) => event.reason == 'min-not-integer',
-      );
+      // Assert: one record, and it is the decision — not an early warning that
+      // replaces it. Both bounds must survive.
+      final event = events.eventsOf<UpdateGateEvent>().single;
+      expect(event.reason, 'min-not-integer');
       expect(event.result, UpdateGateResult.failedOpen);
+      expect(event.min, minSupportedBuild);
+      expect(event.running, runningBuild);
     });
 
     test('stays quiet when min_supported_build is an integer', () async {
@@ -472,18 +479,67 @@ void main() {
           );
       when(() => remoteConfig.getInt(AppUpdateService.minSupportedBuildKey))
           .thenReturn(20);
+      when(() => remoteConfig.getString(AppUpdateService.updateUrlKey))
+          .thenReturn('https://apps.apple.com/app/id1234567890');
       final service = serviceWith();
 
       // Act
       await service.check();
 
+      // Assert: an ordinary blocked decision, with no configuration warning.
+      final event = events.eventsOf<UpdateGateEvent>().single;
+      expect(event.result, UpdateGateResult.blocked);
+      expect(event.reason, isNull);
+    });
+
+    test('the decision record carries no update message text', () async {
+      // Arrange: the message is real and reaches the screen, so its absence
+      // from the wire is a property of the event, not of an empty message.
+      const phoneNumber = '+15555550123';
+      const itemId = 'item-7f3a9c1d2e';
+      const updateMessageToken = 'MAINTENANCE-WINDOW-42';
+      when(() => remoteConfig.getInt(AppUpdateService.minSupportedBuildKey))
+          .thenReturn(20);
+      when(() => remoteConfig.getString(AppUpdateService.updateMessageKey))
+          .thenReturn('Maintenance $updateMessageToken for $phoneNumber');
+      when(() => remoteConfig.getString(AppUpdateService.updateUrlKey))
+          .thenReturn('https://apps.apple.com/app/id1234567890');
+      final events = captureGateEvents();
+      final service = serviceWith(buildNumber: '19');
+
+      // Act
+      final decision = await service.check();
+
       // Assert
-      expect(
-        events.eventsOf<UpdateGateEvent>().any(
-          (event) => event.reason == 'min-not-integer',
-        ),
-        isFalse,
+      expect(decision.message, contains(updateMessageToken));
+      expectNoSensitiveValues(events.records, <String>[
+        phoneNumber,
+        itemId,
+        updateMessageToken,
+      ]);
+    });
+
+    test('reports one decision when the timeout beats a late _check', () async {
+      // Arrange: the build resolves only after the whole-check bound fired.
+      final events = captureGateEvents();
+      final packageInfo = Completer<PackageInfo>();
+      final service = serviceWith(
+        packageInfoLoader: () => packageInfo.future,
+        totalTimeout: const Duration(milliseconds: 10),
       );
+
+      // Act: the check fails open on the timeout ...
+      final decision = await service.check();
+      // ... and then the slow plugin call completes, letting the abandoned
+      // _check reach its own decision.
+      packageInfo.complete(packageInfoWith());
+      await pumpEventQueue();
+
+      // Assert: one decision for the launch, and it is the timeout's.
+      expect(decision.isBlocked, isFalse);
+      final event = events.eventsOf<UpdateGateEvent>().single;
+      expect(event.result, UpdateGateResult.failedOpen);
+      expect(event.reason, 'check-failed');
     });
 
     group('platform policy', () {

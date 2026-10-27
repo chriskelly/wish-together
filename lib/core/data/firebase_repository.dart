@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show protected;
 import 'package:wishtogether/core/logging/app_event.dart';
 import 'package:wishtogether/core/logging/diagnostics.dart';
 import 'package:wishtogether/core/logging/redaction.dart';
@@ -42,7 +43,15 @@ abstract class FirebaseRepository<T> {
   }
 
   /// Runs one Firestore call, reports a failure, and rethrows it unchanged.
-  Future<R> _reportingFuture<R>(
+  ///
+  /// Protected rather than library-private so an override that cannot use a
+  /// base method (a different query shape, a batch commit) still reports at
+  /// this one seam instead of bypassing it. Report through the repository that
+  /// owns the collection: a subclass reading another repository's sub-collection
+  /// passes that repository as the receiver, because [collectionName] is
+  /// per instance.
+  @protected
+  Future<R> reportingFuture<R>(
     FirestoreOp op,
     Future<R> Function() body,
   ) async {
@@ -59,7 +68,8 @@ abstract class FirebaseRepository<T> {
   /// `Stream.handleError` cannot be used here: a callback that returns normally
   /// makes the stream *forget* the error, and `StreamListBuilder` renders its
   /// error UI from it. This transformer reports and re-emits.
-  Stream<R> _reportingStream<R>(Stream<R> source, FirestoreOp op) {
+  @protected
+  Stream<R> reportingStream<R>(Stream<R> source, FirestoreOp op) {
     return source.transform(
       StreamTransformer<R, R>.fromHandlers(
         handleError: (Object error, StackTrace stackTrace, EventSink<R> sink) {
@@ -71,7 +81,7 @@ abstract class FirebaseRepository<T> {
   }
 
   Stream<List<T>> streamAll() {
-    return _reportingStream(
+    return reportingStream(
       instance
           .collection(collectionPath)
           .snapshots()
@@ -133,7 +143,7 @@ abstract class FirebaseRepository<T> {
     List<Object?>? whereNotIn,
     bool? isNull,
   }) {
-    return _reportingStream(
+    return reportingStream(
       _query(
         field,
         isEqualTo: isEqualTo,
@@ -170,7 +180,7 @@ abstract class FirebaseRepository<T> {
     List<Object?>? whereNotIn,
     bool? isNull,
   }) async {
-    return _reportingFuture(FirestoreOp.list, () async {
+    return reportingFuture(FirestoreOp.list, () async {
       final snapshot = await _query(
         field,
         isEqualTo: isEqualTo,
@@ -190,7 +200,7 @@ abstract class FirebaseRepository<T> {
   }
 
   Stream<T> streamOne(String id) {
-    return _reportingStream(
+    return reportingStream(
       instance
           .collection(collectionPath)
           .doc(id)
@@ -200,28 +210,28 @@ abstract class FirebaseRepository<T> {
     );
   }
 
-  Future<T> get(String id) => _reportingFuture(FirestoreOp.get, () async {
+  Future<T> get(String id) => reportingFuture(FirestoreOp.get, () async {
     final doc = await instance.collection(collectionPath).doc(id).get();
     return fromFirestore(doc);
   });
 
-  Future<DocumentReference> add(T data) => _reportingFuture(
+  Future<DocumentReference> add(T data) => reportingFuture(
     FirestoreOp.write,
     () => instance.collection(collectionPath).add(toFirestore(data)),
   );
 
-  Future<void> update(String id, T data) => _reportingFuture(
+  Future<void> update(String id, T data) => reportingFuture(
     FirestoreOp.write,
     () => instance.collection(collectionPath).doc(id).update(toFirestore(data)),
   );
 
   Future<void> updateData(String id, Map<String, dynamic> data) =>
-      _reportingFuture(
+      reportingFuture(
         FirestoreOp.write,
         () => instance.collection(collectionPath).doc(id).update(data),
       );
 
-  Future<void> delete(String id) => _reportingFuture(
+  Future<void> delete(String id) => reportingFuture(
     FirestoreOp.write,
     () => instance.collection(collectionPath).doc(id).delete(),
   );

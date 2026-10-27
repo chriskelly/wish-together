@@ -357,7 +357,7 @@ class AuthService {
     final result = Completer<PhoneVerification>();
     // Start the clock before calling the platform: a method channel that never
     // returns must not defeat the bound.
-    final verification = result.future.timeout(timeout);
+    final verification = _boundedVerification(result.future, timeout);
     // The callbacks can fire before the caller awaits the future. Mark it as
     // observed now, so a failure is not *also* reported as an unhandled async
     // error; the caller's await still sees it.
@@ -400,6 +400,26 @@ class AuthService {
     );
 
     return verification;
+  }
+
+  /// Bounds the wait for a platform callback and reports a timeout.
+  ///
+  /// A timeout is neither the platform's `verificationFailed` nor an error from
+  /// `verifyPhoneNumber`, so before this guard a hung verification produced no
+  /// record at all — on the primary iOS path. It is its own failure, with its
+  /// own code, and it is counted once.
+  Future<PhoneVerification> _boundedVerification(
+    Future<PhoneVerification> verification,
+    Duration timeout,
+  ) async {
+    try {
+      return await verification.timeout(timeout);
+    } on TimeoutException {
+      appLogOrNull?.event(
+        const AuthStateEvent(outcome: AuthOutcome.phone, code: 'timeout'),
+      );
+      rethrow;
+    }
   }
 
   /// Deletes the signed-in user's account, then revokes the Google grant.

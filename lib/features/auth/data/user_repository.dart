@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:wishtogether/core/data/firebase_repository.dart';
+import 'package:wishtogether/core/logging/app_event.dart';
 import 'package:wishtogether/features/auth/domain/user.dart';
 
 class UserRepository extends FirebaseRepository<User> {
@@ -22,34 +23,45 @@ class UserRepository extends FirebaseRepository<User> {
     String? displayName,
     String? phoneNumber,
   }) async {
-    final doc = await instance.collection(collectionPath).doc(uid).get();
-    if (doc.exists) {
-      return fromFirestore(doc);
-    } else {
-      final newUser = User(
-        email: email,
-        displayName: displayName,
-        phoneNumber: phoneNumber,
-      );
-      await instance
+    // Both raw calls go through the base seam: this override bypasses `get`
+    // and `add`, and an unguarded read here fails completely silently.
+    final existing = await reportingFuture(FirestoreOp.get, () async {
+      final doc = await instance.collection(collectionPath).doc(uid).get();
+      return doc.exists ? fromFirestore(doc) : null;
+    });
+    if (existing != null) {
+      return existing;
+    }
+
+    final newUser = User(
+      email: email,
+      displayName: displayName,
+      phoneNumber: phoneNumber,
+    );
+    await reportingFuture(
+      FirestoreOp.write,
+      () => instance
           .collection(collectionPath)
           .doc(uid)
-          .set(toFirestore(newUser));
-      final confirmedUser = await get(uid);
-      return confirmedUser;
-    }
+          .set(toFirestore(newUser)),
+    );
+    return get(uid);
   }
 
   Stream<List<User>> streamUsersFromIds(List<String> userIds) {
     if (userIds.isEmpty) {
       return Stream.value([]);
     }
-    return instance
-        .collection(collectionPath)
-        .where(FieldPath.documentId, whereIn: userIds)
-        .snapshots()
-        .map(
-          (snapshot) => snapshot.docs.map((doc) => fromFirestore(doc)).toList(),
-        );
+    return reportingStream(
+      instance
+          .collection(collectionPath)
+          .where(FieldPath.documentId, whereIn: userIds)
+          .snapshots()
+          .map(
+            (snapshot) =>
+                snapshot.docs.map((doc) => fromFirestore(doc)).toList(),
+          ),
+      FirestoreOp.list,
+    );
   }
 }

@@ -304,10 +304,9 @@ class _LoginPageState extends State<LoginPage>
           _openVerificationPage(context, verificationId, redirectTo);
         }
       },
-      codeAutoRetrievalTimeout: (verificationId) {
-        developer.log(
-          'Auto-retrieval timeout for verification ID: $verificationId',
-        );
+      codeAutoRetrievalTimeout: (_) {
+        // No id in the text: §4.2 bans interpolating identifiers into logs.
+        developer.log('Phone auto-retrieval timed out');
       },
     );
   }

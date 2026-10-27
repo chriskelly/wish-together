@@ -16,6 +16,7 @@ import 'package:wishtogether/features/auth/data/auth_service.dart';
 import 'package:wishtogether/features/auth/data/phone_verification.dart';
 
 import '../../../core/logging/recording_sink.dart';
+import '../../../core/logging/wire_absence.dart';
 
 class MockFirebaseAuth extends Mock implements FirebaseAuth {}
 
@@ -943,6 +944,68 @@ void main() {
 
       expect(sink.eventsOf<AuthStateEvent>(), hasLength(1));
     });
+
+    test(
+      'reports one failure when the native verification times out',
+      () async {
+        // Arrange: the platform never invokes a callback.
+        when(
+          () => mockAuth.verifyPhoneNumber(
+            phoneNumber: any(named: 'phoneNumber'),
+            verificationCompleted: any(named: 'verificationCompleted'),
+            verificationFailed: any(named: 'verificationFailed'),
+            codeSent: any(named: 'codeSent'),
+            codeAutoRetrievalTimeout: any(named: 'codeAutoRetrievalTimeout'),
+          ),
+        ).thenAnswer((_) async {});
+        final service = AuthService(auth: mockAuth, isWeb: false);
+
+        // Act & Assert
+        await expectLater(
+          service.startPhoneVerification(
+            '+15550001111',
+            timeout: const Duration(milliseconds: 10),
+          ),
+          throwsA(isA<TimeoutException>()),
+        );
+
+        final event = sink.eventsOf<AuthStateEvent>().single;
+        expect(event.outcome, AuthOutcome.phone);
+        expect(event.code, 'timeout');
+      },
+    );
+
+    test(
+      'a failed phone sign-in reports no identifier or message text',
+      () async {
+        // Arrange: the exception text carries every shape the wire must not.
+        const phoneNumber = '+15555550123';
+        const itemId = 'item-7f3a9c1d2e';
+        const updateMessageToken = 'MAINTENANCE-WINDOW-42';
+        when(() => mockAuth.signInWithPhoneNumber(any())).thenThrow(
+          FirebaseAuthException(
+            code: 'invalid-phone-number',
+            message:
+                'The number $phoneNumber failed, item $itemId, '
+                'message $updateMessageToken',
+          ),
+        );
+        final service = AuthService(auth: mockAuth, isWeb: true);
+
+        // Act
+        await expectLater(
+          service.startWebPhoneSignIn(phoneNumber),
+          throwsA(isA<FirebaseAuthException>()),
+        );
+
+        // Assert
+        expectNoSensitiveValues(sink.records, <String>[
+          phoneNumber,
+          itemId,
+          updateMessageToken,
+        ]);
+      },
+    );
 
     test('reports a failed Google revocation after deletion', () async {
       final user = MockUser();

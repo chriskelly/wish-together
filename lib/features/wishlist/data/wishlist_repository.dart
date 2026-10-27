@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:wishtogether/core/data/firebase_repository.dart';
+import 'package:wishtogether/core/logging/app_event.dart';
 import 'package:wishtogether/features/wishlist/data/item_repository.dart';
 import 'package:wishtogether/features/wishlist/domain/item.dart';
 import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
@@ -61,10 +62,16 @@ class WishlistRepository extends FirebaseRepository<Wishlist> {
   Future<void> deleteWithItems(String wishlistId) async {
     final itemRepository = items(wishlistId);
     while (true) {
-      final page = await itemRepository.instance
-          .collection(itemRepository.collectionPath)
-          .limit(_batchLimit)
-          .get();
+      // The page read and the batch commit are the only raw calls here; both
+      // report through the item repository, which owns the collection the
+      // operation touches.
+      final page = await itemRepository.reportingFuture(
+        FirestoreOp.list,
+        () => itemRepository.instance
+            .collection(itemRepository.collectionPath)
+            .limit(_batchLimit)
+            .get(),
+      );
       if (page.docs.isEmpty) {
         break;
       }
@@ -72,7 +79,7 @@ class WishlistRepository extends FirebaseRepository<Wishlist> {
       for (final doc in page.docs) {
         batch.delete(doc.reference);
       }
-      await batch.commit();
+      await itemRepository.reportingFuture(FirestoreOp.write, batch.commit);
     }
     await delete(wishlistId);
   }

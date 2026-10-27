@@ -11,6 +11,7 @@ import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 import 'package:wishtogether/features/wishlist/domain/item.dart';
 
 import '../../../core/logging/recording_sink.dart';
+import '../../../core/logging/wire_absence.dart';
 
 class MockAuthService extends Mock implements AuthService {}
 
@@ -190,5 +191,27 @@ void main() {
         expect(sink.eventsOf<ClaimActionEvent>().last.code, code);
       },
     );
+
+    test('a claim carries no item id or sensitive value', () async {
+      // Arrange
+      const phoneNumber = '+15555550123';
+      const updateMessageToken = 'MAINTENANCE-WINDOW-42';
+      when(() => mockAuthService.currentUserId).thenReturn(userId);
+      when(() => mockItemRepository.update(any(), any()))
+          .thenAnswer((_) async {});
+
+      // Act
+      await claimItemUseCase.execute(
+        wishlistId,
+        Item(id: itemId, name: 'Test Item'),
+      );
+
+      // Assert
+      expectNoSensitiveValues(sink.records, <String>[
+        phoneNumber,
+        itemId,
+        updateMessageToken,
+      ]);
+    });
   });
 }

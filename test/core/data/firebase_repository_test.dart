@@ -8,6 +8,7 @@ import 'package:wishtogether/core/logging/log_sink.dart';
 import 'package:wishtogether/core/service_locator.dart';
 
 import '../logging/recording_sink.dart';
+import '../logging/wire_absence.dart';
 
 class TestModel {
   final String? id;
@@ -278,6 +279,38 @@ void main() {
       );
 
       expect(sink.eventsOf<FirestoreErrorEvent>(), isEmpty);
+    });
+
+    test('does not report a successful one-shot get or write', () async {
+      final repository = nestedRepository();
+
+      final docRef = await repository.add(TestModel(name: 'x'));
+      await repository.get(docRef.id);
+      await repository.delete(docRef.id);
+
+      expect(sink.eventsOf<FirestoreErrorEvent>(), isEmpty);
+    });
+
+    test('a failed nested read carries no id or sensitive value', () async {
+      // Arrange: the item id is in the path, and the error is code-shaped.
+      const itemId = 'item-7f3a9c1d2e';
+      const phoneNumber = '+15555550123';
+      const updateMessageToken = 'MAINTENANCE-WINDOW-42';
+      final repository = FailingModelRepository(
+        'wishlists/wl-1/items',
+        firestore: fakeFirestore,
+        error: const CodedError('unavailable'),
+      );
+
+      // Act
+      await expectLater(repository.get(itemId), throwsA(isA<CodedError>()));
+
+      // Assert
+      expectNoSensitiveValues(sink.records, <String>[
+        phoneNumber,
+        itemId,
+        updateMessageToken,
+      ]);
     });
 
     test('rethrows the original failure unchanged', () async {

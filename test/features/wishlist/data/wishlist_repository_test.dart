@@ -1,8 +1,36 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:wishtogether/core/logging/app_event.dart';
+import 'package:wishtogether/core/logging/app_log.dart';
+import 'package:wishtogether/core/logging/log_sink.dart';
+import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 import 'package:wishtogether/features/wishlist/domain/item.dart';
 import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
+
+import '../../../core/logging/recording_sink.dart';
+
+/// Fails before any Firestore call, to pin the item page read's guard.
+class ThrowingFirestore extends FakeFirebaseFirestore {
+  @override
+  CollectionReference<Map<String, dynamic>> collection(String collectionPath) {
+    throw StateError('read failed');
+  }
+}
+
+class MockWriteBatch extends Mock implements WriteBatch {}
+
+/// Serves a batch whose commit fails, after the page read succeeds.
+class CommitFailingFirestore extends FakeFirebaseFirestore {
+  CommitFailingFirestore(this.batchToReturn);
+
+  final WriteBatch batchToReturn;
+
+  @override
+  WriteBatch batch() => batchToReturn;
+}
 
 void main() {
   group('WishlistRepository', () {
@@ -268,5 +296,56 @@ void main() {
         expect((await survivorItems.get()).docs.length, 1);
       },
     );
+  });
+
+  group('WishlistRepository diagnostics', () {
+    const String wishlistId = 'doomed';
+    final String itemsPath =
+        '${Wishlist.collectionName}/$wishlistId/${Item.collectionName}';
+    late RecordingSink sink;
+
+    setUp(() {
+      sink = RecordingSink();
+      getIt.registerSingleton<AppLog>(
+        AppLog(session: testSession, sinks: <LogSink>[sink]),
+      );
+      addTearDown(getIt.reset);
+    });
+
+    test('reports a failed item page read', () async {
+      // Arrange
+      final repository = WishlistRepository(firestore: ThrowingFirestore());
+
+      // Act & Assert
+      await expectLater(
+        repository.deleteWithItems(wishlistId),
+        throwsA(isA<StateError>()),
+      );
+
+      final event = sink.eventsOf<FirestoreErrorEvent>().single;
+      expect(event.op, FirestoreOp.list);
+      expect(event.collection, Item.collectionName);
+    });
+
+    test('reports a failed item batch commit', () async {
+      // Arrange: one item, so the cascade reaches the delete batch.
+      final batch = MockWriteBatch();
+      final firestore = CommitFailingFirestore(batch);
+      await firestore.collection(itemsPath).doc('item-1').set(<String, dynamic>{
+        'name': 'Doomed item',
+      });
+      when(() => batch.commit()).thenThrow(StateError('commit failed'));
+      final repository = WishlistRepository(firestore: firestore);
+
+      // Act & Assert
+      await expectLater(
+        repository.deleteWithItems(wishlistId),
+        throwsA(isA<StateError>()),
+      );
+
+      final event = sink.eventsOf<FirestoreErrorEvent>().single;
+      expect(event.op, FirestoreOp.write);
+      expect(event.collection, Item.collectionName);
+    });
   });
 }

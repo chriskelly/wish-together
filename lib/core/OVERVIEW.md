@@ -43,6 +43,13 @@ Every failed operation reports a `FirestoreErrorEvent` at this one seam, tagged 
 model mapping too, so a `fromFirestore`/`toFirestore` `TypeError` is reported as a
 `firestoreError` with no code — a client bug, not a backend code.
 
+An override that cannot use a base method (a different query shape, a batch commit) must
+call the **protected** `reportingFuture` / `reportingStream` instead of going to Firestore
+directly. Deleting one of those wrappers is a silent failure — it was the violation that
+made group-member loading (`streamUsersFromIds`) fail with no record at all. Report through
+the repository that owns the collection, so `collectionName` names the right one:
+`deleteWithItems` reports its item page read and batch commit through the `ItemRepository`.
+
 In the running app the instance comes from `getIt<FirebaseFirestore>()`, created by
 `createFirestoreInstance()`: `FirebaseFirestore.instance` when the build passes no
 `WT_FIRESTORE_DATABASE`, otherwise `instanceFor(databaseId: ...)`. Tests inject a fake

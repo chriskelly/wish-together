@@ -46,7 +46,9 @@ of the product.
 - Deleting a wishlist goes through `deleteWithItems`, because Firestore does not
   remove a sub-collection when its parent document is deleted. It pages through
   the items first, then deletes the wishlist; a write landing inside that window
-  is not covered (only a server-side cascade could close it).
+  is not covered (only a server-side cascade could close it). Its page read and
+  batch commit go through the `ItemRepository`'s protected reporting helpers, so
+  a failed cascade reports `firestoreError` records instead of failing silently.
 - An `Item` must have an id before it can be updated;
   `WishlistRepository.updateItemInWishlist` throws `ArgumentError` otherwise.
 - `claimedAt` is stored as a Firestore `Timestamp` but modeled as a `DateTime`; the

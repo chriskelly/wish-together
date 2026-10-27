@@ -83,6 +83,9 @@ class AppUpdateService {
   /// successful read is reused across retries.
   int? _cachedRunningBuild;
 
+  /// Whether this launch already reported its decision; see [_report].
+  bool _decisionReported = false;
+
   /// Resolved lazily so constructing the service never touches the plugin; the
   /// only access happens inside [check]'s fail-open bounds.
   FirebaseRemoteConfig get _remoteConfig =>
@@ -160,7 +163,12 @@ class AppUpdateService {
       return decision;
     }
 
-    final result = decision.isBlocked
+    // An unreadable minimum is a fail-open decision, not an ordinary allow:
+    // the gate cannot evaluate its own threshold. It rides on this record
+    // instead of a second one, so one check is always one decision.
+    final result = values.minNotInteger
+        ? UpdateGateResult.failedOpen
+        : decision.isBlocked
         ? UpdateGateResult.blocked
         : decision.blockedForMissingUpdateUrl
         ? UpdateGateResult.failedOpen
@@ -170,15 +178,28 @@ class AppUpdateService {
         result: result,
         min: values.minSupportedBuild,
         running: runningBuild,
-        reason: _reasonFor(decision),
+        reason: values.minNotInteger ? 'min-not-integer' : _reasonFor(decision),
       ),
     );
 
     return decision;
   }
 
-  /// Reports one gate record; its `result` decides breadcrumb versus event.
-  void _report(UpdateGateEvent event) => appLogOrNull?.event(event);
+  /// Reports the one decision this check reached.
+  ///
+  /// The first report wins. A check that hits [totalTimeout] reports
+  /// `check-failed` and returns, but `_check` keeps running and would append a
+  /// second, contradictory record (a reproduced `failedOpen/check-failed`
+  /// followed by `blocked`), which puts two decisions on one launch and fakes a
+  /// block into S4's alert family. One service instance is one launch, so the
+  /// latch is per instance and a retry keeps the first decision.
+  void _report(UpdateGateEvent event) {
+    if (_decisionReported) {
+      return;
+    }
+    _decisionReported = true;
+    appLogOrNull?.event(event);
+  }
 
   /// Why a decision came out the way it did, for the `reason` key.
   ///
@@ -193,7 +214,14 @@ class AppUpdateService {
     return null;
   }
 
-  Future<({int minSupportedBuild, String message, String updateUrl})?>
+  Future<
+    ({
+      int minSupportedBuild,
+      String message,
+      String updateUrl,
+      bool minNotInteger,
+    })?
+  >
   _fetchRemoteConfigValues() async {
     try {
       await _remoteConfig.setDefaults(const <String, dynamic>{
@@ -212,11 +240,11 @@ class AppUpdateService {
       final minSupportedBuild = _remoteConfig.getInt(minSupportedBuildKey);
       final message = _remoteConfig.getString(updateMessageKey);
       final updateUrl = _remoteConfig.getString(updateUrlKey);
-      _warnIfMinimumIsNotAnInteger();
       return (
         minSupportedBuild: minSupportedBuild,
         message: message,
         updateUrl: updateUrl,
+        minNotInteger: _minimumIsNotAnInteger(),
       );
     } catch (_) {
       // Fail open. Never lock a user out because the network failed; _check
@@ -227,24 +255,20 @@ class AppUpdateService {
 
   /// A string-typed value silently decodes to 0, which leaves the gate inert.
   /// Say so loudly instead of looking like the kill switch.
-  void _warnIfMinimumIsNotAnInteger() {
+  ///
+  /// The answer rides on the decision record's `reason`; emitting a second
+  /// record here gave one check two decisions.
+  bool _minimumIsNotAnInteger() {
     try {
       final value = _remoteConfig.getValue(minSupportedBuildKey);
       if (value.source == ValueSource.valueStatic) {
-        return;
+        return false;
       }
       final raw = value.asString();
-      if (raw.isEmpty || int.tryParse(raw) != null) {
-        return;
-      }
-      _report(
-        const UpdateGateEvent(
-          result: UpdateGateResult.failedOpen,
-          reason: 'min-not-integer',
-        ),
-      );
+      return raw.isNotEmpty && int.tryParse(raw) == null;
     } catch (_) {
       // Diagnostics must never change the decision.
+      return false;
     }
   }
 

@@ -4,8 +4,6 @@ import 'package:flutter/foundation.dart'
     show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:go_router/go_router.dart';
 
-import 'dart:developer' as developer;
-
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:wishtogether/common/widgets/support_code_tile.dart';
@@ -172,7 +170,7 @@ class _LoginPageState extends State<LoginPage>
     try {
       await _authService.googleSignIn.signIn();
     } catch (error) {
-      developer.log('Google sign-in failed', error: error);
+      _authService.reportSignInFailure(error);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Google sign-in failed: $error')),
@@ -196,7 +194,6 @@ class _LoginPageState extends State<LoginPage>
     try {
       await _authService.signInWithApple();
     } catch (error) {
-      developer.log('Apple sign-in failed', name: 'auth.apple', error: error);
       final message = appleAuthErrorMessage(error);
       // A null message means the user canceled the sheet — stay silent.
       if (message != null && mounted) {
@@ -262,11 +259,6 @@ class _LoginPageState extends State<LoginPage>
       if (!context.mounted) return;
       _openVerificationPage(context, verificationId, redirectTo);
     } on FirebaseAuthException catch (e) {
-      developer.log(
-        'Web phone verification failed (code=${e.code})',
-        name: 'auth.phone.send',
-        error: e,
-      );
       if (!context.mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(phoneAuthErrorMessage(e))));
@@ -289,11 +281,6 @@ class _LoginPageState extends State<LoginPage>
         }
       },
       verificationFailed: (e) {
-        developer.log(
-          'Phone verification failed (code=${e.code})',
-          name: 'auth.phone.send',
-          error: e,
-        );
         if (mounted) {
           ScaffoldMessenger.of(context)
               .showSnackBar(SnackBar(content: Text(phoneAuthErrorMessage(e))));
@@ -304,10 +291,9 @@ class _LoginPageState extends State<LoginPage>
           _openVerificationPage(context, verificationId, redirectTo);
         }
       },
-      codeAutoRetrievalTimeout: (verificationId) {
-        developer.log(
-          'Auto-retrieval timeout for verification ID: $verificationId',
-        );
+      codeAutoRetrievalTimeout: (_) {
+        // Auto-retrieval gave up; the code route is still open, and the service
+        // already reports the outcome, so there is nothing to log here.
       },
     );
   }

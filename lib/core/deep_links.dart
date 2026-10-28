@@ -2,8 +2,9 @@ import 'dart:async';
 
 import 'package:app_links/app_links.dart';
 import 'package:flutter/foundation.dart'
-    show debugPrint, defaultTargetPlatform, kDebugMode, kIsWeb, TargetPlatform;
+    show defaultTargetPlatform, kDebugMode, kIsWeb, TargetPlatform;
 import 'package:wishtogether/core/app_urls.dart';
+import 'package:wishtogether/core/logging/diagnostics.dart';
 
 /// Delivers Universal Links to the router.
 ///
@@ -15,8 +16,8 @@ class DeepLinkService {
     : _allowedHosts = allowedHosts ?? universalLinkHostsFor(debug: kDebugMode) {
     (links ?? _platformLinks())?.listen(
       _onUri,
-      onError: (Object error) =>
-          debugPrint('Deep links: link stream failed: $error'),
+      onError: (Object error, StackTrace stackTrace) =>
+          appLogOrNull?.error(error, stackTrace, code: 'link-stream-failed'),
     );
   }
 

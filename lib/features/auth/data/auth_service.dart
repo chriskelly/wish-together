@@ -13,6 +13,9 @@ import 'package:flutter/foundation.dart';
 // `login_page.dart`.
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:wishtogether/core/logging/app_event.dart';
+import 'package:wishtogether/core/logging/diagnostics.dart';
+import 'package:wishtogether/core/logging/redaction.dart';
 import 'package:wishtogether/features/auth/data/apple_auth_error.dart';
 import 'package:wishtogether/features/auth/data/phone_verification.dart';
 
@@ -37,6 +40,13 @@ const String reauthCancelledCode = 'reauth-cancelled';
 /// The `FirebaseAuthException` code raised by the re-authentication helpers when
 /// there is no signed-in user to re-authenticate.
 const String _noCurrentUserCode = 'no-current-user';
+
+/// Codes that mean the user backed out of a prompt; they are not auth failures.
+const Set<String> _authCancellationCodes = <String>{
+  'popup-closed-by-user',
+  'cancelled-popup-request',
+  'web-context-canceled',
+};
 
 class AuthService {
   /// The web OAuth client id. Used by the web build and as the server client id.
@@ -99,8 +109,8 @@ class AuthService {
           if (_auth.currentUser == null) {
             await _auth.signInWithCredential(credential);
           }
-        } catch (e) {
-          debugPrint("Error during Firebase authentication: $e");
+        } catch (error) {
+          _reportAuthFailure(AuthOutcome.google, error);
           // If Firebase auth fails, sign out of Google to allow for a clean retry
           await _googleSignIn.signOut();
         }
@@ -108,9 +118,11 @@ class AuthService {
     });
   }
 
-  // Sign out from both Firebase and Google
+  // Sign out from both Firebase and Google.
+  //
+  // The sign-out transition is reported by the router's auth listener (it is
+  // the only app-wide subscription), so nothing is logged here.
   Future<void> signOut() async {
-    debugPrint("signed-out");
     await _googleSignIn.signOut();
     await _auth.signOut();
   }
@@ -130,20 +142,61 @@ class AuthService {
     required Function(FirebaseAuthException) verificationFailed,
     required Function(String, int?) codeSent,
     required Function(String) codeAutoRetrievalTimeout,
+    bool Function()? claimFailureReport,
   }) async {
-    await _auth.verifyPhoneNumber(
-      phoneNumber: phoneNumber,
-      verificationCompleted: verificationCompleted,
-      verificationFailed: verificationFailed,
-      codeSent: codeSent,
-      codeAutoRetrievalTimeout: codeAutoRetrievalTimeout,
-    );
+    // The plugin can report the same failure through both the callback and the
+    // returned future; count it once for the auth-failure alert. A caller that
+    // reports failures of its own — the timeout guard in
+    // [startPhoneVerification] — passes [claimFailureReport] so the attempt is
+    // counted once overall, not once per path.
+    final localOnce = _FailureOnce();
+    final claim = claimFailureReport ?? localOnce.claim;
+    void reportFailure(Object error) {
+      if (!claim()) {
+        return;
+      }
+      _reportAuthFailure(AuthOutcome.phone, error);
+    }
+
+    try {
+      await _auth.verifyPhoneNumber(
+        phoneNumber: phoneNumber,
+        verificationCompleted: verificationCompleted,
+        verificationFailed: (error) {
+          reportFailure(error);
+          verificationFailed(error);
+        },
+        codeSent: codeSent,
+        codeAutoRetrievalTimeout: codeAutoRetrievalTimeout,
+      );
+    } catch (error) {
+      reportFailure(error);
+      rethrow;
+    }
+  }
+
+  /// Reports a sign-in failure the caller caught itself.
+  ///
+  /// Native Google sign-in throws from `signIn()` before this service sees the
+  /// account, so the page reports it here instead of writing to the console.
+  /// Cancellation codes are filtered exactly like every other auth failure, so a
+  /// dismissed sheet stays a breadcrumb.
+  void reportSignInFailure(
+    Object error, {
+    AuthOutcome outcome = AuthOutcome.google,
+  }) {
+    _reportAuthFailure(outcome, error);
   }
 
   Future<UserCredential> signInWithPhoneCredential(
     PhoneAuthCredential credential,
   ) async {
-    return await _auth.signInWithCredential(credential);
+    try {
+      return await _auth.signInWithCredential(credential);
+    } catch (error) {
+      _reportAuthFailure(AuthOutcome.phone, error);
+      rethrow;
+    }
   }
 
   /// Starts a phone sign-in on the web platform.
@@ -153,9 +206,14 @@ class AuthService {
   /// so [confirmPhoneCode] can finish the flow with the SMS code. Returns the
   /// verification id to route to the code-entry page.
   Future<String> startWebPhoneSignIn(String phoneNumber) async {
-    final confirmationResult = await _auth.signInWithPhoneNumber(phoneNumber);
-    _webConfirmation = confirmationResult;
-    return confirmationResult.verificationId;
+    try {
+      final confirmationResult = await _auth.signInWithPhoneNumber(phoneNumber);
+      _webConfirmation = confirmationResult;
+      return confirmationResult.verificationId;
+    } catch (error) {
+      _reportAuthFailure(AuthOutcome.phone, error);
+      rethrow;
+    }
   }
 
   /// Finishes a phone sign-in with the SMS code sent to the user.
@@ -166,21 +224,26 @@ class AuthService {
     required String verificationId,
     required String smsCode,
   }) async {
-    if (_isWeb) {
-      final confirmationResult = _webConfirmation;
-      if (confirmationResult == null) {
-        throw StateError(
-          'No web phone sign-in in progress. Call startWebPhoneSignIn first.',
-        );
+    try {
+      if (_isWeb) {
+        final confirmationResult = _webConfirmation;
+        if (confirmationResult == null) {
+          throw StateError(
+            'No web phone sign-in in progress. Call startWebPhoneSignIn first.',
+          );
+        }
+        return await confirmationResult.confirm(smsCode);
       }
-      return confirmationResult.confirm(smsCode);
+      return await _auth.signInWithCredential(
+        PhoneAuthProvider.credential(
+          verificationId: verificationId,
+          smsCode: smsCode,
+        ),
+      );
+    } catch (error) {
+      _reportAuthFailure(AuthOutcome.phone, error);
+      rethrow;
     }
-    return _auth.signInWithCredential(
-      PhoneAuthProvider.credential(
-        verificationId: verificationId,
-        smsCode: smsCode,
-      ),
-    );
   }
 
   /// Signs in with Apple and exchanges the credential for a Firebase session.
@@ -193,7 +256,12 @@ class AuthService {
   /// the raw nonce (which it embeds in the identity token), and Firebase
   /// receives the raw nonce to compare against that claim.
   Future<UserCredential> signInWithApple() async {
-    return _auth.signInWithCredential(await _freshAppleCredential());
+    try {
+      return await _auth.signInWithCredential(await _freshAppleCredential());
+    } catch (error) {
+      _reportAuthFailure(AuthOutcome.apple, error);
+      rethrow;
+    }
   }
 
   /// The provider that issued the current ID token (`google.com`, `apple.com`
@@ -304,9 +372,17 @@ class AuthService {
     }
 
     final result = Completer<PhoneVerification>();
+    // One failure per attempt, shared by the timeout guard and the platform
+    // callbacks: a platform that times out and then reports the same failure
+    // must not produce two auth-failure events.
+    final failureOnce = _FailureOnce();
     // Start the clock before calling the platform: a method channel that never
     // returns must not defeat the bound.
-    final verification = result.future.timeout(timeout);
+    final verification = _boundedVerification(
+      result.future,
+      timeout,
+      failureOnce,
+    );
     // The callbacks can fire before the caller awaits the future. Mark it as
     // observed now, so a failure is not *also* reported as an unhandled async
     // error; the caller's await still sees it.
@@ -317,6 +393,7 @@ class AuthService {
     unawaited(
       verifyPhoneNumber(
         phoneNumber: phoneNumber,
+        claimFailureReport: failureOnce.claim,
         verificationCompleted: (credential) {
           if (!result.isCompleted) {
             result.complete(PhoneVerificationAutoVerified(credential));
@@ -351,6 +428,31 @@ class AuthService {
     return verification;
   }
 
+  /// Bounds the wait for a platform callback and reports a timeout.
+  ///
+  /// A timeout is neither the platform's `verificationFailed` nor an error from
+  /// `verifyPhoneNumber`, so before this guard a hung verification produced no
+  /// record at all — on the primary iOS path. It is its own failure, with its
+  /// own code, and it is counted once.
+  Future<PhoneVerification> _boundedVerification(
+    Future<PhoneVerification> verification,
+    Duration timeout,
+    _FailureOnce failureOnce,
+  ) async {
+    try {
+      return await verification.timeout(timeout);
+    } on TimeoutException {
+      // The platform may still report its own failure after the bound fired;
+      // [failureOnce] keeps the attempt to a single event.
+      if (failureOnce.claim()) {
+        appLogOrNull?.event(
+          const AuthStateEvent(outcome: AuthOutcome.phone, code: 'timeout'),
+        );
+      }
+      rethrow;
+    }
+  }
+
   /// Deletes the signed-in user's account, then revokes the Google grant.
   ///
   /// Requires a recent login: `User.delete()` throws `requires-recent-login`
@@ -370,11 +472,11 @@ class AuthService {
     await user.delete();
     try {
       await _googleSignIn.disconnect();
-    } catch (error) {
+    } catch (error, stackTrace) {
       // The account is already gone, so a failed revocation must not be
       // reported as a failed deletion — but it must not vanish either: it is
       // the only signal that the Google grant is still active.
-      debugPrint('Google revocation failed after account deletion: $error');
+      appLogOrNull?.error(error, stackTrace, code: 'google-revoke-failed');
     }
   }
 
@@ -409,6 +511,21 @@ class AuthService {
     );
   }
 
+  /// Reports a failed sign-in attempt with its provider and structured code.
+  ///
+  /// The identifier the user typed is never passed: only the code, which is
+  /// what S4's auth-failure alert counts.
+  void _reportAuthFailure(AuthOutcome outcome, Object error) {
+    final code = readErrorCode(error);
+    appLogOrNull?.event(
+      AuthStateEvent(
+        outcome: outcome,
+        // A cancellation is a breadcrumb, not an S4 auth-failure event.
+        code: _authCancellationCodes.contains(code) ? null : code,
+      ),
+    );
+  }
+
   /// The signed-in user, or a [FirebaseAuthException] when there is none.
   User _requireCurrentUser() {
     final user = _auth.currentUser;
@@ -419,5 +536,18 @@ class AuthService {
       );
     }
     return user;
+  }
+}
+
+/// A one-shot claim, so one auth attempt reports at most one failure.
+class _FailureOnce {
+  bool _claimed = false;
+
+  bool claim() {
+    if (_claimed) {
+      return false;
+    }
+    _claimed = true;
+    return true;
   }
 }

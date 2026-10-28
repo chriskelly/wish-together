@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:wishtogether/core/logging/diagnostics.dart';
 import 'package:wishtogether/features/app_update/domain/update_decision.dart';
 
 /// Re-checks the gate and starts the app only when the result is conclusive.
@@ -17,8 +17,10 @@ Future<bool> retryUpdateGate({
     }
     start();
     return true;
-  } catch (error) {
-    debugPrint('App update gate: retry failed, staying blocked: $error');
+  } catch (error, stackTrace) {
+    // The gate did not fail open: the confirmed block stays. This is the retry
+    // itself throwing, so it is an error with a stack.
+    appLogOrNull?.error(error, stackTrace, code: 'retry-failed');
     return false;
   }
 }

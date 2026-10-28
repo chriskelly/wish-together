@@ -3,6 +3,12 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wishtogether/core/app_urls.dart';
 import 'package:wishtogether/core/deep_links.dart';
+import 'package:wishtogether/core/logging/app_event.dart';
+import 'package:wishtogether/core/logging/app_log.dart';
+import 'package:wishtogether/core/logging/log_sink.dart';
+import 'package:wishtogether/core/service_locator.dart';
+
+import 'logging/recording_sink.dart';
 
 void main() {
   late StreamController<Uri> controller;
@@ -95,5 +101,19 @@ void main() {
     await pumpEventQueue();
 
     expect(service.takePendingLocation(), '/join?group=one');
+  });
+
+  test('reports a link stream failure through the log', () async {
+    final sink = RecordingSink();
+    getIt.registerSingleton<AppLog>(
+      AppLog(session: testSession, sinks: <LogSink>[sink]),
+    );
+    addTearDown(getIt.reset);
+
+    controller.addError(StateError('link stream failed'));
+    await pumpEventQueue();
+
+    final event = sink.eventsOf<ErrorEvent>().single;
+    expect(event.code, 'link-stream-failed');
   });
 }

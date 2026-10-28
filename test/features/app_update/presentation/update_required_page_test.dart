@@ -2,7 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wishtogether/core/logging/app_event.dart';
+import 'package:wishtogether/core/logging/app_log.dart';
+import 'package:wishtogether/core/logging/log_sink.dart';
+import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/app_update/presentation/update_required_page.dart';
+
+import '../../../core/logging/recording_sink.dart';
 
 const storeUnavailableMessage =
     "Couldn't open the App Store. Please open it manually and update "
@@ -246,6 +252,11 @@ void main() {
 
     testWidgets('recovers when an action throws', (tester) async {
       // Arrange
+      final sink = RecordingSink();
+      getIt.registerSingleton<AppLog>(
+        AppLog(session: testSession, sinks: <LogSink>[sink]),
+      );
+      addTearDown(getIt.reset);
       await tester.pumpWidget(
         MaterialApp(
           home: UpdateRequiredPage(
@@ -265,6 +276,7 @@ void main() {
         tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
         isNotNull,
       );
+      expect(sink.eventsOf<ErrorEvent>().single.code, 'update-action-failed');
     });
 
     testWidgets('re-checks when the app resumes', (tester) async {
@@ -293,6 +305,11 @@ void main() {
 
     testWidgets('recovers when the retry throws', (tester) async {
       // Arrange
+      final sink = RecordingSink();
+      getIt.registerSingleton<AppLog>(
+        AppLog(session: testSession, sinks: <LogSink>[sink]),
+      );
+      addTearDown(getIt.reset);
       await tester.pumpWidget(
         MaterialApp(
           home: UpdateRequiredPage(
@@ -313,6 +330,7 @@ void main() {
         tester.widget<TextButton>(find.byType(TextButton)).onPressed,
         isNotNull,
       );
+      expect(sink.eventsOf<ErrorEvent>().single.code, 'check-again-failed');
     });
 
     testWidgets('bounds a hung store action', (tester) async {

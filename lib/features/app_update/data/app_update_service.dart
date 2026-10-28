@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/foundation.dart'
-    show debugPrint, defaultTargetPlatform, kDebugMode, kIsWeb, TargetPlatform;
+    show defaultTargetPlatform, kDebugMode, kIsWeb, TargetPlatform;
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:wishtogether/core/logging/app_event.dart';
+import 'package:wishtogether/core/logging/diagnostics.dart';
 import 'package:wishtogether/core/platform_info.dart';
 import 'package:wishtogether/features/app_update/domain/update_decision.dart';
 
@@ -81,6 +83,9 @@ class AppUpdateService {
   /// successful read is reused across retries.
   int? _cachedRunningBuild;
 
+  /// Whether this launch already reported its decision; see [_report].
+  bool _decisionReported = false;
+
   /// Resolved lazily so constructing the service never touches the plugin; the
   /// only access happens inside [check]'s fail-open bounds.
   FirebaseRemoteConfig get _remoteConfig =>
@@ -100,12 +105,23 @@ class AppUpdateService {
   /// inconclusive decision, so the app starts.
   Future<UpdateDecision> check() async {
     if (!_gateApplies || _bypassGate) {
+      _report(
+        UpdateGateEvent(
+          result: UpdateGateResult.allowed,
+          reason: _gateApplies ? 'debug-bypass' : 'gate-not-applicable',
+        ),
+      );
       return const UpdateDecision.allowed(isConclusive: true);
     }
     try {
       return await _check().timeout(totalTimeout);
-    } catch (error) {
-      debugPrint('App update gate: check failed, failing open: $error');
+    } catch (_) {
+      _report(
+        const UpdateGateEvent(
+          result: UpdateGateResult.failedOpen,
+          reason: 'check-failed',
+        ),
+      );
       return const UpdateDecision.allowed();
     }
   }
@@ -119,6 +135,12 @@ class AppUpdateService {
     final values = await valuesFuture;
 
     if (values == null) {
+      _report(
+        const UpdateGateEvent(
+          result: UpdateGateResult.failedOpen,
+          reason: 'remote-config-unavailable',
+        ),
+      );
       return const UpdateDecision.allowed();
     }
 
@@ -130,18 +152,76 @@ class AppUpdateService {
       conclusive: runningBuild != null,
     );
 
-    if (decision.blockedForMissingUpdateUrl) {
-      debugPrint(
-        'App update gate: min_supported_build requires an update, but '
-        'update_url is missing or is not a usable Apple App Store URL. '
-        'Failing open; set update_url in Remote Config.',
+    if (runningBuild == null) {
+      _report(
+        UpdateGateEvent(
+          result: UpdateGateResult.failedOpen,
+          min: values.minSupportedBuild,
+          reason: 'build-unreadable',
+        ),
       );
+      return decision;
     }
+
+    // An unreadable minimum is a fail-open decision, not an ordinary allow:
+    // the gate cannot evaluate its own threshold. It rides on this record
+    // instead of a second one, so one check is always one decision.
+    final result = values.minNotInteger
+        ? UpdateGateResult.failedOpen
+        : decision.isBlocked
+        ? UpdateGateResult.blocked
+        : decision.blockedForMissingUpdateUrl
+        ? UpdateGateResult.failedOpen
+        : UpdateGateResult.allowed;
+    _report(
+      UpdateGateEvent(
+        result: result,
+        min: values.minSupportedBuild,
+        running: runningBuild,
+        reason: values.minNotInteger ? 'min-not-integer' : _reasonFor(decision),
+      ),
+    );
 
     return decision;
   }
 
-  Future<({int minSupportedBuild, String message, String updateUrl})?>
+  /// Reports the one decision this check reached.
+  ///
+  /// The first report wins. A check that hits [totalTimeout] reports
+  /// `check-failed` and returns, but `_check` keeps running and would append a
+  /// second, contradictory record (a reproduced `failedOpen/check-failed`
+  /// followed by `blocked`), which puts two decisions on one launch and fakes a
+  /// block into S4's alert family. One service instance is one launch, so the
+  /// latch is per instance and a retry keeps the first decision.
+  void _report(UpdateGateEvent event) {
+    if (_decisionReported) {
+      return;
+    }
+    _decisionReported = true;
+    appLogOrNull?.event(event);
+  }
+
+  /// Why a decision came out the way it did, for the `reason` key.
+  ///
+  /// `null` means an ordinary, conclusive result; `missing-update-url` is the
+  /// one decision-level reason that needs a code. The other fail-open reasons
+  /// are reported where the failure is known (`build-unreadable`,
+  /// `remote-config-unavailable`, `check-failed`, `min-not-integer`).
+  String? _reasonFor(UpdateDecision decision) {
+    if (decision.blockedForMissingUpdateUrl) {
+      return 'missing-update-url';
+    }
+    return null;
+  }
+
+  Future<
+    ({
+      int minSupportedBuild,
+      String message,
+      String updateUrl,
+      bool minNotInteger,
+    })?
+  >
   _fetchRemoteConfigValues() async {
     try {
       await _remoteConfig.setDefaults(const <String, dynamic>{
@@ -160,39 +240,35 @@ class AppUpdateService {
       final minSupportedBuild = _remoteConfig.getInt(minSupportedBuildKey);
       final message = _remoteConfig.getString(updateMessageKey);
       final updateUrl = _remoteConfig.getString(updateUrlKey);
-      _warnIfMinimumIsNotAnInteger();
       return (
         minSupportedBuild: minSupportedBuild,
         message: message,
         updateUrl: updateUrl,
+        minNotInteger: _minimumIsNotAnInteger(),
       );
-    } catch (error) {
-      // Fail open. Never lock a user out because the network failed.
-      debugPrint(
-        'App update gate: Remote Config unavailable, failing open: $error',
-      );
+    } catch (_) {
+      // Fail open. Never lock a user out because the network failed; _check
+      // reports the failed-open decision.
       return null;
     }
   }
 
   /// A string-typed value silently decodes to 0, which leaves the gate inert.
   /// Say so loudly instead of looking like the kill switch.
-  void _warnIfMinimumIsNotAnInteger() {
+  ///
+  /// The answer rides on the decision record's `reason`; emitting a second
+  /// record here gave one check two decisions.
+  bool _minimumIsNotAnInteger() {
     try {
       final value = _remoteConfig.getValue(minSupportedBuildKey);
       if (value.source == ValueSource.valueStatic) {
-        return;
+        return false;
       }
       final raw = value.asString();
-      if (raw.isEmpty || int.tryParse(raw) != null) {
-        return;
-      }
-      debugPrint(
-        'App update gate: min_supported_build is not an integer ("$raw"); '
-        'the gate is inert.',
-      );
+      return raw.isNotEmpty && int.tryParse(raw) == null;
     } catch (_) {
       // Diagnostics must never change the decision.
+      return false;
     }
   }
 
@@ -209,8 +285,8 @@ class AppUpdateService {
       // open until a parse succeeds, so retrying is harmless.
       _cachedRunningBuild = build;
       return build;
-    } catch (error) {
-      debugPrint('App update gate: could not read the running build: $error');
+    } catch (_) {
+      // _check reports the failed-open decision.
       return null;
     }
   }

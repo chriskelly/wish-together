@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:wishtogether/core/logging/diagnostics.dart';
 import 'package:wishtogether/core/theme.dart';
 
 /// A blocking screen shown when the running build is below the minimum
@@ -70,7 +71,7 @@ class _UpdateRequiredPageState extends State<UpdateRequiredPage> {
   Future<void> _run(
     Future<bool> Function() action, {
     required _Action kind,
-    required String logLabel,
+    required String failureCode,
     required String failureFeedback,
   }) async {
     if (_isBusy) {
@@ -84,8 +85,8 @@ class _UpdateRequiredPageState extends State<UpdateRequiredPage> {
     var succeeded = false;
     try {
       succeeded = await action();
-    } catch (error) {
-      debugPrint('App update gate: $logLabel failed: $error');
+    } catch (error, stackTrace) {
+      appLogOrNull?.error(error, stackTrace, code: failureCode);
     } finally {
       if (mounted) {
         setState(() {
@@ -106,7 +107,7 @@ class _UpdateRequiredPageState extends State<UpdateRequiredPage> {
     return _run(
       () => onUpdate().timeout(widget.updateTimeout),
       kind: _Action.updating,
-      logLabel: 'update action',
+      failureCode: 'update-action-failed',
       failureFeedback:
           "Couldn't open the App Store. Please open it manually and update "
           'WishTogether.',
@@ -121,7 +122,7 @@ class _UpdateRequiredPageState extends State<UpdateRequiredPage> {
     return _run(
       onCheckAgain,
       kind: _Action.checking,
-      logLabel: 'retry',
+      failureCode: 'check-again-failed',
       failureFeedback: 'Still not available. Try again later.',
     );
   }

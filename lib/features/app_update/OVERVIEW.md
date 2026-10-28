@@ -44,6 +44,15 @@ from breaking quietly.
   cannot delay startup indefinitely; it runs before the first Flutter frame, so
   a slow check delays that frame up to the bound. Firebase initialization and
   App Check activation are not part of that bound.
+- **Diagnostics:** a launch reports **exactly one** decision record, and the first result
+  wins. A check that hits the timeout reports `failedOpen/check-failed`; the abandoned
+  `_check` is not allowed to append a contradictory second record, and a retry keeps the
+  decision is not reported again (the service is a launch-time singleton). An allowed/blocked decision is
+  a breadcrumb; every fail-open path (including a missing update URL) is
+  `result: failedOpen`, which the Sentry policy treats as a warning event. A non-integer
+  `min_supported_build` makes that same record `failedOpen` with `reason: min-not-integer`
+  (the gate cannot evaluate its own threshold) instead of emitting a second, standalone
+  warning.
 - **A confirmed block stays blocked:** "Check again" may only replace the
   blocker with the app when the retry is both allowed *and* conclusive. A retry
   that merely fails open (offline, timeout) must not let a stale user through.

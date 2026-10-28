@@ -975,6 +975,32 @@ void main() {
       },
     );
 
+    test('reports a caller-caught Google failure through the vocabulary', () {
+      // Arrange
+      const code = 'network-request-failed';
+      final service = AuthService(auth: mockAuth, isWeb: true);
+
+      // Act
+      service.reportSignInFailure(const CodedError(code));
+
+      // Assert
+      final event = sink.eventsOf<AuthStateEvent>().single;
+      expect(event.outcome, AuthOutcome.google);
+      expect(event.code, code);
+    });
+
+    test('drops the code for a cancelled sheet', () {
+      // Arrange
+      const cancellation = 'popup-closed-by-user';
+      final service = AuthService(auth: mockAuth, isWeb: true);
+
+      // Act
+      service.reportSignInFailure(const CodedError(cancellation));
+
+      // Assert: the outcome survives, the cancellation is not a failure code.
+      expect(sink.eventsOf<AuthStateEvent>().single.code, isNull);
+    });
+
     test('counts a timeout and a late platform failure once', () async {
       // Arrange: the platform reports its failure only after the bound fired.
       final failure = FirebaseAuthException(code: 'invalid-phone-number');

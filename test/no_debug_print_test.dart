@@ -5,14 +5,18 @@ import 'package:flutter_test/flutter_test.dart';
 /// The one file allowed to print: S1's console sink.
 const String consoleSinkPath = 'lib/core/logging/log_sink.dart';
 
-/// Matches the two direct-Flutter debug output calls.
+/// Matches every way `lib/` could write to the console without the facade.
 ///
 /// `debugPrintStack` is a different symbol but the same leak channel: its
-/// label is free text, and the only current site interpolated an error.
-final RegExp directDebugOutput = RegExp(r'\bdebugPrint(?:Stack)?\s*\(');
+/// label is free text, and the only site interpolated an error. `developer.log`
+/// is the same story one level up — its `error:` argument is a raw exception,
+/// and the auth pages used it to print what the sink already reported.
+final RegExp directDebugOutput = RegExp(
+  r'\bdebugPrint(?:Stack)?\s*\(|\bdeveloper\.log\s*\(',
+);
 
 void main() {
-  test('lib/ reports through the facade instead of debugPrint', () {
+  test('lib/ reports through the facade, never the console', () {
     final offenders = <String>[];
     var scanned = 0;
     for (final entity in Directory('lib').listSync(recursive: true)) {

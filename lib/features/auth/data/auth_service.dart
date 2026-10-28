@@ -175,6 +175,19 @@ class AuthService {
     }
   }
 
+  /// Reports a sign-in failure the caller caught itself.
+  ///
+  /// Native Google sign-in throws from `signIn()` before this service sees the
+  /// account, so the page reports it here instead of writing to the console.
+  /// Cancellation codes are filtered exactly like every other auth failure, so a
+  /// dismissed sheet stays a breadcrumb.
+  void reportSignInFailure(
+    Object error, {
+    AuthOutcome outcome = AuthOutcome.google,
+  }) {
+    _reportAuthFailure(outcome, error);
+  }
+
   Future<UserCredential> signInWithPhoneCredential(
     PhoneAuthCredential credential,
   ) async {

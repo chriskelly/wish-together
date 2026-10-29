@@ -154,6 +154,15 @@ def upload_symbols(build_number:)
   end
   UI.user_error!("#{missing} is not set; refusing to ship without a symbol upload") if missing
 
+  # The plugin uploads whatever debug files it finds and succeeds even when it
+  # finds none, so a build with dSYM generation disabled would ship
+  # unsymbolicated while every step reported success. Refuse instead.
+  if Dir[File.join(PROJECT_ROOT, "build/ios/archive/**/*.dSYM")].empty?
+    UI.user_error!(
+      "no dSYM in build/ios/archive; refusing to ship an unsymbolicated build"
+    )
+  end
+
   Dir.chdir(PROJECT_ROOT) do
     Fastlane::Helper.with_env_values("SENTRY_RELEASE" => "wishtogether@#{build_number}") do
       sh("dart run sentry_dart_plugin --sentry-define=upload_source_maps=false")

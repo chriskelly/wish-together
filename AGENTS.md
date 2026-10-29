@@ -340,19 +340,28 @@ secret and authorises the upload.
   `build/web` **after** the upload and **before** any deploy step, then asserts none is left. It
   exits non-zero on a missing `main.dart.js`, so a wrong path cannot pass silently. Its tests live
   in `scripts/test/web-source-maps.test.mjs`.
+- **Not yet guarded: the environment define itself.** Both bundle guards assert the DSN and the
+  build id, and the staging guard asserts the Firestore target, but nothing proves the bundle was
+  compiled with `WT_SENTRY_ENVIRONMENT`. Delete that define and the build reports
+  `environment=production` while every guard still passes — a preview would page the operator.
+  The fix is a unique compile-time marker emitted from app code (as `wishtogether-firestore-target`
+  does) and grepped by both guards; until then, keep the define in the same edit as the DSN.
 - The numeric organisation and project ids are parsed from the DSN by
   `scripts/sentry-identity.mjs`, so the repository stores no Sentry slug. That parser expects a
   current-format SaaS DSN (`https://<key>@o<org>.ingest.<region>.sentry.io/<project>`); a legacy or
   self-hosted DSN cannot supply an organisation id and fails the run instead of uploading to the
-  wrong place. `sentry-cli` prefers the organisation embedded in `SENTRY_AUTH_TOKEN` and only warns
-  when `SENTRY_ORG` names another, so every upload logs that warning today (both name the same
-  organisation). Keep the token and the DSN from the same organisation: a token minted for a
-  different one overrides the parsed id, and the upload then fails on a project id that does not
-  exist there rather than landing somewhere wrong.
+  wrong place. `sentry-cli` prefers the organisation embedded in `SENTRY_AUTH_TOKEN`; because the
+  token carries the **slug** and `SENTRY_ORG` carries the **numeric id** from the DSN, the two
+  strings differ and the override warning is logged on every upload. They name the same
+  organisation, so the warning is expected. Keep the token and the DSN from the same organisation:
+  a token minted for a different one overrides the parsed id, and the upload then fails on a
+  project id that does not exist there rather than landing somewhere wrong.
 - iOS builds are not obfuscated, so there is no Dart symbol map. The plugin uploads the dSYMs in
   the Xcode archive, which symbolicate native frames and crash reports, and creates and finalises
   the release record `wishtogether@<CFBundleVersion>`; the upload itself is untagged, because
-  Sentry pairs symbols with events by debug id. `ios-<build>` is the dist the app reports, not a
+  Sentry pairs symbols with events by debug id. The lane refuses to ship when the archive holds no
+  dSYM: the plugin uploads what it finds and would otherwise succeed having uploaded nothing.
+  `ios-<build>` is the dist the app reports, not a
   tag on the upload.
 - Staging carries no release and no dist on purpose: it uploads no symbols, so an identity would
   name a build Sentry cannot symbolicate.

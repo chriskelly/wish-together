@@ -336,10 +336,14 @@ secret and authorises the upload.
   `pubspec.yaml`, invoked explicitly after the build — and a failed upload fails the run. A deployed
   build without its symbols reports unreadable stack traces, which is worse than not deploying.
   The `sentry:` block deliberately sets no release or dist: CI passes them through the environment.
-- Source maps carry the app's source, so `scripts/web-source-maps.mjs` deletes every `*.map` from
-  `build/web` **after** the upload and **before** any deploy step, then asserts none is left. It
-  exits non-zero on a missing `main.dart.js`, so a wrong path cannot pass silently. Its tests live
-  in `scripts/test/web-source-maps.test.mjs`.
+- Source maps are a build artefact, not source text: a real build's map lists 1,221 SDK, engine and
+  package paths and embeds no sources (`sourcesContent` is absent), but it is **3.2 MB** — as large
+  as the bundle it maps. It is uploaded for symbolication, then `scripts/web-source-maps.mjs`
+  deletes every `*.map` from `build/web` **before** any deploy, so the CDN never serves a debug file
+  nobody fetches. That is deploy hygiene, not confidentiality: the app's source is public anyway.
+  The load-bearing check is the presence assertion — it exits non-zero when `main.dart.js` or its
+  map is missing, so a Flutter upgrade that stops emitting maps cannot silently leave us
+  unsymbolicated. Tests live in `scripts/test/web-source-maps.test.mjs`.
 - **Not yet guarded: the environment define itself.** Both bundle guards assert the DSN and the
   build id, and the staging guard asserts the Firestore target, but nothing proves the bundle was
   compiled with `WT_SENTRY_ENVIRONMENT`. Delete that define and the build reports

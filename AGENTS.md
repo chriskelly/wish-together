@@ -344,7 +344,11 @@ secret and authorises the upload.
   `scripts/sentry-identity.mjs`, so the repository stores no Sentry slug. That parser expects a
   current-format SaaS DSN (`https://<key>@o<org>.ingest.<region>.sentry.io/<project>`); a legacy or
   self-hosted DSN cannot supply an organisation id and fails the run instead of uploading to the
-  wrong place.
+  wrong place. `sentry-cli` prefers the organisation embedded in `SENTRY_AUTH_TOKEN` and only warns
+  when `SENTRY_ORG` names another, so every upload logs that warning today (both name the same
+  organisation). Keep the token and the DSN from the same organisation: a token minted for a
+  different one overrides the parsed id, and the upload then fails on a project id that does not
+  exist there rather than landing somewhere wrong.
 - iOS builds are not obfuscated, so there is no Dart symbol map. The plugin uploads the dSYMs in
   the Xcode archive, which symbolicate native frames and crash reports, and creates and finalises
   the release record `wishtogether@<CFBundleVersion>`; the upload itself is untagged, because

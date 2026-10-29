@@ -261,54 +261,51 @@ or a stray tag can erase real errors silently. Check, in order:
    was dropped by `scrubEvent`: add its key to `redaction.dart` deliberately, with a test, or
    remove whatever added the tag.
 
-### Alert configuration (console steps, not code)
+### Alerting
 
-None of this is applied by the repository; it is configuration in the Sentry console. Re-create it
-from this table if the project is ever rebuilt. Every rule is scoped to `environment:production`,
-so a local run or the staging host never notifies anyone — provided staging carries its own
-environment define (see Releases).
+The app emits four things worth alerting on, plus site uptime. **Which rules exist, their
+thresholds and who is notified are operator preferences.** They change without touching this
+repository, nothing here can verify them, and a table of console steps would rot faster than it
+would help — configure them in the Sentry console, not in this file.
 
-| # | Signal | Exact configuration |
-| - | ------ | ------------------- |
-| 1 | Any new issue | Monitors → Alerts → **Create Alert**. Source: this project. Environment: **production**. When: **A new issue is created**. If: none. Then: **Notify on preferred channel** → Member (the operator), fallback *Recently Active Members*. Throttle: **5 minutes**. |
-| 2 | A fixed issue regressed | Same Alert, second If/Then block. When: **A resolved issue regresses**. Then: the same email action. |
-| 3 | Auth-failure spike | Second Alert. Environment: **production**. When: **An event or issue activity is captured**. If: **Number of events** *more than* **3** *in 15 minutes*, sub-filter tag `event` **is** `authState`. Then: email as above. |
-| 4 | Firestore `permission-denied` spike | Third Alert. Environment: **production**. Same shape: **Number of events** *more than* **1** *in 15 minutes*, sub-filter tag `error_code` **is** `permission-denied`. Then: email as above. |
-| 5 | Site down | Monitors → **Create Monitor** → Uptime. `GET https://wishtogether.gift/`, interval **5 minutes**, timeout **10 s**, failure tolerance **3** consecutive failures, recovery tolerance **1** success, then alert on the resulting outage issue → email. |
+- `event:error` — failures. Sentry groups them, so a crash loop counts once.
+- `event:authState` — sign-in failures only: a cancellation carries no code and never becomes an
+  event, so every `authState` event that reaches Sentry is a genuine failure.
+- `event:firestoreError` with `error_code:permission-denied` — a rules regression. Legitimate
+  volume is near zero, so a single denial after a rules deploy is worth knowing about.
+- `event:updateGate` with `reason:*` — the gate failed open, meaning it did **not** decide. Read it
+  as "the gate could not run", never as "the gate allowed it".
+- Site uptime for `https://wishtogether.gift/` — independent of the app, and the only signal that
+  survives a crash loop exhausting the event quota.
 
-Project settings the policy depends on, recorded here because no file holds them (check under
-**Settings**, organization and project):
+**One rule is not a preference:** scope every alert and every saved search to
+`environment:production`. Preview channels and the staging dispatch report to this same project and
+must never page anyone. That separation comes from the build's environment define, so if the define
+is ever dropped, previews report as production — see Releases, environments and source maps.
 
-- **Data region**: United States, which is what the policy discloses. Confirm the organization's
-  region in Settings before relying on that wording; an EU organization would make it wrong.
+Nothing checks that any rule exists. Read this section as what is *possible*, not what is
+*configured*.
+
+### Project settings the privacy policy depends on
+
+Not code, and not preferences: `web/privacy.html` makes claims that these settings must keep true.
+Check them under **Settings**, organization and project.
+
+- **Data region**: United States, which is what the policy discloses. An EU organization would
+  make that wording wrong.
 - **Retention**: 30 days, the Developer plan's retention, which is what the policy promises. Do not
-  promise longer without changing the plan.
+  promise longer without changing the policy.
 - **IP storage**: "Prevent Storing of IP Addresses" must be **on**. `sendDefaultPii: false` only
   stops the SDK attaching `user.ip_address`; the server enriches the event from the request
-  anyway. Checked 2026-10-28 it was **off**, and the only event in the project carried
+  anyway. It was off until 2026-10-28, when the only event in the project was found carrying
   `user.ip_address` and `user.geo`. The operator turned it on and verified it with a fresh event on
-  2026-10-29 (UTC) that carried no `user.ip_address`. Confirm it is still on before shipping a build
-  that reports, or the policy's IP sentence is false.
+  2026-10-29 that carried no `user.ip_address`. Re-check it before shipping a build that reports,
+  or the policy's IP sentence is false.
 - **App Privacy answers** (App Store Connect, not a file): `Diagnostics → Crash Data` **Yes**,
   `Diagnostics → Other Diagnostic Data` **Yes**, linked to the user, not tracking, not
   advertising. `Identifiers → Device ID` is **Yes** for every iOS user while auto session tracking
-  stays on, because the session record always carries the installation id (blind spot 3);
-  turning that option off would let it return to No. Submitted; confirm with one iOS run that the
-  answers still match what a reporting build sends.
-
-Notes:
-
-- `event:authState` is the auth-failure filter, not an enumerated `error_code` list: a
-  cancellation code is dropped before capture, so every `authState` event that reaches Sentry
-  is a genuine failure. An enumeration would also rot on the next Firebase code.
-- **3** and **1** in **15 minutes** are starting values for a low-traffic family app: one failed
-  sign-in is user error, a provider outage is not. Raise them if a normal pattern trips them,
-  and update this table when you do, so the next person reads the live values.
-- If the Developer plan does not offer one of these features (custom metric monitors, uptime
-  monitors), record the substitution in this table instead of leaving the signal unconfigured.
-- The project-wide equivalent of 3 and 4 is a metric monitor on `count()` of errors with the
-  same tag filter and window. Prefer it where the plan offers it, because it is not bounded per
-  issue.
+  stays on, because the session record always carries the installation id (blind spot 3). The
+  answers are submitted; keep them in step if an upload ever adds a data category.
 
 ### Releases, environments and source maps
 
@@ -331,7 +328,7 @@ secret and authorises the upload.
   matches the release the app reports. `releaseNameFor` and `distNameFor` in
   `lib/core/logging/sentry_startup.dart` are the formatters; the workflow mirrors them literally.
 - A preview channel is tagged `preview` because every alert filters on `environment:production`
-  (see Alert configuration): PR traffic must never page anyone.
+  (see Alerting): PR traffic must never page anyone.
 - The upload runs `sentry_dart_plugin` — a dev dependency, configured by the `sentry:` block in
   `pubspec.yaml`, invoked explicitly after the build — and a failed upload fails the run. A deployed
   build without its symbols reports unreadable stack traces, which is worse than not deploying.

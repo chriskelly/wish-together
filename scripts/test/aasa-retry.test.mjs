@@ -26,11 +26,15 @@ const OTHER = JSON.stringify({ applinks: { apps: [], details: [] } });
 const REORDERED = JSON.stringify({
   applinks: { details: JSON.parse(COMMITTED).applinks.details, apps: [] },
 });
-const ATTEMPTS = 6;
-const RETRY_DELAY = '5';
+// Both AASA verifier steps (.github/workflows/ci-web.yml and deploy-staging.yml) must
+// agree with these values. The suite runs their real `run:` blocks, so a workflow value
+// that differs shows up as a request-count, sleep, or per-request bound mismatch rather
+// than a silent pass.
+const ATTEMPTS = 12;
+const RETRY_DELAY = '10';
 const CONNECT_TIMEOUT = 3;
 const REQUEST_TIMEOUT = 10;
-const MAX_BUDGET_SECONDS = 85;
+const MAX_BUDGET_SECONDS = 230;
 const HEADER_VALUE_MAX = 200;
 const DIAGNOSTIC_PREFIX_ALLOWANCE = 150;
 const NOT_FOUND = 404;

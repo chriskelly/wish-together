@@ -153,10 +153,12 @@ can produce several (blind spot 3). It is an envelope, not an event, and nothing
 sessions from a `SentryNavigatorObserver`, which this app does not install.
 
 Never reported **by the app**: names, emails, phone numbers, raw uids, document ids,
-wishlist/group/item titles, descriptions, links, claim ownership, screenshots, replays, IP
-addresses (`sendDefaultPii: false`), or Remote Config message text. Document ids are capabilities
-under `firestore.rules`, which is why they are absent. A platform-captured crash can carry its own
-context instead; that is blind spots 1 and 2.
+wishlist/group/item titles, descriptions, links, claim ownership, screenshots, replays, or Remote
+Config message text. Document ids are capabilities under `firestore.rules`, which is why they are
+absent. The SDK attaches no IP address (`sendDefaultPii: false`), but Sentry's **server** adds the
+request IP unless the project setting below is on — an event on 2026-10-28 carried
+`user.ip_address` and `user.geo` while that setting was off. A platform-captured crash can carry
+its own context instead; that is blind spots 1 and 2.
 
 `lib/core/logging/redaction.dart` is the allowlist (`logRecordKeys`) and
 `lib/core/logging/OVERVIEW.md` holds the mechanism, including which record becomes an event and
@@ -197,9 +199,11 @@ that launch's `session_id`.
    emits — so a native crash carries it only after startup has produced one. A crash during
    startup, before any record, carries no tags; neither does a browser-captured JavaScript error
    (blind spot 2). An empty result is therefore **never** proof that nothing arrived: go to
-   **Before concluding "nothing happened"** instead of concluding anything. Do the query through
-   the Sentry MCP server (configured in `.idx/mcp.json`) or in the Sentry UI over Issues or
-   Discover; list the server's tools instead of assuming a tool name. Breadcrumbs are not
+   **Before concluding "nothing happened"**. Do the query through the Sentry MCP server
+   (configured in `.idx/mcp.json`) or in the Sentry UI over Issues or Discover; list the server's
+   tools instead of assuming a tool name. In the HTTP API, use the organization-level events
+   endpoint or Issues — the project-level `/events/` listing does not match on tags (checked
+   2026-10-28: it returned nothing for a code that Issues resolved). Breadcrumbs are not
    searchable — they are visible inside an event, so a launch with no failure leaves nothing to
    find here.
 3. Read in this order: the issue (title, count, first/last seen), the event (`error_type`,
@@ -240,7 +244,9 @@ or a stray tag can erase real errors silently. Check, in order:
    app's own sink sends carries it, but a native crash before the app emits its first record and a
    browser-captured JavaScript error carry nothing (blind spots 1 and 2), so an empty result is
    never proof; an empty `event:error` alone proves nothing either, because a healthy launch
-   captures no error.
+   captures no error. A crash the SDK caught by itself — for example a web `FlutterError` — carries
+   `mechanism` and `handled` tags but **no `event` tag**, so `event:error` will not find it; its
+   `support_code` and `level` will.
 2. Sentry → **Stats** for the window: accepted vs. dropped, with the reason (quota, rate limit,
    inbound filter, invalid).
 3. Sentry → **Settings → Inbound Filters** and **Settings → Client Keys (DSN)**: filters and the
@@ -275,8 +281,11 @@ Project settings the policy depends on, recorded here because no file holds them
   region in Settings before relying on that wording; an EU organization would make it wrong.
 - **Retention**: 30 days, the Developer plan's retention, which is what the policy promises. Do not
   promise longer without changing the plan.
-- **IP storage**: off — the project setting that stops Sentry storing request IPs.
-  `sendDefaultPii: false` already stops the SDK attaching `user.ip_address`.
+- **IP storage**: "Prevent Storing of IP Addresses" must be **on**. `sendDefaultPii: false` only
+  stops the SDK attaching `user.ip_address`; the server enriches the event from the request
+  anyway. Checked 2026-10-28: it was **off**, and the only event in the project carried
+  `user.ip_address` and `user.geo`. Turn it on before a DSN ships, or the policy's IP sentence is
+  false.
 - **App Privacy answers** (App Store Connect, not a file): `Diagnostics → Crash Data` **Yes**,
   `Diagnostics → Other Diagnostic Data` **Yes**, linked to the user, not tracking, not
   advertising. `Identifiers → Device ID` is **Yes** for every iOS user while auto session tracking

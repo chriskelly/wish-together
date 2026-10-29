@@ -277,8 +277,8 @@ jobs:
           body_norm="$RUNNER_TEMP/aasa.body.norm.json"
           expected="$RUNNER_TEMP/aasa.expected.json"
           expected_src="staging/build/web/.well-known/apple-app-site-association"
-          attempts=6
-          retry_delay=5
+          attempts=12
+          retry_delay=10
           connect_timeout=3
           request_timeout=10
 
@@ -300,7 +300,11 @@ jobs:
           # failed transfer (non-zero curl) counts against the same budget: under
           # `bash -e` a bare assignment would abort before the retry. Every request is
           # bounded (3 s connect, 10 s total), so even hung attempts cannot outlast the
-          # step: at most 85 s, sleeps included.
+          # step: 12 requests of 10 s plus 11 sleeps of 10 s. When the CDN answers 404
+          # immediately a request costs nothing, so the wait is the 110 s of sleeps and
+          # the worst case is 230 s. A preview channel deploy on 2026-10-29 was still
+          # answering 404 after 25 s on a smaller budget, and this site sits behind the
+          # same CDN.
           matched=""
           cause=""
           reason=""

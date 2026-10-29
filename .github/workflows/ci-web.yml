@@ -179,14 +179,6 @@ jobs:
           fi
           dart run sentry_dart_plugin --sentry-define=upload_debug_symbols=false
 
-      # Maps carry the app's source, so they are uploaded above and then deleted.
-      # This runs before every deploy step below and fails the run if anything
-      # would still be served.
-      - name: Strip source maps from the deploy bundle
-        run: |
-          node scripts/web-source-maps.mjs strip build/web
-          node scripts/web-source-maps.mjs verify build/web
-
       # Fork PRs do not receive repository secrets, so they only get the checks above.
       - name: Authenticate to Firebase
         if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository

@@ -319,8 +319,8 @@ secret and authorises the upload.
 
 | Build | `environment` | `release` / `dist` | Symbols |
 | ----- | ------------- | ------------------ | ------- |
-| push to `master` (live site) | `production` | `wishtogether@<sha>` / `web-<sha>` | source maps uploaded, then deleted |
-| same-repo PR preview channel | `preview` | `wishtogether@<sha>` / `web-<sha>` | source maps uploaded, then deleted |
+| push to `master` (live site) | `production` | `wishtogether@<sha>` / `web-<sha>` | source maps uploaded and served |
+| same-repo PR preview channel | `preview` | `wishtogether@<sha>` / `web-<sha>` | source maps uploaded and served |
 | fork PR | none — no DSN | — | — |
 | staging dispatch | `staging` | none (deliberate) | none (no release to attach them to) |
 | TestFlight / App Store | `production` (derived from the release build) | `wishtogether@<CFBundleVersion>` / `ios-<build>` | dSYMs uploaded, untagged |
@@ -337,13 +337,13 @@ secret and authorises the upload.
   build without its symbols reports unreadable stack traces, which is worse than not deploying.
   The `sentry:` block deliberately sets no release or dist: CI passes them through the environment.
 - Source maps are a build artefact, not source text: a real build's map lists 1,221 SDK, engine and
-  package paths and embeds no sources (`sourcesContent` is absent), but it is **3.2 MB** — as large
-  as the bundle it maps. It is uploaded for symbolication, then `scripts/web-source-maps.mjs`
-  deletes every `*.map` from `build/web` **before** any deploy, so the CDN never serves a debug file
-  nobody fetches. That is deploy hygiene, not confidentiality: the app's source is public anyway.
-  The load-bearing check is the presence assertion — it exits non-zero when `main.dart.js` or its
-  map is missing, so a Flutter upgrade that stops emitting maps cannot silently leave us
-  unsymbolicated. Tests live in `scripts/test/web-source-maps.test.mjs`.
+  package paths and embeds no sources (`sourcesContent` is absent), so it reveals nothing the public
+  repository does not already show. It is uploaded for symbolication and then **served with the
+  deploy**, because stripping it would mean maintaining a script and a test to save 3.2 MB that no
+  browser fetches unless devtools is open.
+  The check that matters is before the upload: the workflow fails when `main.dart.js` or its map is
+  missing, so a Flutter upgrade that stops emitting maps cannot silently leave events
+  unsymbolicated.
 - **Not yet guarded: the environment define itself.** Both bundle guards assert the DSN and the
   build id, and the staging guard asserts the Firestore target, but nothing proves the bundle was
   compiled with `WT_SENTRY_ENVIRONMENT`. Delete that define and the build reports

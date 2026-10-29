@@ -127,7 +127,8 @@ Sentry sink, its policy and the startup wiring are the files that know about the
 - **`WT_SENTRY_ENVIRONMENT` overrides the environment**; `staging` also omits `release`/`dist`,
   because the pre-merge deploy uploads no symbols. `configure` removes the SDK's
   `LoadReleaseIntegration` for staging, since that integration would otherwise fill both from
-  `PackageInfo`. S3's staging dispatch must pass the define.
+  `PackageInfo`. `ci-web.yml` passes `preview` for a preview channel and `production` for the live
+  site; `deploy-staging.yml` passes `staging`.
 - **Sentry's own handlers are the only global error handlers.** `SentryFlutter.init` installs
   `FlutterErrorIntegration` and `PlatformDispatcher.onError` (on web, its own
   `runZonedGuarded`), so the app does not install a second pair; `beforeSend` is what keeps the

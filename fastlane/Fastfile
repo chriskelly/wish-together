@@ -116,14 +116,48 @@ def ipa_path
   ipa
 end
 
+# The DSN is a repository variable because it is public: it ships inside the app
+# and only names where events go. Without it a shipped build reports nothing, so
+# a missing value is a configuration error, not a reason to carry on.
+def sentry_dsn
+  dsn = ENV.fetch("SENTRY_DSN", "").strip
+  UI.user_error!("SENTRY_DSN is not set; a shipped build must report to Sentry") if dsn.empty?
+  dsn
+end
+
 def build_ipa(marketing_version:, build_number:)
   Dir.chdir(PROJECT_ROOT) do
     sh(
       "flutter build ipa --release " \
       "--export-options-plist=#{Shellwords.escape(EXPORT_OPTIONS_PATH)} " \
       "--build-name=#{Shellwords.escape(marketing_version.to_s)} " \
-      "--build-number=#{Shellwords.escape(build_number.to_s)}"
+      "--build-number=#{Shellwords.escape(build_number.to_s)} " \
+      "--dart-define=WT_SENTRY_DSN=#{Shellwords.escape(sentry_dsn)}"
     )
+  end
+end
+
+# Uploads the dSYMs the build just produced. The organisation and project ids are
+# exported by scripts/sentry-identity.mjs in the workflow (parsed from the DSN), so
+# the repository stores no Sentry slug.
+#
+# SENTRY_RELEASE names the release record the plugin creates and finalises. The
+# dSYM upload itself carries no release or dist — Sentry pairs symbols with events
+# by debug id — and the dist events report (`ios-<CFBundleVersion>`) comes from the
+# app, not from here.
+#
+# Runs before the upload to Apple so a failed upload aborts the release instead of
+# shipping a build whose stack traces cannot be symbolicated.
+def upload_symbols(build_number:)
+  missing = %w[SENTRY_ORG SENTRY_PROJECT SENTRY_AUTH_TOKEN].find do |name|
+    ENV.fetch(name, "").strip.empty?
+  end
+  UI.user_error!("#{missing} is not set; refusing to ship without a symbol upload") if missing
+
+  Dir.chdir(PROJECT_ROOT) do
+    Fastlane::Helper.with_env_values("SENTRY_RELEASE" => "wishtogether@#{build_number}") do
+      sh("dart run sentry_dart_plugin --sentry-define=upload_source_maps=false")
+    end
   end
 end
 
@@ -136,6 +170,7 @@ platform :ios do
     build_number = resolve_build_number
     publish_build_number(build_number)
     build_ipa(marketing_version: pubspec_version, build_number: build_number)
+    upload_symbols(build_number: build_number)
 
     upload_to_testflight(
       api_key: asc_api_key,
@@ -155,6 +190,7 @@ platform :ios do
     build_number = resolve_build_number
     publish_build_number(build_number)
     build_ipa(marketing_version: marketing_version, build_number: build_number)
+    upload_symbols(build_number: build_number)
 
     upload_to_app_store(
       api_key: asc_api_key,

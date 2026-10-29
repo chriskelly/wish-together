@@ -22,6 +22,9 @@ env:
   # Pinned to the toolchain this repo targets (see AGENTS.md / pubspec.yaml).
   FLUTTER_VERSION: "3.47.7"
   FIREBASE_TOOLS_VERSION: "15.34.0"
+  # Pinned because the script steps below (Sentry identity, source-map strip) run
+  # on it.
+  NODE_VERSION: "22"
   # Preview channels expire after this long; the PR comment quotes the same value.
   PREVIEW_EXPIRES: "7d"
   # Evaluates to `pr-<number>` on pull requests; unused on push.
@@ -37,6 +40,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -66,8 +74,118 @@ jobs:
           path: coverage/lcov.info
           if-no-files-found: warn
 
+      # The DSN is public by design (it ships inside the bundle), so it lives in a
+      # repository variable, not a secret. A fork PR receives neither that variable
+      # nor the Sentry token, so it builds without diagnostics — and deploys
+      # nothing. Every build this repository does deploy must report, so a missing
+      # variable fails the run instead of shipping a silent bundle.
+      - name: Resolve the Sentry configuration
+        id: sentry
+        env:
+          # The same name the helper reads, so the two cannot drift apart.
+          SENTRY_DSN: ${{ vars.SENTRY_DSN }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          THIS_REPO: ${{ github.repository }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ] && [ "$HEAD_REPO" != "$THIS_REPO" ]; then
+            echo "Sentry: fork pull request, so no DSN, no environment override, no upload."
+            echo "upload=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # A DSN never contains whitespace; a trailing newline from the variable
+          # would end up inside the compiled define instead.
+          SENTRY_DSN=$(printf '%s' "$SENTRY_DSN" | tr -d '[:space:]')
+          if [ -z "$SENTRY_DSN" ]; then
+            echo "::error::SENTRY_DSN is not set. A deployed build must report to Sentry; set the repository variable."
+            exit 1
+          fi
+
+          # Fails here, with the reason, if the DSN cannot supply the ids the
+          # upload needs. Exports SENTRY_ORG and SENTRY_PROJECT for later steps.
+          node scripts/sentry-identity.mjs >> "$GITHUB_ENV"
+
+          # A preview is not production: every alert filters on
+          # environment:production, so preview traffic must never match.
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            environment=preview
+          else
+            environment=production
+          fi
+
+          {
+            echo "dsn=$SENTRY_DSN"
+            echo "environment=$environment"
+            echo "upload=true"
+          } >> "$GITHUB_OUTPUT"
+          echo "Sentry: DSN present, environment=$environment, source maps will be uploaded."
+
       - name: Build web
-        run: flutter build web --release
+        env:
+          DSN: ${{ steps.sentry.outputs.dsn }}
+          ENVIRONMENT: ${{ steps.sentry.outputs.environment }}
+        run: |
+          if [ -z "$DSN" ]; then
+            flutter build web --release
+          else
+            flutter build web --release --source-maps \
+              --dart-define=WT_SENTRY_DSN="$DSN" \
+              --dart-define=WT_SENTRY_ENVIRONMENT="$ENVIRONMENT" \
+              --dart-define=WT_BUILD_ID="$GITHUB_SHA"
+          fi
+
+      # The dart-defines and `--source-maps` are the whole link between this
+      # bundle, the upload below and the release the app reports, so assert they
+      # reached the output. The uploader treats a build with no `.map` files as
+      # nothing to do and exits successfully, so without this a lost
+      # `--source-maps` would ship unsymbolicated stack traces in silence.
+      - name: Verify the bundle carries its Sentry identity
+        if: steps.sentry.outputs.upload == 'true'
+        env:
+          DSN: ${{ steps.sentry.outputs.dsn }}
+        run: |
+          bundle=build/web/main.dart.js
+          map=build/web/main.dart.js.map
+          if [ ! -f "$bundle" ]; then
+            echo "::error::$bundle is missing"
+            exit 1
+          fi
+          if [ ! -f "$map" ]; then
+            echo "::error::$map is missing; --source-maps did not take, so there is nothing to upload."
+            exit 1
+          fi
+          for marker in "$DSN" "$GITHUB_SHA"; do
+            if ! grep -qF -- "$marker" "$bundle"; then
+              echo "::error::$bundle does not embed $marker; the matching --dart-define did not reach the build."
+              exit 1
+            fi
+          done
+          echo "Bundle embeds the DSN and build $GITHUB_SHA, with a source map to upload."
+
+      # A failed upload fails the run: a deployed bundle without its source maps
+      # reports minified stack traces, which is worse than not deploying.
+      - name: Upload symbols to Sentry
+        if: steps.sentry.outputs.upload == 'true'
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          # The identity the app reports at runtime must match the upload.
+          SENTRY_RELEASE: wishtogether@${{ github.sha }}
+          SENTRY_DIST: web-${{ github.sha }}
+        run: |
+          if [ -z "$SENTRY_AUTH_TOKEN" ]; then
+            echo "::error::SENTRY_AUTH_TOKEN is not set; a deployed build must upload its source maps."
+            exit 1
+          fi
+          dart run sentry_dart_plugin --sentry-define=upload_debug_symbols=false
+
+      # Maps carry the app's source, so they are uploaded above and then deleted.
+      # This runs before every deploy step below and fails the run if anything
+      # would still be served.
+      - name: Strip source maps from the deploy bundle
+        run: |
+          node scripts/web-source-maps.mjs strip build/web
+          node scripts/web-source-maps.mjs verify build/web
 
       # Fork PRs do not receive repository secrets, so they only get the checks above.
       - name: Authenticate to Firebase

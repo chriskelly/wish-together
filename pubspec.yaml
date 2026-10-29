@@ -74,6 +74,21 @@ dev_dependencies:
   fake_cloud_firestore: ^4.0.0
   mocktail: ^1.0.4
   test: ^1.26.2
+  sentry_dart_plugin: ^3.4.0
+
+# Upload configuration for `dart run sentry_dart_plugin`, which `ci-web.yml` and
+# the Fastlane release lanes run after a build that will be deployed. The release
+# and dist identifiers are deliberately absent: CI passes `SENTRY_RELEASE` (and,
+# for the web upload, `SENTRY_DIST`) so the upload matches the identity the app
+# reports at runtime (lib/core/logging/sentry_startup.dart). `commits: false` is
+# required because CI checks out at depth 1, and `set-commits --auto` needs full
+# history.
+sentry:
+  upload_debug_symbols: true
+  upload_source_maps: true
+  upload_sources: false
+  wait_for_processing: true
+  commits: false
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

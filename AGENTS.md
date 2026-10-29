@@ -119,9 +119,11 @@ Inc., United States), once a DSN is configured. `web/privacy.html` is the user-f
 this section is the operator view. The policy names **categories** of data, not features or event
 names — keep it that way, so shipping a screen does not require a policy edit.
 
-Nothing is reported without a DSN. `WT_SENTRY_DSN` is empty in local, test and CI runs, so
-Sentry is not initialised at all there (no SDK, no handlers, no network). With no DSN a debug run
-reports only to the console, and no deployed build carries one today.
+Nothing is reported without a DSN. `WT_SENTRY_DSN` is empty in local runs, in the test suite and
+in the checks that do not deploy (`ci-ios.yml`, fork PRs), so Sentry is not initialised there at
+all (no SDK, no handlers, no network); a debug run reports only to the console. Builds that are
+deployed or shipped do carry one — see Releases, environments and source maps for which build
+reports under which environment.
 
 ### What is reported
 
@@ -283,14 +285,16 @@ Project settings the policy depends on, recorded here because no file holds them
   promise longer without changing the plan.
 - **IP storage**: "Prevent Storing of IP Addresses" must be **on**. `sendDefaultPii: false` only
   stops the SDK attaching `user.ip_address`; the server enriches the event from the request
-  anyway. Checked 2026-10-28: it was **off**, and the only event in the project carried
-  `user.ip_address` and `user.geo`. Turn it on before a DSN ships, or the policy's IP sentence is
-  false.
+  anyway. Checked 2026-10-28 it was **off**, and the only event in the project carried
+  `user.ip_address` and `user.geo`. The operator turned it on and verified it with a fresh event on
+  2026-10-29 (UTC) that carried no `user.ip_address`. Confirm it is still on before shipping a build
+  that reports, or the policy's IP sentence is false.
 - **App Privacy answers** (App Store Connect, not a file): `Diagnostics → Crash Data` **Yes**,
   `Diagnostics → Other Diagnostic Data` **Yes**, linked to the user, not tracking, not
   advertising. `Identifiers → Device ID` is **Yes** for every iOS user while auto session tracking
   stays on, because the session record always carries the installation id (blind spot 3);
-  turning that option off would let it return to No. Confirm with one iOS run before submitting.
+  turning that option off would let it return to No. Submitted; confirm with one iOS run that the
+  answers still match what a reporting build sends.
 
 Notes:
 
@@ -306,30 +310,55 @@ Notes:
   same tag filter and window. Prefer it where the plan offers it, because it is not bounded per
   issue.
 
-### Releases and source maps (not live yet)
+### Releases, environments and source maps
 
-No DSN is wired into CI today, so deployed builds report nothing, and no workflow passes
-`WT_BUILD_ID` — a web build therefore resolves to `wishtogether@dev`. When the DSN reaches the
-release workflows, the same change must pass the build identity and add the symbol/source-map
-upload plus the guard that strips `*.map` from the deployed bundle. The identity will be:
+Every build this repository deploys or ships carries a DSN, so it reports. The DSN is the
+repository variable `SENTRY_DSN`: it is public by design (it ships inside the web bundle and the
+app, and only names where events go), which is why it is not a secret. `SENTRY_AUTH_TOKEN` is a
+secret and authorises the upload.
 
-- `release` = `wishtogether@<build>` — the web commit SHA (`--dart-define=WT_BUILD_ID=<sha>`), or
-  iOS's `CFBundleVersion`;
-- `dist` = `<platform>-<build>`.
+| Build | `environment` | `release` / `dist` | Symbols |
+| ----- | ------------- | ------------------ | ------- |
+| push to `master` (live site) | `production` | `wishtogether@<sha>` / `web-<sha>` | source maps uploaded, then deleted |
+| same-repo PR preview channel | `preview` | `wishtogether@<sha>` / `web-<sha>` | source maps uploaded, then deleted |
+| fork PR | none — no DSN | — | — |
+| staging dispatch | `staging` | none (deliberate) | none (no release to attach them to) |
+| TestFlight / App Store | `production` (derived from the release build) | `wishtogether@<CFBundleVersion>` / `ios-<build>` | dSYMs uploaded, untagged |
+| local, test, iOS CI | none — no DSN | — | — |
 
-A build is tagged `environment=staging` only when it is compiled with
-`--dart-define=WT_SENTRY_ENVIRONMENT=staging`, which the staging dispatch does not pass today. The
-change that gives staging a DSN must add that define in the same commit, or the pre-merge host
-reports as `environment=production` with `release=wishtogether@dev` and pages the operator as if
-it were a real user. With the define, staging carries **no** release and no dist, because it
-uploads no symbols; that is deliberate.
+- The web identity is the commit SHA: `ci-web.yml` compiles with `--dart-define=WT_BUILD_ID=<sha>`
+  and uses the same value for `SENTRY_RELEASE` and `SENTRY_DIST`, so the uploaded artifact bundle
+  matches the release the app reports. `releaseNameFor` and `distNameFor` in
+  `lib/core/logging/sentry_startup.dart` are the formatters; the workflow mirrors them literally.
+- A preview channel is tagged `preview` because every alert filters on `environment:production`
+  (see Alert configuration): PR traffic must never page anyone.
+- The upload runs `sentry_dart_plugin` — a dev dependency, configured by the `sentry:` block in
+  `pubspec.yaml`, invoked explicitly after the build — and a failed upload fails the run. A deployed
+  build without its symbols reports unreadable stack traces, which is worse than not deploying.
+  The `sentry:` block deliberately sets no release or dist: CI passes them through the environment.
+- Source maps carry the app's source, so `scripts/web-source-maps.mjs` deletes every `*.map` from
+  `build/web` **after** the upload and **before** any deploy step, then asserts none is left. It
+  exits non-zero on a missing `main.dart.js`, so a wrong path cannot pass silently. Its tests live
+  in `scripts/test/web-source-maps.test.mjs`.
+- The numeric organisation and project ids are parsed from the DSN by
+  `scripts/sentry-identity.mjs`, so the repository stores no Sentry slug. That parser expects a
+  current-format SaaS DSN (`https://<key>@o<org>.ingest.<region>.sentry.io/<project>`); a legacy or
+  self-hosted DSN cannot supply an organisation id and fails the run instead of uploading to the
+  wrong place.
+- iOS builds are not obfuscated, so there is no Dart symbol map. The plugin uploads the dSYMs in
+  the Xcode archive, which symbolicate native frames and crash reports, and creates and finalises
+  the release record `wishtogether@<CFBundleVersion>`; the upload itself is untagged, because
+  Sentry pairs symbols with events by debug id. `ios-<build>` is the dist the app reports, not a
+  tag on the upload.
+- Staging carries no release and no dist on purpose: it uploads no symbols, so an identity would
+  name a build Sentry cannot symbolicate.
+- `ci-web.yml` withholds the DSN from a fork PR by comparing the head repository, so a fork build
+  compiles without diagnostics and deploys nothing. A same-repo run whose variable is missing
+  fails rather than deploying a silent bundle.
 
-Both formatters (`releaseNameFor`, `distNameFor`) live in
-`lib/core/logging/sentry_startup.dart`.
-
-The same release must update the App Store privacy answers: diagnostics become **Crash Data** and
-**Other Diagnostic Data**, linked to the user (the account hash is a pseudonymous link), not used
-for tracking or advertising. Shipping the DSN with the old answers would make them wrong.
+The App Store privacy answers are already submitted on this basis: diagnostics are **Crash Data**
+and **Other Diagnostic Data**, linked to the user (the account hash is a pseudonymous link), not
+used for tracking or advertising. Keep them in step if an upload ever adds a data category.
 
 ### Known blind spots
 
@@ -389,8 +418,10 @@ iOS has its own pipeline, all on `macos-26` runners with the same pinned Flutter
 Signing uses fastlane [`match`](https://docs.fastlane.tools/actions/match/) against the
 private certificate repo `chriskelly/ios-match-certs`; uploads use an App Store Connect API
 key. Secrets: `MATCH_GIT_URL`, `MATCH_PASSWORD`, `MATCH_GIT_PRIVATE_KEY`,
-`APP_STORE_CONNECT_API_KEY_KEY_ID`, `APP_STORE_CONNECT_API_KEY_ISSUER_ID`, and
-`APP_STORE_CONNECT_API_KEY_CONTENT` (base64 of the `.p8`). `fastlane/` holds the `Appfile`,
+`APP_STORE_CONNECT_API_KEY_KEY_ID`, `APP_STORE_CONNECT_API_KEY_ISSUER_ID`,
+`APP_STORE_CONNECT_API_KEY_CONTENT` (base64 of the `.p8`), and `SENTRY_AUTH_TOKEN` for the dSYM
+upload, which also reads the `SENTRY_DSN` variable (see Releases, environments and source maps).
+`fastlane/` holds the `Appfile`,
 `Matchfile`, and the `Fastfile` lanes (`testflight_release`, `app_store_release`); the same
 workflows pin Ruby `3.3`. The release lanes run `flutter build ipa` and switch the project to
 manual signing with the match profile. `aps-environment` is `production` in
@@ -401,10 +432,10 @@ Build numbers are resolved from App Store Connect (highest already uploaded + 1)
 the per-workflow run number, so the TestFlight and App Store lanes cannot collide.
 
 Security posture: `testflight-release.yml` runs the *PR's* `fastlane/Fastfile` and app code
-with the `match` signing key and the App Store Connect API key in the environment. It is
-restricted to same-repo pull requests and the `no-deploy` label opts a PR out — but anyone
-who can push a branch reaches those secrets' effects. Add a GitHub `environment` with
-required reviewers if that needs a human gate.
+with the `match` signing key, App Store Connect API key and Sentry auth token in the
+environment. It is restricted to same-repo pull requests and the `no-deploy` label opts a PR
+out — but anyone who can push a branch reaches those secrets' effects. Add a GitHub
+`environment` with required reviewers if that needs a human gate.
 
 One-time local setup (on a Mac with Xcode): `bundle install`, then
 `bundle exec fastlane match appstore` to create or renew the signing assets in the cert repo
@@ -450,10 +481,12 @@ twice).
   `app_links` also cancels registration when it is not attached to the debugger. A debug
   build therefore validates **warm** links only; cold start is validated with a Release or
   TestFlight build after the narrow production AASA is live.
-- **Pre-merge staging dispatch:** until a change to `scripts/staging-config.mjs` (for
-  example `appAssociation`) is on `master`, dispatch that branch from **"Use workflow from"
-  = the branch** *and* `ref=<branch>`; master's validator does not know the new key and
-  fails closed. Normal branches keep the documented `master` + `ref=<branch>` mode.
+- **Pre-merge staging dispatch:** until a change to `deploy-staging.yml`, to
+  `scripts/staging-config.mjs`, or to any script the deploy runs (for example the
+  `appAssociation` key the validator checks) is on `master`, dispatch that branch from
+  **"Use workflow from" = the branch** *and* `ref=<branch>`; the dispatch runs master's copy
+  of those steps, so an unknown config key fails closed and a new step is simply not
+  exercised. Normal branches keep the documented `master` + `ref=<branch>` mode.
 - Apple's AASA CDN caches the file; first-time verification can take hours. Simulators do not
   open Universal Links, and typing the URL in Safari opens the website by design.
 

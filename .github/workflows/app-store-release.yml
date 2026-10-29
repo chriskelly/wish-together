@@ -27,6 +27,7 @@ jobs:
     env:
       CI: true
       FLUTTER_VERSION: "3.47.7"
+      NODE_VERSION: "22"
       APP_IDENTIFIER: gift.wishtogether
       DEVELOPMENT_TEAM: CD8XP2U645
       # Fallback only — App Store Connect build numbers are monotonic per app.
@@ -36,6 +37,10 @@ jobs:
       APP_STORE_CONNECT_API_KEY_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_KEY_ID }}
       APP_STORE_CONNECT_API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ISSUER_ID }}
       APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+      # The DSN is public (it ships inside the app) and comes from a repository
+      # variable; the token that authorises the symbol upload stays a secret.
+      SENTRY_DSN: ${{ vars.SENTRY_DSN }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
     steps:
       - name: Resolve release version
         env:
@@ -68,8 +73,30 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
       - name: Install dependencies
         run: flutter pub get
+
+      # The ids the upload needs are parsed from the DSN, so no Sentry slug is
+      # stored in the repository. Both values are checked before the build starts:
+      # the lane refuses to ship without them anyway, and failing here saves a
+      # full signed archive from being thrown away.
+      - name: Resolve the Sentry identity
+        run: |
+          if [ -z "$SENTRY_DSN" ]; then
+            echo "::error::SENTRY_DSN is not set; a shipped build must report to Sentry."
+            exit 1
+          fi
+          if [ -z "$SENTRY_AUTH_TOKEN" ]; then
+            echo "::error::SENTRY_AUTH_TOKEN is not set; the dSYM upload would fail after the build."
+            exit 1
+          fi
+          node scripts/sentry-identity.mjs >> "$GITHUB_ENV"
+          echo "Sentry: DSN and token present; dSYMs are uploaded with the resolved build number."
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1

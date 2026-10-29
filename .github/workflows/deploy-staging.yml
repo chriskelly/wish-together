@@ -78,6 +78,29 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      # Staging rehearses production, and that includes reporting to Sentry under
+      # its own environment. Without the DSN the host would silently report
+      # nothing, so fail here rather than deploy a blind environment.
+      - name: Resolve the Sentry configuration
+        id: sentry
+        env:
+          SENTRY_DSN: ${{ vars.SENTRY_DSN }}
+        run: |
+          # A DSN never contains whitespace; a trailing newline from the variable
+          # would end up inside the compiled define instead.
+          SENTRY_DSN=$(printf '%s' "$SENTRY_DSN" | tr -d '[:space:]')
+          if [ -z "$SENTRY_DSN" ]; then
+            echo "::error::SENTRY_DSN is not set; the staging host must report to Sentry."
+            exit 1
+          fi
+          # Parse-only: staging uploads no symbols, but it must still refuse a DSN
+          # the release workflows would reject, or it rehearses a host that
+          # reports nowhere.
+          node scripts/sentry-identity.mjs > /dev/null
+
+          echo "dsn=$SENTRY_DSN" >> "$GITHUB_OUTPUT"
+          echo "Sentry: DSN present and valid, environment=staging, no symbol upload."
+
       # Early feedback for the operator; the deploy job validates the
       # downloaded config again with the trusted copy of this script.
       - name: Validate the staging config
@@ -102,28 +125,38 @@ jobs:
         env:
           # Passed via env, never interpolated into `run:` (expression injection).
           STAGING_DATABASE: ${{ steps.target.outputs.database }}
+          DSN: ${{ steps.sentry.outputs.dsn }}
         run: |
           flutter build web --release \
-            --dart-define=WT_FIRESTORE_DATABASE="$STAGING_DATABASE"
+            --dart-define=WT_FIRESTORE_DATABASE="$STAGING_DATABASE" \
+            --dart-define=WT_SENTRY_DSN="$DSN" \
+            --dart-define=WT_SENTRY_ENVIRONMENT=staging
 
       # The build output, not the test process, is the thing that ships. The
-      # marker is emitted by `firestore_target.dart`; Flutter's own code contains
-      # the word "staging", so the bare id is not a usable marker.
-      - name: Assert the bundle embeds the staging target
+      # Firestore marker is emitted by `firestore_target.dart`; Flutter's own code
+      # contains the word "staging", so the bare id is not a usable marker. The
+      # DSN marker proves the reporting define took, and it also pins the region
+      # the host reports to.
+      - name: Assert the bundle embeds the staging target and the Sentry DSN
         env:
           STAGING_DATABASE: ${{ steps.target.outputs.database }}
+          DSN: ${{ steps.sentry.outputs.dsn }}
         run: |
-          [ -n "$STAGING_DATABASE" ] || { echo "Empty staging database id"; exit 1; }
-          node -e '
-            const { readFileSync } = require("node:fs");
-            const bundle = readFileSync("build/web/main.dart.js", "utf8");
-            const marker = "wishtogether-firestore-target=" + process.env.STAGING_DATABASE;
-            if (!bundle.includes(marker)) {
-              console.error("build/web/main.dart.js does not embed " + marker);
-              process.exit(1);
-            }
-            console.log("Bundle embeds " + marker);
-          '
+          [ -n "$STAGING_DATABASE" ] || { echo "::error::empty staging database id"; exit 1; }
+          # An empty marker would match every bundle, so check it here instead.
+          [ -n "$DSN" ] || { echo "::error::empty Sentry DSN"; exit 1; }
+          bundle=build/web/main.dart.js
+          if [ ! -f "$bundle" ]; then
+            echo "::error::$bundle is missing"
+            exit 1
+          fi
+          for marker in "wishtogether-firestore-target=$STAGING_DATABASE" "$DSN"; do
+            if ! grep -qF -- "$marker" "$bundle"; then
+              echo "::error::$bundle does not embed $marker; the matching --dart-define did not reach the build."
+              exit 1
+            fi
+          done
+          echo "Bundle embeds the staging target and the Sentry DSN."
 
       - name: Record the built commit
         run: git rev-parse --short HEAD > commit.txt

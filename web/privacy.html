@@ -88,7 +88,7 @@
       <article class="card">
         <header>
           <h1>Privacy Policy for WishTogether</h1>
-          <p class="meta"><span class="section-label">Last Updated:</span> Oct 18, 2026</p>
+          <p class="meta"><span class="section-label">Last Updated:</span> Oct 28, 2026</p>
         </header>
 
         <section>
@@ -96,7 +96,8 @@
           <p>
             WishTogether ("we," "our," or "us") is committed to protecting your
             privacy. This Privacy Policy explains how we access, use, store, and
-            share Google user data when you use our application.
+            share Google user data when you use our application, and describes
+            the diagnostic data covered in a separate section below.
           </p>
         </section>
 
@@ -195,11 +196,12 @@
         </section>
 
         <section>
-          <h2>How We Share Google User Data</h2>
+          <h2>How We Share Data with Third-Party Services</h2>
           <ol>
             <li>
               <span class="section-label">With Third-Party Services:</span>
-              We use the following Google services that may process your data:
+              We use the following third-party services that may process your
+              data:
               <ul>
                 <li>
                   <span class="section-label">Firebase Authentication:</span>
@@ -213,6 +215,13 @@
                   <span class="section-label">Google Sign-In:</span>
                   For the authentication flow and retrieving basic profile
                   information as described above.
+                </li>
+                <li>
+                  <span class="section-label">Sentry:</span>
+                  For crash and failure diagnostics, as described under
+                  Diagnostics and Crash Reports. From the app's own reports,
+                  Sentry receives no name, email address, phone number or sign-in
+                  token.
                 </li>
               </ul>
             </li>
@@ -296,6 +305,96 @@
         </section>
 
         <section>
+          <h2>Diagnostics and Crash Reports</h2>
+          <p>
+            To find and fix crashes and failures, WishTogether uses a
+            third-party crash-reporting service, Functional Software, Inc.
+            ("Sentry"), which processes this data on our behalf in the United
+            States. From the app's own reports, Sentry does not receive your
+            name, email address, phone number or sign-in tokens.
+          </p>
+          <p>When the app reports a problem, it sends:</p>
+          <ul>
+            <li>
+              the type of error and a technical trace of where in the app it
+              happened;
+            </li>
+            <li>
+              the last 30 steps the app took beforehand: which screen (by
+              pattern, never its contents) and whether an action succeeded or
+              failed, with a short error code;
+            </li>
+            <li>
+              the app version, the platform (web or iOS, plus the
+              operating-system version), and a random code generated for that
+              launch;
+            </li>
+            <li>
+              while you are signed in, a short one-way code derived from your
+              account identifier, so reports from one account can be grouped.
+              It cannot be turned back into your account, and it is removed when
+              you sign out.
+            </li>
+          </ul>
+          <p>
+            The six-character code shown in the app — on your
+            <span class="section-label">Profile</span> page, or on the login page
+            while you are signed out — identifies that launch, so a report the
+            app sends can be matched to what you describe to us.
+          </p>
+          <p>
+            On iOS, the app also sends a short record when it starts and when it
+            returns after a long pause in the background: an identifier for that
+            run, a random identifier for this installation of the app (the same
+            on every launch unless you reinstall the app or the system clears its
+            cache), whether the run ended normally, when it started and how long
+            it lasted, how many errors it recorded, the app version, and whether
+            this is the production or a development build. It contains no screen
+            or content data, and it does not include the one-way code derived
+            from your account identifier.
+          </p>
+          <p><span class="section-label">What the app never sends:</span></p>
+          <ul>
+            <li>your name, email address or phone number;</li>
+            <li>
+              the contents of your wishlists, groups or items — their titles,
+              descriptions or links;
+            </li>
+            <li>who claimed which item;</li>
+            <li>screenshots or recordings of your screen.</li>
+          </ul>
+          <p>Sentry is configured not to attach your IP address to reports.</p>
+          <p>
+            <span class="section-label">Why:</span> only to diagnose and fix
+            problems. We do not use it for advertising or tracking, do not sell
+            it, and do not share it for any other purpose.
+          </p>
+          <p>
+            <span class="section-label">How long:</span> 30 days, after which it
+            is deleted.
+          </p>
+          <p>
+            <span class="section-label">Deleting it:</span> deleting your account
+            removes the account code from later reports, so they are no longer
+            linked to your account; the app keeps sending reports that contain no
+            account link. Reports are deleted after 30 days. To have them removed
+            sooner, see <span class="section-label">Contact Us</span> below.
+          </p>
+          <p>
+            <span class="section-label">A limit on our filtering:</span> some
+            crash reports — for example a crash inside iOS itself, or a
+            JavaScript error in the browser — are produced by the platform's own
+            tooling rather than by the app, so the app's own filtering does not
+            apply to them. Those reports can include the platform's own context:
+            for example the app moving between foreground and background, a
+            network request's address, the error's own message text, or the page
+            address, which can contain a wishlist or group id. We do not add any
+            of the items listed above ourselves, but we cannot filter what the
+            platform produces.
+          </p>
+        </section>
+
+        <section>
           <h2>Data Security</h2>
           <p>
             We implement appropriate technical and organizational measures to
@@ -340,11 +439,20 @@
           <h2>Contact Us</h2>
           <p>
             If you have questions about this Privacy Policy or how we handle
-            your Google user data, please contact us at:
+            your Google user data or diagnostic reports, please contact us at:
           </p>
           <p>
             <span class="section-label">Email:</span>
             christopherkelly92@gmail.com<br />
+          </p>
+          <p>
+            To have diagnostic reports we have already received deleted before
+            the 30 days are up, email us. If the app is still open, include the
+            six-character support code shown in the app and tell us roughly when
+            the problem happened — the code changes each time the app starts. If
+            you have already deleted your account and restarted the app, we may
+            not be able to locate the earlier reports; they are deleted within
+            30 days in any case.
           </p>
         </section>
 

@@ -7,6 +7,9 @@
                 "firebase-tools@latest",
                 "experimental:mcp"
             ]
+        },
+        "sentry": {
+            "url": "https://mcp.sentry.dev/mcp"
         }
     }
 }

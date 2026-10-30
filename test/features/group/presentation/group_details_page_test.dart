@@ -27,22 +27,6 @@ class MockLeaveGroupUseCase extends Mock implements LeaveGroupUseCase {}
 class MockShareWishlistWithGroupUseCase extends Mock
     implements ShareWishlistWithGroupUseCase {}
 
-/// Clears the one layout overflow the *test font* causes at phone widths.
-///
-/// Flutter's test font draws every glyph as a square roughly twice as wide as a
-/// real font, so the "Shared Wishlists" header row is wider than a phone-width
-/// body and layout reports an overflow before the floating button is involved.
-/// Clearing that one overflow lets the geometry below decide the test; any other
-/// layout error still fails it.
-void clearTestFontOverflow(WidgetTester tester) {
-  final exception = tester.takeException();
-  if (exception == null) return;
-  if (exception is FlutterError && exception.message.contains('overflowed')) {
-    return;
-  }
-  fail('unexpected layout error while pumping the page: $exception');
-}
-
 void main() {
   test('builds the canonical production invite path off web', () {
     expect(
@@ -133,7 +117,11 @@ void main() {
     final leaveGroupButton = find.widgetWithText(TextButton, 'Leave Group');
     final shareWishlistFab = find.byType(FloatingActionButton);
 
-    Future<void> pumpPage(WidgetTester tester, Size viewport) async {
+    Future<void> pumpPage(
+      WidgetTester tester,
+      Size viewport, {
+      String? expectedOverflow,
+    }) async {
       tester.view.devicePixelRatio = 3.0;
       tester.view.physicalSize = viewport * 3.0;
       addTearDown(tester.view.reset);
@@ -159,7 +147,32 @@ void main() {
 
       await tester.pumpWidget(MaterialApp.router(routerConfig: router));
       await tester.pumpAndSettle();
-      clearTestFontOverflow(tester);
+
+      // Flutter's test font draws every glyph as a square about twice as wide as
+      // a real font, so at phone widths the "Shared Wishlists" header row is
+      // wider than the page and layout reports one overflow before the floating
+      // button is involved. Each case names the exact message it may report; any
+      // other layout error fails the test.
+      final exception = tester.takeException();
+      if (expectedOverflow == null) {
+        expect(
+          exception,
+          isNull,
+          reason: 'the page should lay out without error at $viewport',
+        );
+        return;
+      }
+      expect(
+        exception,
+        isA<FlutterError>().having(
+          (error) => error.toString(),
+          'message',
+          expectedOverflow,
+        ),
+        reason:
+            'the only layout error expected at $viewport is the square test '
+            'font widening the Shared Wishlists header row',
+      );
     }
 
     /// Leaves the scroll view at its end, where the last row rests against the
@@ -176,16 +189,26 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    for (final viewport in const [
-      Size(320, 568),
-      Size(390, 844),
-      Size(800, 600),
-    ]) {
+    // The header-row overflow is a property of the square test font, so each
+    // phone width has its own fixed message; the wide layout has none.
+    const overflowAt320 = 'A RenderFlex overflowed by 112 pixels on the right.';
+    const overflowAt390 = 'A RenderFlex overflowed by 42 pixels on the right.';
+    const viewports = <({Size size, String? overflow})>[
+      (size: Size(320, 568), overflow: overflowAt320),
+      (size: Size(390, 844), overflow: overflowAt390),
+      (size: Size(800, 600), overflow: null),
+    ];
+
+    for (final viewport in viewports) {
       testWidgets(
         'keeps the Leave Group tap target clear of the floating button '
-        'at ${viewport.width.toInt()}x${viewport.height.toInt()}',
+        'at ${viewport.size.width.toInt()}x${viewport.size.height.toInt()}',
         (tester) async {
-          await pumpPage(tester, viewport);
+          await pumpPage(
+            tester,
+            viewport.size,
+            expectedOverflow: viewport.overflow,
+          );
           await scrollToEnd(tester);
 
           final leaveButtonRect = tester.getRect(leaveGroupButton);
@@ -204,8 +227,11 @@ void main() {
 
     testWidgets('opens the leave confirmation when Leave Group is tapped at '
         'the end of a small phone page', (tester) async {
-      const viewport = Size(320, 568);
-      await pumpPage(tester, viewport);
+      await pumpPage(
+        tester,
+        const Size(320, 568),
+        expectedOverflow: overflowAt320,
+      );
       await scrollToEnd(tester);
 
       await tester.tap(leaveGroupButton);
@@ -217,7 +243,11 @@ void main() {
 
     testWidgets('offers the group owner no Leave Group button', (tester) async {
       when(() => authService.currentUserId).thenReturn(ownerId);
-      await pumpPage(tester, const Size(320, 568));
+      await pumpPage(
+        tester,
+        const Size(320, 568),
+        expectedOverflow: overflowAt320,
+      );
       await scrollToEnd(tester);
 
       expect(leaveGroupButton, findsNothing);
@@ -226,7 +256,11 @@ void main() {
     testWidgets('opens the share dialog from the floating button', (
       tester,
     ) async {
-      await pumpPage(tester, const Size(320, 568));
+      await pumpPage(
+        tester,
+        const Size(320, 568),
+        expectedOverflow: overflowAt320,
+      );
       await scrollToEnd(tester);
 
       await tester.tap(shareWishlistFab);

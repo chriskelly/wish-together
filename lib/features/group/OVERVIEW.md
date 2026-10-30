@@ -74,7 +74,6 @@ from `AuthService`; no uid is passed in from the UI.
 - `test/features/group/presentation/group_details_page_test.dart` pins the invite URL
   (canonical origin off web, supplied origin, encoded id) and the page's layout: at a
   phone width, scrolled to the end, the Leave Group tap target does not intersect the
-  Share Wishlist button, tapping Leave Group opens the leave confirmation instead of the
-  share dialog, and an owner sees no Leave Group button while the share button still opens
-  its dialog.
+  Share Wishlist button, tapping Leave Group opens the leave confirmation, an owner sees
+  no Leave Group button, and the floating button opens the share dialog.
 - No other widget tests cover the group pages.

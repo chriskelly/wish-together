@@ -272,6 +272,9 @@ void main() {
         tester.widget<TextField>(find.byType(TextField)).controller?.text,
         phoneNumber,
       );
+      // Leaving through the router must discard the pending sign-in, not only
+      // dispose of the page: a browser-back is a different path from a rebuild.
+      verify(() => authService.discardPendingPhoneSignIn()).called(1);
     });
   });
 }

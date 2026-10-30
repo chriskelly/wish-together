@@ -41,6 +41,13 @@ class GroupDetailsPage extends StatefulWidget {
 }
 
 class _GroupDetailsPageState extends State<GroupDetailsPage> {
+  /// Bottom space the Share Wishlist button takes from the scroll body: the
+  /// button's own height (56 at the Material 3 defaults, and text scaling does
+  /// not change it), the margin the Scaffold keeps between it and the body, and
+  /// a gap so the last row clears the button instead of touching it. Without it
+  /// the last row sits underneath the button and takes its taps.
+  static const double _fabReserve = 56 + kFloatingActionButtonMargin + 16;
+
   final GroupRepository _groupRepository = getIt<GroupRepository>();
   final WishlistRepository _wishlistRepository = getIt<WishlistRepository>();
   final UserRepository _userRepository = getIt<UserRepository>();
@@ -123,7 +130,7 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
   }
 
   Widget _buildGroupDetails(Group group, bool isOwner) => SingleChildScrollView(
-    padding: const EdgeInsets.all(16.0),
+    padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + _fabReserve),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

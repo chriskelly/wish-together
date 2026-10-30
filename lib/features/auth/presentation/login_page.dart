@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'
@@ -13,6 +15,7 @@ import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/apple_auth_error.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
 import 'package:wishtogether/features/auth/data/phone_auth_error.dart';
+import 'package:wishtogether/features/auth/data/phone_verification.dart';
 import 'package:wishtogether/features/auth/data/google_sign_in_stub.dart'
     if (dart.library.html) 'package:google_sign_in_web/web_only.dart'
     as web_only;
@@ -36,6 +39,10 @@ bool shouldShowAppleSignInButton({
 class LoginPage extends StatefulWidget {
   static const String route = '/login';
 
+  /// Shown when the platform never reports the outcome of a code request.
+  static const String timeoutMessage =
+      'Phone sign-in took too long. Check your connection and try again.';
+
   const LoginPage({super.key});
 
   @override
@@ -51,8 +58,8 @@ class _LoginPageState extends State<LoginPage>
 
   /// Whether a code request is in flight.
   ///
-  /// The button is disabled meanwhile: on web the reCAPTCHA challenge takes
-  /// seconds, and a second request would push a second code page.
+  /// The button is disabled until the platform reports an outcome, so a second
+  /// tap cannot send a second code or open a second code page.
   bool _requestingCode = false;
 
   static const String _privacyPolicyUrl = 'https://wishtogether.gift/privacy';
@@ -237,82 +244,55 @@ class _LoginPageState extends State<LoginPage>
         child: const Text('Send Verification Code'),
       );
 
-  /// Requests an SMS code. Web and native use different Firebase APIs, so the
-  /// flow splits by platform here; everything else is shared.
+  /// Requests an SMS code and opens the code page, or signs the user in when the
+  /// platform verified the device itself.
+  ///
+  /// The request goes through [AuthService.startPhoneVerification], whose future
+  /// completes only when the platform has reported an outcome. The raw
+  /// `verifyPhoneNumber` future completes as soon as the request is handed over,
+  /// so it cannot say when the code has been sent, and a guard on it lets extra
+  /// taps send extra codes.
   Future<void> _requestVerificationCode(BuildContext context) async {
-    // One request at a time: a second tap while the first is still waiting on
-    // the platform would start a second sign-in.
     setState(() => _requestingCode = true);
+    // Automatically prepend the US country code
+    final phoneNumber = '+1${_phoneController.text}';
+    final redirectTo = GoRouterState.of(context)
+        .uri
+        .queryParameters[redirectToParam];
     try {
-      // Automatically prepend the US country code
-      final phoneNumber = '+1${_phoneController.text}';
-      final redirectTo = GoRouterState.of(context)
-          .uri
-          .queryParameters[redirectToParam];
-
-      if (kIsWeb) {
-        await _requestWebVerificationCode(context, phoneNumber, redirectTo);
-      } else {
-        await _requestNativeVerificationCode(context, phoneNumber, redirectTo);
+      final verification = await _authService.startPhoneVerification(
+        phoneNumber,
+      );
+      if (!context.mounted) {
+        return;
+      }
+      switch (verification) {
+        case PhoneVerificationAutoVerified(:final credential):
+          // The platform proved possession of the phone itself, so there is no
+          // code to type in.
+          await _authService.signInWithPhoneCredential(credential);
+          if (context.mounted) {
+            context.go(redirectTo ?? '/');
+          }
+        case PhoneVerificationCodeSent(:final verificationId):
+          _openVerificationPage(context, verificationId, redirectTo);
+      }
+    } on TimeoutException {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text(LoginPage.timeoutMessage)));
+      }
+    } on FirebaseAuthException catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(phoneAuthErrorMessage(e))));
       }
     } finally {
       if (mounted) {
         setState(() => _requestingCode = false);
       }
     }
-  }
-
-  /// Web: `signInWithPhoneNumber` manages reCAPTCHA and returns a verification
-  /// id for the code-entry page.
-  Future<void> _requestWebVerificationCode(
-    BuildContext context,
-    String phoneNumber,
-    String? redirectTo,
-  ) async {
-    try {
-      final verificationId = await _authService.startWebPhoneSignIn(
-        phoneNumber,
-      );
-      if (!context.mounted) return;
-      _openVerificationPage(context, verificationId, redirectTo);
-    } on FirebaseAuthException catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(phoneAuthErrorMessage(e))));
-    }
-  }
-
-  /// Native: `verifyPhoneNumber` reports progress through callbacks.
-  Future<void> _requestNativeVerificationCode(
-    BuildContext context,
-    String phoneNumber,
-    String? redirectTo,
-  ) async {
-    await _authService.verifyPhoneNumber(
-      phoneNumber: phoneNumber,
-      verificationCompleted: (credential) async {
-        await _authService.signInWithPhoneCredential(credential);
-        // ignore: use_build_context_synchronously
-        if (context.mounted) {
-          context.go(redirectTo ?? '/');
-        }
-      },
-      verificationFailed: (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text(phoneAuthErrorMessage(e))));
-        }
-      },
-      codeSent: (verificationId, forceResendingToken) {
-        if (mounted) {
-          _openVerificationPage(context, verificationId, redirectTo);
-        }
-      },
-      codeAutoRetrievalTimeout: (_) {
-        // Auto-retrieval gave up; the code route is still open, and the service
-        // already reports the outcome, so there is nothing to log here.
-      },
-    );
   }
 
   void _openVerificationPage(

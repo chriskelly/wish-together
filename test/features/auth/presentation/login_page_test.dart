@@ -13,6 +13,7 @@ import '../../../core/logging/recording_sink.dart';
 
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
+import 'package:wishtogether/features/auth/data/phone_verification.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
 import 'package:wishtogether/features/auth/presentation/login_page.dart';
 import 'package:wishtogether/features/auth/presentation/verification_page.dart';
@@ -24,6 +25,7 @@ class MockGoogleSignIn extends Mock implements GoogleSignIn {}
 class MockUserRepository extends Mock implements UserRepository {}
 
 const String phoneNumber = '4085551234';
+const String verificationId = 'native-verification-id';
 
 void main() {
   group('shouldShowAppleSignInButton', () {
@@ -134,20 +136,7 @@ void main() {
 
     tearDown(getIt.reset);
 
-    testWidgets('ignores a second tap while the request is in flight', (
-      tester,
-    ) async {
-      // Arrange
-      final inFlight = Completer<void>();
-      when(
-        () => authService.verifyPhoneNumber(
-          phoneNumber: any(named: 'phoneNumber'),
-          verificationCompleted: any(named: 'verificationCompleted'),
-          verificationFailed: any(named: 'verificationFailed'),
-          codeSent: any(named: 'codeSent'),
-          codeAutoRetrievalTimeout: any(named: 'codeAutoRetrievalTimeout'),
-        ),
-      ).thenAnswer((_) async => inFlight.future);
+    Future<void> pumpLogin(WidgetTester tester) async {
       final router = GoRouter(
         initialLocation: LoginPage.route,
         routes: [loginPageRoute()],
@@ -155,6 +144,19 @@ void main() {
       await tester.pumpWidget(MaterialApp.router(routerConfig: router));
       await tester.pump();
       await tester.enterText(find.byType(TextField), phoneNumber);
+    }
+
+    testWidgets('ignores a second tap before the platform reports', (
+      tester,
+    ) async {
+      // Arrange: the request is in flight; no code has been sent yet.
+      final inFlight = Completer<void>();
+      when(() => authService.startPhoneVerification(any()))
+          .thenAnswer((_) async {
+            await inFlight.future;
+            return const PhoneVerificationCodeSent(verificationId);
+          });
+      await pumpLogin(tester);
 
       // Act
       await tester.tap(find.text('Send Verification Code'));
@@ -163,19 +165,41 @@ void main() {
       await tester.pump();
 
       // Assert
-      verify(
-        () => authService.verifyPhoneNumber(
-          phoneNumber: any(named: 'phoneNumber'),
-          verificationCompleted: any(named: 'verificationCompleted'),
-          verificationFailed: any(named: 'verificationFailed'),
-          codeSent: any(named: 'codeSent'),
-          codeAutoRetrievalTimeout: any(named: 'codeAutoRetrievalTimeout'),
-        ),
-      ).called(1);
+      verify(() => authService.startPhoneVerification(any())).called(1);
+    });
 
-      // Release the request so the test ends with nothing pending.
-      inFlight.complete();
+    testWidgets('re-enables Send after a failure', (tester) async {
+      // Arrange
+      when(() => authService.startPhoneVerification(any()))
+          .thenThrow(FirebaseAuthException(code: 'too-many-requests'));
+      await pumpLogin(tester);
+
+      // Act
+      await tester.tap(find.text('Send Verification Code'));
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('Send Verification Code'));
+      await tester.pump();
+
+      // Assert
+      verify(() => authService.startPhoneVerification(any())).called(2);
+    });
+
+    testWidgets('tells the user when the platform never reports', (
+      tester,
+    ) async {
+      // Arrange
+      when(() => authService.startPhoneVerification(any()))
+          .thenThrow(TimeoutException('the platform never reported'));
+      await pumpLogin(tester);
+
+      // Act
+      await tester.tap(find.text('Send Verification Code'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Assert
+      expect(find.text(LoginPage.timeoutMessage), findsOneWidget);
     });
   });
 
@@ -201,21 +225,9 @@ void main() {
     /// Enters [phoneNumber] on login and sends a code, leaving the verification
     /// page on screen with its push transition finished.
     Future<void> openVerificationPage(WidgetTester tester) async {
-      const verificationId = 'native-verification-id';
-      when(
-        () => authService.verifyPhoneNumber(
-          phoneNumber: any(named: 'phoneNumber'),
-          verificationCompleted: any(named: 'verificationCompleted'),
-          verificationFailed: any(named: 'verificationFailed'),
-          codeSent: any(named: 'codeSent'),
-          codeAutoRetrievalTimeout: any(named: 'codeAutoRetrievalTimeout'),
-        ),
-      ).thenAnswer((invocation) async {
-        final codeSent =
-            invocation.namedArguments[#codeSent]!
-                as void Function(String, int?);
-        codeSent(verificationId, null);
-      });
+      when(() => authService.startPhoneVerification(any())).thenAnswer(
+        (_) async => const PhoneVerificationCodeSent(verificationId),
+      );
       final router = createRouter(
         authService,
         userRepository: userRepository,

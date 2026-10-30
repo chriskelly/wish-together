@@ -158,18 +158,22 @@ profile).
 
 ## Data flow
 
-Logged out: `LoginPage` requests an SMS code — its button is disabled while the request is in
-flight, so one tap cannot start two sign-ins — and the flow branches once on `kIsWeb`.
+Logged out: `LoginPage` requests an SMS code through `AuthService.startPhoneVerification`,
+which branches once on `kIsWeb` and completes when the platform has reported an outcome.
+The Send button stays disabled until that future completes: the raw `verifyPhoneNumber`
+future returns as soon as the request is handed to the platform, so a guard tied to it
+re-enabled Send while the SMS was still on its way, and each extra tap sent another code and
+opened another code page. A platform that never reports fails with a `TimeoutException`
+**and** an `authState` record (`code: 'timeout'`), and the page tells the user to try again.
 - **Web:** `AuthService.startWebPhoneSignIn` calls `FirebaseAuth.signInWithPhoneNumber`
   (the documented web API, which manages the reCAPTCHA challenge) and returns a verification
   id. `LoginPage` navigates to `VerificationPage` with that id as `extra` (carrying
   `redirect_to` forward). `VerificationPage` calls `AuthService.confirmPhoneCode`, which
   confirms the stashed `ConfirmationResult` with the SMS code.
-- **Native:** `AuthService.verifyPhoneNumber` reports progress through callbacks; the
-  `codeSent` callback navigates to `VerificationPage`, and `confirmPhoneCode` builds a
-  `PhoneAuthProvider` credential and signs in with it. `startPhoneVerification` bounds
-  that callback wait: a platform that never reports fails with a `TimeoutException`
-  **and** an `authState` record (`code: 'timeout'`) instead of failing silently.
+- **Native:** `AuthService.verifyPhoneNumber` reports progress through callbacks, which
+  `startPhoneVerification` turns into a `PhoneVerification`. A sent code navigates to
+  `VerificationPage`; an auto-verified credential signs the user in directly;
+  `confirmPhoneCode` builds a `PhoneAuthProvider` credential and signs in with it.
 
 `VerificationPage` is pushed on top of `LoginPage`, so the AppBar's back action returns to the
 number the user typed, still in the field. It used to replace the login page in the stack: on web
@@ -252,8 +256,8 @@ validate it on the **staging** site (or live) with a throwaway account for each 
 - `test/features/auth/presentation/login_page_test.dart` — the
   `shouldShowAppleSignInButton` platform-gate truth table (iOS shows; web, Android, macOS hide);
   the phone flow leaving the code page on top of login through the real router, with a back
-  action that returns to login and keeps the typed number; and a second Send tap while the
-  request is in flight being ignored.
+  action that returns to login and keeps the typed number; a second Send tap before the
+  platform reports being ignored, Send re-enabling after a failure, and the timeout message.
 - `test/features/auth/presentation/verification_page_test.dart` — the code page's support code
   (visible on arrival and after a failed confirmation), the "sign-in expired" message when the
   page outlives the web sign-in, and the pending sign-in being discarded when the page closes.

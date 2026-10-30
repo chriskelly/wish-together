@@ -145,6 +145,107 @@ void main() {
       expect(credential.verificationId, verificationId);
       expect(credential.smsCode, smsCode);
     });
+
+    test(
+      'on web, a confirmed sign-in leaves nothing to confirm again',
+      () async {
+        // Arrange
+        const phoneNumber = '+15550001111';
+        const smsCode = '654321';
+        final confirmationResult = MockConfirmationResult();
+        final userCredential = MockUserCredential();
+        when(() => mockAuth.signInWithPhoneNumber(phoneNumber))
+            .thenAnswer((_) async => confirmationResult);
+        when(() => confirmationResult.verificationId)
+            .thenReturn('web-verification-id');
+        when(() => confirmationResult.confirm(smsCode))
+            .thenAnswer((_) async => userCredential);
+        final authService = AuthService(auth: mockAuth, isWeb: true);
+        final verificationId = await authService.startWebPhoneSignIn(
+          phoneNumber,
+        );
+        await authService.confirmPhoneCode(
+          verificationId: verificationId,
+          smsCode: smsCode,
+        );
+
+        // Act
+        final secondConfirmation = authService.confirmPhoneCode(
+          verificationId: verificationId,
+          smsCode: smsCode,
+        );
+
+        // Assert
+        await expectLater(secondConfirmation, throwsStateError);
+        verify(() => confirmationResult.confirm(smsCode)).called(1);
+      },
+    );
+
+    test('on web, a rejected code can be retried', () async {
+      // Arrange
+      const phoneNumber = '+15550001111';
+      const rejection = '000000';
+      const retry = '654321';
+      final confirmationResult = MockConfirmationResult();
+      final userCredential = MockUserCredential();
+      when(() => mockAuth.signInWithPhoneNumber(phoneNumber))
+          .thenAnswer((_) async => confirmationResult);
+      when(() => confirmationResult.verificationId)
+          .thenReturn('web-verification-id');
+      when(() => confirmationResult.confirm(rejection))
+          .thenThrow(FirebaseAuthException(code: 'invalid-verification-code'));
+      when(() => confirmationResult.confirm(retry))
+          .thenAnswer((_) async => userCredential);
+      final authService = AuthService(auth: mockAuth, isWeb: true);
+      final verificationId = await authService.startWebPhoneSignIn(phoneNumber);
+      await expectLater(
+        authService.confirmPhoneCode(
+          verificationId: verificationId,
+          smsCode: rejection,
+        ),
+        throwsA(isA<FirebaseAuthException>()),
+      );
+
+      // Act
+      final result = await authService.confirmPhoneCode(
+        verificationId: verificationId,
+        smsCode: retry,
+      );
+
+      // Assert
+      expect(result, same(userCredential));
+    });
+  });
+
+  group('AuthService.discardPendingPhoneSignIn', () {
+    test(
+      'stops a later confirmation reusing the abandoned web sign-in',
+      () async {
+        // Arrange
+        const phoneNumber = '+15550001111';
+        const smsCode = '654321';
+        final confirmationResult = MockConfirmationResult();
+        when(() => mockAuth.signInWithPhoneNumber(phoneNumber))
+            .thenAnswer((_) async => confirmationResult);
+        when(() => confirmationResult.verificationId)
+            .thenReturn('web-verification-id');
+        final authService = AuthService(auth: mockAuth, isWeb: true);
+        final verificationId = await authService.startWebPhoneSignIn(
+          phoneNumber,
+        );
+        authService.discardPendingPhoneSignIn();
+
+        // Act
+        final confirmation = authService.confirmPhoneCode(
+          verificationId: verificationId,
+          smsCode: smsCode,
+        );
+
+        // Assert
+        await expectLater(confirmation, throwsStateError);
+        verifyNever(() => confirmationResult.confirm(any()));
+      },
+    );
   });
 
   group('AuthService.signInWithApple', () {

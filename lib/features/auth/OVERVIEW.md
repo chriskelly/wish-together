@@ -30,7 +30,10 @@ profile).
   `startWebPhoneSignIn(...)` (which calls `FirebaseAuth.signInWithPhoneNumber` and keeps the
   returned `ConfirmationResult`) and `confirmPhoneCode(...)` (which confirms it); native uses
   `verifyPhoneNumber(...)` plus `signInWithPhoneCredential(...)`. `confirmPhoneCode(...)` is
-  platform-aware so callers do not branch. `signInWithApple()` fetches the Apple ID credential
+  platform-aware so callers do not branch. `discardPendingPhoneSignIn()` drops a web
+  sign-in the user abandoned before entering the code, so a later confirmation cannot reuse
+  it; it is a no-op on native, which keeps no pending state. `signInWithApple()` fetches the
+  Apple ID credential
   (via the injectable `AppleCredentialFetcher`, defaulting to the static
   `SignInWithApple.getAppleIDCredential`) and exchanges it for a Firebase session through an
   `apple.com` OAuth credential. `AuthService` takes optional `auth` / `isWeb` /
@@ -155,7 +158,8 @@ profile).
 
 ## Data flow
 
-Logged out: `LoginPage` requests an SMS code; the flow branches once on `kIsWeb`.
+Logged out: `LoginPage` requests an SMS code — its button is disabled while the request is in
+flight, so one tap cannot start two sign-ins — and the flow branches once on `kIsWeb`.
 - **Web:** `AuthService.startWebPhoneSignIn` calls `FirebaseAuth.signInWithPhoneNumber`
   (the documented web API, which manages the reCAPTCHA challenge) and returns a verification
   id. `LoginPage` navigates to `VerificationPage` with that id as `extra` (carrying
@@ -166,6 +170,17 @@ Logged out: `LoginPage` requests an SMS code; the flow branches once on `kIsWeb`
   `PhoneAuthProvider` credential and signs in with it. `startPhoneVerification` bounds
   that callback wait: a platform that never reports fails with a `TimeoutException`
   **and** an `authState` record (`code: 'timeout'`) instead of failing silently.
+
+`VerificationPage` is pushed on top of `LoginPage`, so the AppBar's back action returns to the
+number the user typed, still in the field. It used to replace the login page in the stack: on web
+the browser's Back still reached login, but a freshly built one with the number gone, and the app
+itself offered no in-app way out. Because the push is imperative the web address bar keeps
+showing `/login` while the code page is up, and a reload returns to login — the page was never
+reloadable anyway, since it needs the verification id passed as route `extra`. Leaving the page
+discards a pending web sign-in, and a successful confirmation drops it too, so neither can be
+reused; a rejected code keeps it so the user can retry. The page also shows the session's
+support code: a wrong or expired code is an auth failure the user may have to report, and it is
+the one screen where that failure is most likely.
 
 On iOS, the Apple button (from `sign_in_with_apple`) calls `AuthService.signInWithApple`, which
 exchanges the Apple identity token for a Firebase session. Email lands on the Firebase user
@@ -235,7 +250,13 @@ validate it on the **staging** site (or live) with a throwaway account for each 
 - `test/features/auth/data/delete_account_error_test.dart` — the deletion error mapper,
   including the silent-on-cancel cases.
 - `test/features/auth/presentation/login_page_test.dart` — the
-  `shouldShowAppleSignInButton` platform-gate truth table (iOS shows; web, Android, macOS hide).
+  `shouldShowAppleSignInButton` platform-gate truth table (iOS shows; web, Android, macOS hide);
+  the phone flow leaving the code page on top of login through the real router, with a back
+  action that returns to login and keeps the typed number; and a second Send tap while the
+  request is in flight being ignored.
+- `test/features/auth/presentation/verification_page_test.dart` — the code page's support code
+  (visible on arrival and after a failed confirmation), the "sign-in expired" message when the
+  page outlives the web sign-in, and the pending sign-in being discarded when the page closes.
 - `test/features/auth/presentation/profile_page_test.dart` — the profile page's exits:
   `shouldShowProfileBackButton` (a new user, a still-loading profile, and a failed read get no
   arrow; a loaded existing user does), `profilePageTitle` (onboarding and edit titles only once

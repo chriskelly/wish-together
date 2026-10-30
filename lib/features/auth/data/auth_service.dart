@@ -63,8 +63,8 @@ class AuthService {
   /// real [SignInWithApple.getAppleIDCredential].
   final AppleCredentialFetcher _fetchAppleCredential;
 
-  /// The pending web phone sign-in, set by [startWebPhoneSignIn] and consumed by
-  /// [confirmPhoneCode]. Web only.
+  /// The pending web phone sign-in: set by [startWebPhoneSignIn], cleared by a
+  /// successful [confirmPhoneCode] and by [discardPendingPhoneSignIn]. Web only.
   ConfirmationResult? _webConfirmation;
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
@@ -218,7 +218,9 @@ class AuthService {
 
   /// Finishes a phone sign-in with the SMS code sent to the user.
   ///
-  /// On web the stashed [ConfirmationResult] is confirmed; on native a
+  /// On web the stashed [ConfirmationResult] is confirmed; it is dropped once
+  /// that succeeds, because a confirmed sign-in has no pending step left, while
+  /// a rejected code keeps it so the user can retry. On native a
   /// [PhoneAuthProvider] credential is built from the verification id and code.
   Future<UserCredential> confirmPhoneCode({
     required String verificationId,
@@ -232,7 +234,9 @@ class AuthService {
             'No web phone sign-in in progress. Call startWebPhoneSignIn first.',
           );
         }
-        return await confirmationResult.confirm(smsCode);
+        final credential = await confirmationResult.confirm(smsCode);
+        _webConfirmation = null;
+        return credential;
       }
       return await _auth.signInWithCredential(
         PhoneAuthProvider.credential(
@@ -244,6 +248,13 @@ class AuthService {
       _reportAuthFailure(AuthOutcome.phone, error);
       rethrow;
     }
+  }
+
+  /// Drops a web phone sign-in the user abandoned before entering the code.
+  ///
+  /// Native keeps no pending state, so this is a no-op there.
+  void discardPendingPhoneSignIn() {
+    _webConfirmation = null;
   }
 
   /// Signs in with Apple and exchanges the credential for a Firebase session.

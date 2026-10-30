@@ -49,6 +49,12 @@ class _LoginPageState extends State<LoginPage>
   late AnimationController _arrowAnimationController;
   late Animation<double> _arrowAnimation;
 
+  /// Whether a code request is in flight.
+  ///
+  /// The button is disabled meanwhile: on web the reCAPTCHA challenge takes
+  /// seconds, and a second request would push a second code page.
+  bool _requestingCode = false;
+
   static const String _privacyPolicyUrl = 'https://wishtogether.gift/privacy';
 
   @override
@@ -225,23 +231,34 @@ class _LoginPageState extends State<LoginPage>
 
   ElevatedButton _requestVerificationCodeButton(BuildContext context) =>
       ElevatedButton(
-        onPressed: () => _requestVerificationCode(context),
+        onPressed: _requestingCode
+            ? null
+            : () => _requestVerificationCode(context),
         child: const Text('Send Verification Code'),
       );
 
   /// Requests an SMS code. Web and native use different Firebase APIs, so the
   /// flow splits by platform here; everything else is shared.
   Future<void> _requestVerificationCode(BuildContext context) async {
-    // Automatically prepend the US country code
-    final phoneNumber = '+1${_phoneController.text}';
-    final redirectTo = GoRouterState.of(context)
-        .uri
-        .queryParameters[redirectToParam];
+    // One request at a time: a second tap while the first is still waiting on
+    // the platform would start a second sign-in.
+    setState(() => _requestingCode = true);
+    try {
+      // Automatically prepend the US country code
+      final phoneNumber = '+1${_phoneController.text}';
+      final redirectTo = GoRouterState.of(context)
+          .uri
+          .queryParameters[redirectToParam];
 
-    if (kIsWeb) {
-      await _requestWebVerificationCode(context, phoneNumber, redirectTo);
-    } else {
-      await _requestNativeVerificationCode(context, phoneNumber, redirectTo);
+      if (kIsWeb) {
+        await _requestWebVerificationCode(context, phoneNumber, redirectTo);
+      } else {
+        await _requestNativeVerificationCode(context, phoneNumber, redirectTo);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _requestingCode = false);
+      }
     }
   }
 
@@ -306,7 +323,7 @@ class _LoginPageState extends State<LoginPage>
     final verifyUri = redirectTo != null
         ? '${VerificationPage.route}?$redirectToParam=${Uri.encodeComponent(redirectTo)}'
         : VerificationPage.route;
-    context.go(verifyUri, extra: verificationId);
+    context.push(verifyUri, extra: verificationId);
   }
 
   List<Widget> _buildAppInfoSection(BuildContext context) {

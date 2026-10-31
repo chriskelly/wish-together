@@ -73,17 +73,20 @@ class _HomePageState extends State<HomePage> {
   /// router is about to show the login page, and a read here would race the
   /// session being cleared.
   void _subscribeDataStreams() {
-    // A start always replaces whatever a previous lifecycle left behind. The
-    // callers already cancel first; this keeps a future caller safe.
+    // A start always replaces whatever a previous lifecycle left behind.
     _cancelDataStreams();
 
     final uid = _authService.currentUserId;
     if (uid == null) {
+      // The session went away between the caller's check and this one: stop
+      // presenting its data rather than leaving reads that cannot be started.
+      _uid = null;
       return;
     }
     _uid = uid;
-    // A start begins with no result and no failure for any of the three reads,
-    // so a restarted lifecycle cannot show the previous one's error.
+    // A start clears each read's failure, so a restarted lifecycle cannot show
+    // the previous one's error. Results are kept: the page keeps rendering what
+    // it already shows rather than blanking until the next snapshot arrives.
     _userError = null;
     _userStreamEnded = false;
     _wishlistsError = null;
@@ -176,15 +179,18 @@ class _HomePageState extends State<HomePage> {
         setState(() {
           _uid = null;
           _user = null;
+          _userError = null;
+          _userStreamEnded = false;
           _wishlists = null;
+          _wishlistsError = null;
           _groups = null;
+          _groupsError = null;
         });
         return;
       }
 
-      // The session is still live, so the page has to keep working. Report the
-      // failure before restarting, so a restart that throws stays loud instead
-      // of vanishing behind a caught error.
+      // The session is still live, so the page has to keep working: report the
+      // failure, then restart the reads.
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not sign out. Please try again.')),
       );

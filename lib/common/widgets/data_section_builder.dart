@@ -11,8 +11,8 @@ class DataSection extends StatelessWidget {
   final VoidCallback onAdd;
 
   /// The add button's tooltip. Passed in rather than derived from a type
-  /// argument, so this widget stays non-generic and each call site keeps the
-  /// exact string it showed before.
+  /// argument, so this widget stays non-generic and each call site decides the
+  /// exact string its users see.
   final String addTooltip;
   final Widget child;
 

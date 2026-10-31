@@ -66,8 +66,9 @@ abstract class FirebaseRepository<T> {
   /// Reports a stream error and forwards it to the caller.
   ///
   /// `Stream.handleError` cannot be used here: a callback that returns normally
-  /// makes the stream *forget* the error, and `StreamListBuilder` renders its
-  /// error UI from it. This transformer reports and re-emits.
+  /// makes the stream *forget* the error, and the list renderers —
+  /// `StreamListBuilder` and `ListContentBuilder` — show their error UI from it.
+  /// This transformer reports and re-emits.
   @protected
   Stream<R> reportingStream<R>(Stream<R> source, FirestoreOp op) {
     return source.transform(

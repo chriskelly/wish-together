@@ -54,6 +54,10 @@ node_modules/
 docs/specs/
 docs/plans/
 
+# One-off dev-session entrypoints and their fixtures: unreferenced by anything
+# else, so a fresh clone compiles without them.
+lib/dev/scenarios/local/
+
 # fastlane / Ruby
 /.bundle/
 /vendor/bundle/

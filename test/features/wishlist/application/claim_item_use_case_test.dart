@@ -36,7 +36,6 @@ void main() {
       mockAuthService = MockAuthService();
       mockWishlistRepository = MockWishlistRepository();
       mockItemRepository = MockItemRepository();
-      getIt.registerSingleton<AuthService>(mockAuthService);
       getIt.registerSingleton<AuthSession>(mockAuthService);
       getIt.registerSingleton<WishlistRepository>(mockWishlistRepository);
       claimItemUseCase = ClaimItemUseCase();
@@ -125,7 +124,6 @@ void main() {
       mockWishlistRepository = MockWishlistRepository();
       mockItemRepository = MockItemRepository();
       sink = RecordingSink();
-      getIt.registerSingleton<AuthService>(mockAuthService);
       getIt.registerSingleton<AuthSession>(mockAuthService);
       getIt.registerSingleton<WishlistRepository>(mockWishlistRepository);
       getIt.registerSingleton<AppLog>(

@@ -149,7 +149,7 @@ void _startApp() {
   if (_appStarted) {
     return;
   }
-  startApp(links: _deepLinks, auth: getIt<AuthSession>(), mount: runApp);
+  startApp(links: _deepLinks, session: getIt<AuthSession>(), mount: runApp);
   _appStarted = true;
 }
 
@@ -158,7 +158,7 @@ void _startApp() {
 @visibleForTesting
 void startApp({
   required DeepLinkService links,
-  required AuthSession auth,
+  required AuthSession session,
   required void Function(WishTogetherApp app) mount,
 }) {
   final initialLocation = links.takePendingLocation();
@@ -178,7 +178,7 @@ void startApp({
     );
   }
 
-  final router = createRouter(auth, initialLocation: initialLocation);
+  final router = createRouter(session, initialLocation: initialLocation);
   mount(WishTogetherApp(router: router));
   links.attach((location) => router.go(location));
 }

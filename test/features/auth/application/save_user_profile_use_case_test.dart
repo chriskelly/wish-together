@@ -35,7 +35,6 @@ void main() {
       mockAuthService = MockAuthService();
       mockUserRepository = MockUserRepository();
       mockWishlistRepository = MockWishlistRepository();
-      getIt.registerSingleton<AuthService>(mockAuthService);
       getIt.registerSingleton<AuthSession>(mockAuthService);
       getIt.registerSingleton<UserRepository>(mockUserRepository);
       getIt.registerSingleton<WishlistRepository>(mockWishlistRepository);

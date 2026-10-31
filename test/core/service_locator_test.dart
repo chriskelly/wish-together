@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:wishtogether/core/service_locator.dart';
@@ -11,9 +10,9 @@ import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 
 class MockFirebaseFirestore extends Mock implements FirebaseFirestore {}
 
-class MockFirebaseAuth extends Mock implements FirebaseAuth {}
+class MockAuthSession extends Mock implements AuthService {}
 
-/// A session that never touches Firebase, standing in for the dev entrypoint's.
+/// A session with no Firebase behind it, which is what the seam exists for.
 class FakeSession implements AuthSession {
   @override
   String? get currentUserId => 'fake-uid';
@@ -62,7 +61,7 @@ void main() {
 
   test('the session and the auth service are one instance', () {
     final firestore = MockFirebaseFirestore();
-    final authService = AuthService(auth: MockFirebaseAuth(), isWeb: true);
+    final authService = MockAuthSession();
 
     setupServiceLocator(firestore: firestore, authSession: authService);
 
@@ -74,6 +73,8 @@ void main() {
     final firestore = MockFirebaseFirestore();
     final session = FakeSession();
 
+    // Resolving the session must not build the production service: that
+    // constructor needs Firebase, so a wrong wiring throws here.
     setupServiceLocator(firestore: firestore, authSession: session);
 
     expect(getIt<AuthSession>(), same(session));

@@ -29,7 +29,6 @@ void main() {
       getIt.reset();
       mockAuthService = MockAuthService();
       mockGroupRepository = MockGroupRepository();
-      getIt.registerSingleton<AuthService>(mockAuthService);
       getIt.registerSingleton<AuthSession>(mockAuthService);
       getIt.registerSingleton<GroupRepository>(mockGroupRepository);
       createGroupUseCase = CreateGroupUseCase();

@@ -29,7 +29,6 @@ void main() {
       getIt.reset();
       mockAuthService = MockAuthService();
       mockWishlistRepository = MockWishlistRepository();
-      getIt.registerSingleton<AuthService>(mockAuthService);
       getIt.registerSingleton<AuthSession>(mockAuthService);
       getIt.registerSingleton<WishlistRepository>(mockWishlistRepository);
       createWishlistUseCase = CreateWishlistUseCase();

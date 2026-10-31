@@ -21,7 +21,6 @@ void main() {
       getIt.reset();
       mockAuthService = MockAuthService();
       mockUserRepository = MockUserRepository();
-      getIt.registerSingleton<AuthService>(mockAuthService);
       getIt.registerSingleton<AuthSession>(mockAuthService);
       getIt.registerSingleton<UserRepository>(mockUserRepository);
       loadUserProfileUseCase = LoadUserProfileUseCase();

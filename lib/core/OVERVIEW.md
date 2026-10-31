@@ -23,7 +23,7 @@ is a feature; features import from `core/`.
 | `AppLog` / `LogSink` / `SessionContext` / `AppEvent` / `LogRecord` | `logging/` | The typed reporting seam (the facade is pure Dart; only the Sentry files know the SDK), its vocabulary, and the §4.3 allowlist (`logging/OVERVIEW.md`). |
 | `appOrigin` / `locationFromUniversalLink(...)` | `app_urls.dart` | Canonical URL and the allowlisted Universal-Link → location mapping. |
 | `DeepLinkService` | `deep_links.dart` | iOS link delivery (`app_links`) with a startup queue and a warm-link callback. |
-| `setupServiceLocator({firestore, appLog, authSession})` / `getIt` | `service_locator.dart` | Registers the log (eagerly, when supplied), repositories and use cases. `firestore` and `authSession` are composition seams: production passes neither, tests and the dev entrypoint supply their own. |
+| `setupServiceLocator({firestore, appLog, authSession})` / `getIt` | `service_locator.dart` | Registers the log (eagerly, when supplied), repositories and use cases. `firestore` and `authSession` are composition seams: production passes neither, a caller with its own supplies it. |
 | `PackageInfoLoader` | `platform_info.dart` | The injectable `PackageInfo.fromPlatform` seam shared by the update gate and the build-identity read. |
 | `lightTheme`, `darkTheme`, `appTextTheme` | `theme.dart` | Material 3 theme from a blue seed color (`google_fonts`). |
 
@@ -111,7 +111,7 @@ overlaps init) and awaits it afterwards. It builds the launch diagnostics (`Sess
 locator, activates App Check, and asks `AppUpdateService`
 whether the running build is still supported. If it is, `_startApp` takes the queued link (if
 any), seeds the session route and emits `sessionStart`, mounts
-`createRouter(getIt<AuthService>(), initialLocation: …)` via `MaterialApp.router`, and attaches
+`createRouter(getIt<AuthSession>(), initialLocation: …)` via `MaterialApp.router`, and attaches
 the router for warm links; if not, the blocking `UpdateRequiredApp` is mounted and the router is
 never created. `SentryFlutter.init` wraps that same startup only when `WT_SENTRY_DSN` is set.
 Pages read dependencies from `getIt` and repositories from the locator; nothing constructs a

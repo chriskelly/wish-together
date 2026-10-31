@@ -22,26 +22,28 @@ abstract class AuthSession {
   /// The provider ids linked to the signed-in account (`google.com`,
   /// `apple.com`, `phone`), and empty when nobody is signed in.
   ///
-  /// The auth-transition record reports which provider produced the session,
-  /// and a session that changes hands from one identity to another carries that
-  /// provider list at the moment the change is observed.
+  /// Read when a [uidChanges] event is observed, to name the provider that
+  /// produced that session. An implementation must therefore install the new
+  /// identity — [currentUserId] and this list — before it emits the change.
   List<String> get providerIds;
 
   /// Emits the signed-in user's id on every auth transition and `null` on
-  /// sign-out, starting with the current state.
+  /// sign-out.
   ///
   /// Carries ids rather than a Firebase user so an implementation without
-  /// Firebase can produce the same stream. An implementation may also leave it
-  /// unemitted, for a session that never changes.
+  /// Firebase can produce it. The production session also emits the current
+  /// state on subscription; an implementation may leave the stream unemitted,
+  /// because routing reads [currentUserId] rather than waiting for an emission.
   Stream<String?> get uidChanges;
 
-  /// Signs the current user out. Does nothing when nobody is signed in.
+  /// Signs out of the session. Safe to call when nobody is signed in.
   Future<void> signOut();
 
   /// Whether the app offers in-app account deletion for this session.
   ///
   /// Deletion re-authenticates against a real provider and deletes a real auth
-  /// account. A session that cannot do that reports `false`, and the profile
-  /// page hides the danger zone instead of offering a control that cannot work.
+  /// account, so only the implementation that owns that account can report
+  /// `true`. The profile page hides the danger zone for any other session
+  /// instead of offering a control that cannot work.
   bool get supportsAccountDeletion;
 }

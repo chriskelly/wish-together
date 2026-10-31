@@ -1,7 +1,6 @@
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
-import 'package:wishtogether/features/auth/domain/auth_session.dart';
 import 'package:wishtogether/features/group/data/group_repository.dart';
 import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 
@@ -31,15 +30,15 @@ import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 /// a mid-way failure leaves a partially-deleted account that a rerun finishes.
 class DeleteAccountUseCase {
   Future<void> execute() async {
-    // The identity comes from the session; deleting the auth account is a
-    // production-only capability, so it is taken from the service itself.
-    final session = getIt<AuthSession>();
+    // The identity and the account being deleted must be the same object: this
+    // flow only runs for a session that can delete an account, which is the
+    // production service.
     final authService = getIt<AuthService>();
     final userRepository = getIt<UserRepository>();
     final wishlistRepository = getIt<WishlistRepository>();
     final groupRepository = getIt<GroupRepository>();
 
-    final userId = session.currentUserId;
+    final userId = authService.currentUserId;
     if (userId == null) {
       throw Exception('User is not authenticated');
     }

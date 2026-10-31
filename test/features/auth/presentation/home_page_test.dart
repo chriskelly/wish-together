@@ -95,8 +95,6 @@ void main() {
           return groupStream.stream;
         });
 
-    getIt.registerSingleton<AuthService>(authService);
-
     getIt.registerSingleton<AuthSession>(authService);
     getIt.registerSingleton<UserRepository>(userRepository);
     getIt.registerSingleton<WishlistRepository>(wishlistRepository);

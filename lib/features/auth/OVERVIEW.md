@@ -78,8 +78,8 @@ profile).
 - `DeleteAccountSection` — the profile page's danger zone: confirm dialog,
   provider-appropriate re-authentication (Google/Apple prompt or an SMS-code
   dialog), then the use case. `ProfilePage` renders it only when the session reports
-  `supportsAccountDeletion`, so a session that cannot delete an account (a dev session) does
-  not offer the control at all. The section itself keeps `AuthService`, because the
+  `supportsAccountDeletion`, so a session that cannot delete an account does not offer the
+  control at all. The section itself keeps `AuthService`, because the
   re-authentication flows it drives are not part of the session.
 - `phoneAuthErrorMessage(...)` — maps a phone `FirebaseAuthException` to a short user-facing
   message, including the "domain not authorized" case.

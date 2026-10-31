@@ -103,8 +103,6 @@ void main() {
       when(() => userRepository.streamUsersFromIds(memberIds))
           .thenAnswer((_) => Stream.value(members));
 
-      getIt.registerSingleton<AuthService>(authService);
-
       getIt.registerSingleton<AuthSession>(authService);
       getIt.registerSingleton<GroupRepository>(groupRepository);
       getIt.registerSingleton<WishlistRepository>(wishlistRepository);

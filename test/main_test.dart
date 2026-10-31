@@ -41,7 +41,7 @@ void main() {
     await pumpEventQueue();
 
     WishTogetherApp? mounted;
-    startApp(links: links, auth: auth, mount: (app) => mounted = app);
+    startApp(links: links, session: auth, mount: (app) => mounted = app);
 
     expect(
       mounted!.router.routeInformationProvider.value.uri.toString(),
@@ -78,7 +78,7 @@ void main() {
     controller.add(Uri.parse('https://wishtogether.gift/join?group=one'));
     await pumpEventQueue();
 
-    startApp(links: links, auth: auth, mount: (_) {});
+    startApp(links: links, session: auth, mount: (_) {});
 
     final starts = sink.eventsOf<SessionStartEvent>().toList();
     expect(starts, hasLength(1));

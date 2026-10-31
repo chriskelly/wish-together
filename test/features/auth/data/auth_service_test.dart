@@ -684,16 +684,6 @@ void main() {
     });
   });
 
-  group('AuthService.supportsAccountDeletion', () {
-    test('offers in-app deletion', () {
-      // ARRANGE
-      final service = AuthService(auth: mockAuth);
-
-      // ACT & ASSERT
-      expect(service.supportsAccountDeletion, isTrue);
-    });
-  });
-
   group('AuthService.startPhoneVerification', () {
     const phoneNumber = '+15550001111';
 

@@ -35,8 +35,7 @@ class AuthListenable extends ChangeNotifier {
   /// outcome on every change, including sign-out.
   ///
   /// The provider list is read from the session at the moment of the change,
-  /// because the uid stream cannot carry it: a sign-in has already installed
-  /// the user by the time this runs, and a sign-out has already cleared it.
+  /// because the uid stream cannot carry it.
   ///
   /// Tolerates a missing [AppLog] because `createRouter` is called by tests
   /// that register only a `UserRepository`.

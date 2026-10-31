@@ -28,8 +28,8 @@ final getIt = GetIt.instance;
 /// Registers the app's services.
 ///
 /// [firestore] and [authSession] are composition seams: production passes
-/// neither and the locator builds them, while tests and the dev entrypoint
-/// supply their own.
+/// neither and the locator builds them, while a caller that has its own — a
+/// test, or any session that must not touch Firebase — supplies it.
 void setupServiceLocator({
   FirebaseFirestore? firestore,
   AppLog? appLog,

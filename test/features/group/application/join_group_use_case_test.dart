@@ -1,24 +1,23 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:wishtogether/core/service_locator.dart';
-import 'package:wishtogether/features/auth/data/auth_service.dart';
 import 'package:wishtogether/features/auth/domain/auth_session.dart';
 import 'package:wishtogether/features/group/application/join_group_use_case.dart';
 import 'package:wishtogether/features/group/data/group_repository.dart';
 
-class MockAuthService extends Mock implements AuthService {}
+class MockAuthSession extends Mock implements AuthSession {}
 
 class MockGroupRepository extends Mock implements GroupRepository {}
 
 void main() {
   group('JoinGroupUseCase', () {
-    late MockAuthService mockAuthService;
+    late MockAuthSession mockAuthService;
     late MockGroupRepository mockGroupRepository;
     late JoinGroupUseCase joinGroupUseCase;
 
     setUp(() {
       getIt.reset();
-      mockAuthService = MockAuthService();
+      mockAuthService = MockAuthSession();
       mockGroupRepository = MockGroupRepository();
       getIt.registerSingleton<AuthSession>(mockAuthService);
       getIt.registerSingleton<GroupRepository>(mockGroupRepository);

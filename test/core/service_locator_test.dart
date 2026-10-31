@@ -10,31 +10,11 @@ import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 
 class MockFirebaseFirestore extends Mock implements FirebaseFirestore {}
 
-class MockAuthSession extends Mock implements AuthService {}
+/// The production service.
+class MockAuthService extends Mock implements AuthService {}
 
 /// A session with no Firebase behind it, which is what the seam exists for.
-class FakeSession implements AuthSession {
-  @override
-  String? get currentUserId => 'fake-uid';
-
-  @override
-  String? get currentUserEmail => null;
-
-  @override
-  String? get currentUserPhoneNumber => null;
-
-  @override
-  List<String> get providerIds => const <String>[];
-
-  @override
-  Stream<String?> get uidChanges => const Stream<String?>.empty();
-
-  @override
-  Future<void> signOut() async {}
-
-  @override
-  bool get supportsAccountDeletion => false;
-}
+class MockAuthSession extends Mock implements AuthSession {}
 
 void main() {
   setUp(() async {
@@ -61,7 +41,7 @@ void main() {
 
   test('the session and the auth service are one instance', () {
     final firestore = MockFirebaseFirestore();
-    final authService = MockAuthSession();
+    final authService = MockAuthService();
 
     setupServiceLocator(firestore: firestore, authSession: authService);
 
@@ -71,12 +51,20 @@ void main() {
 
   test('a supplied session is what the signed-in shell resolves', () {
     final firestore = MockFirebaseFirestore();
-    final session = FakeSession();
+    final session = MockAuthSession();
 
     // Resolving the session must not build the production service: that
     // constructor needs Firebase, so a wrong wiring throws here.
     setupServiceLocator(firestore: firestore, authSession: session);
 
     expect(getIt<AuthSession>(), same(session));
+  });
+
+  test('a session without the production service cannot resolve one', () {
+    final firestore = MockFirebaseFirestore();
+
+    setupServiceLocator(firestore: firestore, authSession: MockAuthSession());
+
+    expect(() => getIt<AuthService>(), throwsStateError);
   });
 }

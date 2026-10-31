@@ -123,7 +123,7 @@ repository inline.
   methods against `FakeFirebaseFirestore` using a throwaway `TestModelRepository`.
 - `test/core/router_test.dart` drives `handleRedirect` across the logged-out /
   logged-in-without-name / logged-in-with-name matrix, including join-link redirects, with
-  a mocked `AuthService` and `UserRepository`; it also pins the `getIt<UserRepository>()`
+  a mocked `AuthSession` and `UserRepository`; it also pins the `getIt<UserRepository>()`
   fallback.
 - `test/core/firestore_target_test.dart` pins the database-id resolution: absent/blank means
   `(default)`, a named id is kept, and a malformed id throws instead of falling back to

@@ -246,8 +246,7 @@ class _ProfilePageState extends State<ProfilePage> {
           const SizedBox(height: 30),
           _saveButton(context),
           // The account exists as soon as the user signs in — even before they
-          // have picked a display name — so deletion must be reachable whenever
-          // the profile has loaded and the session can delete accounts at all.
+          // have picked a display name — so deletion belongs in the loaded form.
           if (_session.supportsAccountDeletion) const DeleteAccountSection(),
           if (supportCode != null) ...[
             const SizedBox(height: 16),

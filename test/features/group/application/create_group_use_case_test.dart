@@ -2,13 +2,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:wishtogether/core/service_locator.dart';
-import 'package:wishtogether/features/auth/data/auth_service.dart';
 import 'package:wishtogether/features/auth/domain/auth_session.dart';
 import 'package:wishtogether/features/group/application/create_group_use_case.dart';
 import 'package:wishtogether/features/group/data/group_repository.dart';
 import 'package:wishtogether/features/group/domain/group.dart';
 
-class MockAuthService extends Mock implements AuthService {}
+class MockAuthSession extends Mock implements AuthSession {}
 
 class MockGroupRepository extends Mock implements GroupRepository {}
 
@@ -17,7 +16,7 @@ class MockDocumentReference extends Mock implements DocumentReference {}
 
 void main() {
   group('CreateGroupUseCase', () {
-    late MockAuthService mockAuthService;
+    late MockAuthSession mockAuthService;
     late MockGroupRepository mockGroupRepository;
     late CreateGroupUseCase createGroupUseCase;
 
@@ -27,7 +26,7 @@ void main() {
 
     setUp(() {
       getIt.reset();
-      mockAuthService = MockAuthService();
+      mockAuthService = MockAuthSession();
       mockGroupRepository = MockGroupRepository();
       getIt.registerSingleton<AuthSession>(mockAuthService);
       getIt.registerSingleton<GroupRepository>(mockGroupRepository);

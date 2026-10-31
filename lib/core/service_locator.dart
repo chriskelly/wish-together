@@ -47,11 +47,20 @@ void setupServiceLocator({
   );
   // Auth: one instance answers both the narrow session the signed-in shell
   // resolves and the concrete service the sign-in and deletion flows resolve.
-  // A caller may supply the session; the production service stays registered
-  // for those flows, and stays lazy so a supplied session never builds it.
-  getIt.registerLazySingleton<AuthService>(
-    () => authSession is AuthService ? authSession : AuthService(),
-  );
+  // A supplied session that is not the production service cannot answer those
+  // flows, so resolving it is an error rather than a silent second identity.
+  getIt.registerLazySingleton<AuthService>(() {
+    if (authSession == null) {
+      return AuthService();
+    }
+    if (authSession is AuthService) {
+      return authSession;
+    }
+    throw StateError(
+      'AuthService was resolved for a session that is not one: sign-in, '
+      're-authentication and account deletion need the production service.',
+    );
+  });
   getIt.registerLazySingleton<AuthSession>(
     () => authSession ?? getIt<AuthService>(),
   );

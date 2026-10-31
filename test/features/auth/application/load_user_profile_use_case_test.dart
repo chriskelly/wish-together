@@ -2,24 +2,23 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/application/load_user_profile_use_case.dart';
-import 'package:wishtogether/features/auth/data/auth_service.dart';
 import 'package:wishtogether/features/auth/domain/auth_session.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
 import 'package:wishtogether/features/auth/domain/user.dart';
 
-class MockAuthService extends Mock implements AuthService {}
+class MockAuthSession extends Mock implements AuthSession {}
 
 class MockUserRepository extends Mock implements UserRepository {}
 
 void main() {
   group('LoadUserProfileUseCase', () {
-    late MockAuthService mockAuthService;
+    late MockAuthSession mockAuthService;
     late MockUserRepository mockUserRepository;
     late LoadUserProfileUseCase loadUserProfileUseCase;
 
     setUp(() {
       getIt.reset();
-      mockAuthService = MockAuthService();
+      mockAuthService = MockAuthSession();
       mockUserRepository = MockUserRepository();
       getIt.registerSingleton<AuthSession>(mockAuthService);
       getIt.registerSingleton<UserRepository>(mockUserRepository);

@@ -3,14 +3,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/application/save_user_profile_use_case.dart';
-import 'package:wishtogether/features/auth/data/auth_service.dart';
 import 'package:wishtogether/features/auth/domain/auth_session.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
 import 'package:wishtogether/features/auth/domain/user.dart';
 import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
 
-class MockAuthService extends Mock implements AuthService {}
+class MockAuthSession extends Mock implements AuthSession {}
 
 class MockUserRepository extends Mock implements UserRepository {}
 
@@ -21,7 +20,7 @@ class MockDocumentReference extends Mock implements DocumentReference {}
 
 void main() {
   group('SaveUserProfileUseCase', () {
-    late MockAuthService mockAuthService;
+    late MockAuthSession mockAuthService;
     late MockUserRepository mockUserRepository;
     late MockWishlistRepository mockWishlistRepository;
     late SaveUserProfileUseCase saveUserProfileUseCase;
@@ -32,7 +31,7 @@ void main() {
 
     setUp(() {
       getIt.reset();
-      mockAuthService = MockAuthService();
+      mockAuthService = MockAuthSession();
       mockUserRepository = MockUserRepository();
       mockWishlistRepository = MockWishlistRepository();
       getIt.registerSingleton<AuthSession>(mockAuthService);

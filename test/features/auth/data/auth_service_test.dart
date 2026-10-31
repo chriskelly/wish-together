@@ -694,6 +694,16 @@ void main() {
     });
   });
 
+  group('AuthService.supportsSignOut', () {
+    test('offers sign-out in production', () {
+      // ARRANGE
+      final service = AuthService(auth: mockAuth);
+
+      // ACT & ASSERT
+      expect(service.supportsSignOut, isTrue);
+    });
+  });
+
   group('AuthService.startPhoneVerification', () {
     const phoneNumber = '+15550001111';
 

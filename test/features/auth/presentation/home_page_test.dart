@@ -76,6 +76,7 @@ void main() {
 
     when(() => authService.currentUserId)
         .thenAnswer((_) => signedIn ? uid : null);
+    when(() => authService.supportsSignOut).thenReturn(true);
     when(() => authService.signOut()).thenAnswer((_) async {
       listenersAtSignOut.addAll(listenerState());
       signedIn = false;
@@ -134,6 +135,21 @@ void main() {
     groupStream.add([group]);
     await tester.pump();
   }
+
+  testWidgets('offers no sign-out control when the session cannot sign out', (
+    tester,
+  ) async {
+    // Arrange: a session that reports it has no sign-out behind it.
+    when(() => authService.supportsSignOut).thenReturn(false);
+
+    // Act
+    await loadSignedInHome(tester);
+
+    // Assert: the page renders its data, but offers no sign-out control.
+    expect(find.text(wishlistName), findsOneWidget);
+    expect(find.byTooltip('Logout'), findsNothing);
+    expect(find.byTooltip('Profile'), findsOneWidget);
+  });
 
   testWidgets('cancels every home read before the session is cleared', (
     tester,

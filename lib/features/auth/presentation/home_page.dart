@@ -280,11 +280,15 @@ class _HomePageState extends State<HomePage> {
         tooltip: 'Profile',
         onPressed: () => context.go(ProfilePage.route),
       ),
-      IconButton(
-        icon: const Icon(Icons.logout),
-        tooltip: 'Logout',
-        onPressed: _signOut,
-      ),
+      // Only offer sign-out when the session has a sign-in flow behind it.
+      // There is no point offering a control that would leave a session with
+      // nowhere to go.
+      if (_session.supportsSignOut)
+        IconButton(
+          icon: const Icon(Icons.logout),
+          tooltip: 'Logout',
+          onPressed: _signOut,
+        ),
     ],
   );
 

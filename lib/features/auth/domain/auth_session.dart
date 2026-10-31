@@ -46,4 +46,12 @@ abstract class AuthSession {
   /// `true`. The profile page hides the danger zone for any other session
   /// instead of offering a control that cannot work.
   bool get supportsAccountDeletion;
+
+  /// Whether the app shell offers a sign-out control for this session.
+  ///
+  /// Signing out returns the app to the sign-in screens, so it is only offered
+  /// when a sign-in flow can be built behind the session — which needs the
+  /// production service. A session without one reports `false`, and the shell
+  /// hides the control rather than offering a button with nowhere to go.
+  bool get supportsSignOut;
 }

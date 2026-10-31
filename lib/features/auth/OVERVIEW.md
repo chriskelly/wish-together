@@ -24,10 +24,13 @@ profile).
 
 - `AuthSession` — the narrow, Firebase-free view of the signed-in identity that the app shell
   depends on: `currentUserId` / `currentUserEmail` / `currentUserPhoneNumber`, `providerIds`,
-  `uidChanges` (a `Stream<String?>` of uids, not Firebase users), `signOut()`, and
-  `supportsAccountDeletion`. The router, the signed-in pages and the use cases resolve this
-  type; sign-in, re-authentication and account deletion are deliberately not on it, so an
-  implementation that never touches Firebase can stand in for the production one.
+  `uidChanges` (a `Stream<String?>` of uids, not Firebase users), `signOut()`,
+  `supportsAccountDeletion`, and `supportsSignOut`. The router, the signed-in pages and the use
+  cases resolve this type; sign-in, re-authentication and account deletion are deliberately not
+  on it, so an implementation that never touches Firebase can stand in for the production one.
+  `supportsSignOut` is what keeps the home page's logout control honest: signing out routes to
+  the login page, which resolves the production service, so a session without one reports
+  `false` and the control is not rendered at all.
 - `AuthService implements AuthSession` — wraps `FirebaseAuth`, `GoogleSignIn`, and
   `SignInWithApple`. Adds `googleSignIn`, `isWeb`, the sign-in and
   re-authentication flows, `signInProvider()` and `deleteAccount()`.

@@ -33,4 +33,17 @@ class ItemRepository extends FirebaseRepository<Item> {
   Future<void> unclaim(String itemId) {
     return updateData(itemId, {'claimedBy': null, 'claimedAt': null});
   }
+
+  /// Claims [itemId] for [claimedBy], touching no other field.
+  ///
+  /// A reader's copy of the item can be stale, or can lack an optional field
+  /// that the stored document already has, and the rules only allow a reader to
+  /// change the claim pair. Writing both in one update keeps the write valid
+  /// whatever else the owner changed meanwhile.
+  Future<void> claim(String itemId, {required String claimedBy}) {
+    return updateData(itemId, {
+      'claimedBy': claimedBy,
+      'claimedAt': Timestamp.now(),
+    });
+  }
 }

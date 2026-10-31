@@ -140,5 +140,61 @@ void main() {
         reason: 'Other fields should not be changed.',
       );
     });
+
+    test('claim writes only the claim fields', () async {
+      // ARRANGE: the stored document has content a stale reader copy lacks.
+      const String itemId = 'stale_item';
+      const String storedName = 'Renamed by the owner';
+      const String storedDescription = 'Stored description';
+      const String storedUrl = 'https://example.com/stored';
+      const String claimedBy = 'reader-1';
+      await fakeFirestore.collection(itemsCollectionPath).doc(itemId).set({
+        'name': storedName,
+        'description': storedDescription,
+        'url': storedUrl,
+      });
+
+      // ACT
+      await itemRepository.claim(itemId, claimedBy: claimedBy);
+
+      // ASSERT
+      final doc = await fakeFirestore
+          .collection(itemsCollectionPath)
+          .doc(itemId)
+          .get();
+      final data = doc.data()!;
+      expect(data['claimedBy'], claimedBy);
+      expect(data['claimedAt'], isA<Timestamp>());
+      expect(data['name'], storedName);
+      expect(data['description'], storedDescription);
+      expect(data['url'], storedUrl);
+    });
+
+    test(
+      'claim does not add an optional field the stored item lacks',
+      () async {
+        // ARRANGE
+        const String itemId = 'sparse_item';
+        const String storedName = 'Gift';
+        const String claimedBy = 'reader-1';
+        await fakeFirestore.collection(itemsCollectionPath).doc(itemId).set({
+          'name': storedName,
+        });
+
+        // ACT
+        await itemRepository.claim(itemId, claimedBy: claimedBy);
+
+        // ASSERT
+        final doc = await fakeFirestore
+            .collection(itemsCollectionPath)
+            .doc(itemId)
+            .get();
+        final data = doc.data()!;
+        expect(data['claimedBy'], claimedBy);
+        expect(data['name'], storedName);
+        expect(data.containsKey('description'), isFalse);
+        expect(data.containsKey('url'), isFalse);
+      },
+    );
   });
 }

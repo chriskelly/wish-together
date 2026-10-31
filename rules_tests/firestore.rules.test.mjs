@@ -719,6 +719,34 @@ test('a reader claims an item by writing its whole map', async () => {
   );
 });
 
+// A whole-map claim is allowed only while the reader's copy matches the stored
+// document exactly; one content edit by the owner turns it into a denial. The
+// app therefore writes only the claim pair.
+test('a whole-map claim carrying stale content is denied', async () => {
+  const wishlistId = 'wishlist-claim-stale-map';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      sharedWithGroups: ['group-1'],
+      item: {
+        name: 'Renamed by the owner',
+        description: 'A description the owner wrote',
+        url: 'https://example.com/owner-version',
+      },
+    }),
+  );
+
+  await assertFails(
+    itemRef(OUTSIDER, wishlistId, itemId).update({
+      name: 'The name the reader still has',
+      description: 'The description the reader still has',
+      url: 'https://example.com/reader-version',
+      claimedBy: OUTSIDER,
+      claimedAt: Timestamp.fromDate(new Date()),
+    }),
+  );
+});
+
 test('a reader unclaims their own item', async () => {
   const wishlistId = 'wishlist-unclaim';
   const itemId = 'item';

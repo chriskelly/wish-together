@@ -5,6 +5,7 @@ import 'package:wishtogether/core/logging/app_log.dart';
 import 'package:wishtogether/core/logging/log_sink.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/domain/auth_session.dart';
+import 'package:wishtogether/features/wishlist/application/claim_failure.dart';
 import 'package:wishtogether/features/wishlist/application/claim_item_use_case.dart';
 import 'package:wishtogether/features/wishlist/data/item_repository.dart';
 import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
@@ -20,6 +21,10 @@ class MockWishlistRepository extends Mock implements WishlistRepository {}
 class MockItemRepository extends Mock implements ItemRepository {}
 
 void main() {
+  const String wishlistId = 'wishlist123';
+  const String itemId = 'item123';
+  const String userId = 'user123';
+
   group('ClaimItemUseCase', () {
     late MockAuthSession mockAuthSession;
     late MockWishlistRepository mockWishlistRepository;
@@ -37,6 +42,8 @@ void main() {
       mockItemRepository = MockItemRepository();
       getIt.registerSingleton<AuthSession>(mockAuthSession);
       getIt.registerSingleton<WishlistRepository>(mockWishlistRepository);
+      when(() => mockWishlistRepository.items(wishlistId))
+          .thenReturn(mockItemRepository);
       claimItemUseCase = ClaimItemUseCase();
     });
 
@@ -44,61 +51,87 @@ void main() {
       getIt.reset();
     });
 
-    test('should claim item with current user and timestamp', () async {
+    test('claims the item for the current user', () async {
       // Arrange
-      const wishlistId = 'wishlist123';
-      const itemId = 'item123';
-      const userId = 'user123';
-      final item = Item(id: itemId, name: 'Test Item');
-
       when(() => mockAuthSession.currentUserId).thenReturn(userId);
-      when(() => mockWishlistRepository.items(wishlistId))
-          .thenReturn(mockItemRepository);
-      when(() => mockItemRepository.update(any(), any()))
-          .thenAnswer((_) async => {});
+      when(() => mockItemRepository.claim(itemId, claimedBy: userId))
+          .thenAnswer((_) async {});
 
       // Act
-      await claimItemUseCase.execute(wishlistId, item);
+      await claimItemUseCase.execute(wishlistId, itemId);
 
       // Assert
-      final captured = verify(
-        () => mockItemRepository.update(itemId, captureAny()),
-      ).captured;
-      expect(captured.length, 1);
-      final updatedItem = captured[0] as Item;
-      expect(updatedItem.claimedBy, userId);
-      expect(updatedItem.claimedAt, isNotNull);
-    });
-
-    test('should throw exception when user is not authenticated', () async {
-      // Arrange
-      const wishlistId = 'wishlist123';
-      final item = Item(id: 'item123', name: 'Test Item');
-
-      when(() => mockAuthSession.currentUserId).thenReturn(null);
-
-      // Act & Assert
-      expect(
-        () => claimItemUseCase.execute(wishlistId, item),
-        throwsA(isA<Exception>()),
-      );
+      verify(() => mockItemRepository.claim(itemId, claimedBy: userId))
+          .called(1);
       verifyNever(() => mockItemRepository.update(any(), any()));
     });
 
-    test('should propagate exceptions from ItemRepository', () async {
+    test('throws a signed-out failure when nobody is signed in', () async {
       // Arrange
-      const wishlistId = 'wishlist123';
-      const userId = 'user123';
-      final item = Item(id: 'item123', name: 'Test Item');
-      final exception = Exception('Failed to claim item');
-
-      when(() => mockAuthSession.currentUserId).thenReturn(userId);
-      when(() => mockWishlistRepository.items(wishlistId))
-          .thenReturn(mockItemRepository);
-      when(() => mockItemRepository.update(any(), any())).thenThrow(exception);
+      when(() => mockAuthSession.currentUserId).thenReturn(null);
 
       // Act & Assert
-      expect(() => claimItemUseCase.execute(wishlistId, item), throwsException);
+      await expectLater(
+        claimItemUseCase.execute(wishlistId, itemId),
+        throwsA(
+          isA<ClaimFailure>().having(
+            (failure) => failure.reason,
+            'reason',
+            ClaimFailureReason.signedOut,
+          ),
+        ),
+      );
+      verifyNever(
+        () =>
+            mockItemRepository.claim(any(), claimedBy: any(named: 'claimedBy')),
+      );
+    });
+
+    test('throws a ClaimFailure carrying the reason and code', () async {
+      // Arrange
+      const String code = 'permission-denied';
+      when(() => mockAuthSession.currentUserId).thenReturn(userId);
+      when(() => mockItemRepository.claim(itemId, claimedBy: userId))
+          .thenThrow(const CodedError(code));
+
+      // Act & Assert
+      await expectLater(
+        claimItemUseCase.execute(wishlistId, itemId),
+        throwsA(
+          isA<ClaimFailure>()
+              .having(
+                (failure) => failure.reason,
+                'reason',
+                ClaimFailureReason.accessDenied,
+              )
+              .having((failure) => failure.code, 'code', code),
+        ),
+      );
+    });
+
+    test("keeps the write's stack trace on the ClaimFailure", () async {
+      // Arrange
+      const String marker = 'original-failure-site';
+      when(() => mockAuthSession.currentUserId).thenReturn(userId);
+      when(() => mockItemRepository.claim(itemId, claimedBy: userId))
+          .thenAnswer(
+            (_) => Error.throwWithStackTrace(
+              const CodedError('permission-denied'),
+              StackTrace.fromString(marker),
+            ),
+          );
+
+      // Act
+      StackTrace? caught;
+      try {
+        await claimItemUseCase.execute(wishlistId, itemId);
+      } catch (_, stackTrace) {
+        caught = stackTrace;
+      }
+
+      // Assert
+      expect(caught, isNotNull);
+      expect(caught.toString(), contains(marker));
     });
   });
 
@@ -108,14 +141,6 @@ void main() {
     late MockItemRepository mockItemRepository;
     late ClaimItemUseCase claimItemUseCase;
     late RecordingSink sink;
-
-    const String wishlistId = 'wishlist123';
-    const String itemId = 'item123';
-    const String userId = 'user123';
-
-    setUpAll(() {
-      registerFallbackValue(Item(name: 'test'));
-    });
 
     setUp(() async {
       await getIt.reset();
@@ -136,15 +161,15 @@ void main() {
     tearDown(getIt.reset);
 
     test('reports started then completed', () async {
+      // Arrange
       when(() => mockAuthSession.currentUserId).thenReturn(userId);
-      when(() => mockItemRepository.update(any(), any()))
+      when(() => mockItemRepository.claim(itemId, claimedBy: userId))
           .thenAnswer((_) async {});
 
-      await claimItemUseCase.execute(
-        wishlistId,
-        Item(id: itemId, name: 'Test Item'),
-      );
+      // Act
+      await claimItemUseCase.execute(wishlistId, itemId);
 
+      // Assert
       expect(phasesOf(sink), <ClaimPhase>[
         ClaimPhase.started,
         ClaimPhase.completed,
@@ -152,43 +177,47 @@ void main() {
     });
 
     test('reports denied when nobody is signed in', () async {
+      // Arrange
       when(() => mockAuthSession.currentUserId).thenReturn(null);
 
+      // Act
       await expectLater(
-        claimItemUseCase.execute(
-          wishlistId,
-          Item(id: itemId, name: 'Test Item'),
-        ),
-        throwsA(isA<Exception>()),
+        claimItemUseCase.execute(wishlistId, itemId),
+        throwsA(isA<ClaimFailure>()),
       );
 
+      // Assert
       final event = sink.eventsOf<ClaimActionEvent>().single;
       expect(event.phase, ClaimPhase.denied);
-      expect(event.code, 'unauthenticated');
-      verifyNever(() => mockItemRepository.update(any(), any()));
+      expect(event.code, unauthenticatedCode);
+      verifyNever(
+        () =>
+            mockItemRepository.claim(any(), claimedBy: any(named: 'claimedBy')),
+      );
     });
 
     test(
-      'reports denied with the error code and rethrows on a failed write',
+      'reports denied with the error code and rethrows a ClaimFailure',
       () async {
+        // Arrange
         const code = 'permission-denied';
         when(() => mockAuthSession.currentUserId).thenReturn(userId);
-        when(() => mockItemRepository.update(any(), any()))
+        when(() => mockItemRepository.claim(itemId, claimedBy: userId))
             .thenThrow(const CodedError(code));
 
+        // Act
         await expectLater(
-          claimItemUseCase.execute(
-            wishlistId,
-            Item(id: itemId, name: 'Test Item'),
-          ),
-          throwsA(isA<CodedError>()),
+          claimItemUseCase.execute(wishlistId, itemId),
+          throwsA(isA<ClaimFailure>()),
         );
 
+        // Assert
         expect(phasesOf(sink), <ClaimPhase>[
           ClaimPhase.started,
           ClaimPhase.denied,
         ]);
         expect(sink.eventsOf<ClaimActionEvent>().last.code, code);
+        expect(sink.eventsOf<ErrorEvent>(), isEmpty);
       },
     );
 
@@ -197,14 +226,11 @@ void main() {
       const phoneNumber = '+15555550123';
       const updateMessageToken = 'MAINTENANCE-WINDOW-42';
       when(() => mockAuthSession.currentUserId).thenReturn(userId);
-      when(() => mockItemRepository.update(any(), any()))
+      when(() => mockItemRepository.claim(itemId, claimedBy: userId))
           .thenAnswer((_) async {});
 
       // Act
-      await claimItemUseCase.execute(
-        wishlistId,
-        Item(id: itemId, name: 'Test Item'),
-      );
+      await claimItemUseCase.execute(wishlistId, itemId);
 
       // Assert
       expectNoSensitiveValues(sink.records, <String>[

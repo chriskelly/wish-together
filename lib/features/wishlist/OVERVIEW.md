@@ -16,8 +16,8 @@ of the product.
 | ----- | ----- |
 | `domain/` | `wishlist.dart`, `item.dart` |
 | `data/` | `wishlist_repository.dart`, `item_repository.dart` |
-| `application/` | `create_wishlist_use_case.dart`, `update_wishlist_use_case.dart`, `create_item_use_case.dart`, `update_item_use_case.dart`, `claim_item_use_case.dart`, `unclaim_item_use_case.dart` |
-| `presentation/` | `wishlist_form_page.dart`, `wishlist_details_page.dart`, `item_form_page.dart` |
+| `application/` | `create_wishlist_use_case.dart`, `update_wishlist_use_case.dart`, `create_item_use_case.dart`, `update_item_use_case.dart`, `claim_item_use_case.dart`, `claim_failure.dart`, `unclaim_item_use_case.dart` |
+| `presentation/` | `wishlist_form_page.dart`, `wishlist_details_page.dart`, `claim_failure_message.dart`, `item_form_page.dart` |
 
 ## Key types
 
@@ -34,11 +34,18 @@ of the product.
 - `ItemRepository extends FirebaseRepository<Item>` — path
   `wishlists/{wishlistId}/items`; converts `claimedAt` between an ISO-8601 string (model)
   and a Firestore `Timestamp` (storage); `unclaim(itemId)` nulls `claimedBy` and
-  `claimedAt` in one update.
-- Use cases: create/update wishlist; create/update item; `ClaimItemUseCase` (sets
-  `claimedBy` to the current uid and `claimedAt` to now); `UnclaimItemUseCase`. The claim
-  use cases report a `claimAction` phase (`started`, `completed`, or `denied` with the
-  error code) and rethrow a failed write unchanged.
+  `claimedAt` in one update, and `claim(itemId, claimedBy:)` writes only that pair, with
+  `Timestamp.now()` as the timestamp. A claim never writes the rest of the item, so a
+  reader's stale copy or a document missing an optional field cannot make the write
+  invalid.
+- Use cases: create/update wishlist; create/update item; `ClaimItemUseCase` (takes the
+  item id and claims it for the current uid; `ItemRepository.claim` stamps `claimedAt`);
+  `UnclaimItemUseCase`.
+  The claim use cases report a `claimAction` phase (`started`, `completed`, or `denied` with
+  the error code); `ClaimItemUseCase` throws a `ClaimFailure` whose reason is one of
+  `accessDenied`, `offline`, `itemMissing`, `signedOut` or `unknown`, preserving the
+  write's stack trace. `claim_failure_message.dart` turns the thrown object into copy, so
+  the claim path never prints the exception.
 
 ## Invariants
 
@@ -82,11 +89,17 @@ shared with a group appears in that group's details page because of
 ## How it is tested
 
 - `test/features/wishlist/application/` — the six use cases with `mocktail` mocks
-  registered in `getIt` (claim records uid + non-null timestamp, unauthenticated throw,
-  exception propagation).
+  registered in `getIt` (claim calls `claim` with the uid and never `update`, a failed
+  write throws a `ClaimFailure` with its stack trace, unauthenticated throw) and
+  `ClaimFailure.from`'s code-to-reason table.
 - `test/features/wishlist/data/` — `WishlistRepository` (sub-collection wiring, item
   update, the no-id `ArgumentError`, remove-from-group, `listOwnedBy`, and
   `deleteWithItems` removing the items *and* the wishlist without touching a sibling)
-  and `ItemRepository` (`claimedAt` `Timestamp` round-trip and `unclaim` nulling)
-  against `FakeFirebaseFirestore`.
-- The wishlist pages have no widget tests.
+  and `ItemRepository` (`claimedAt` `Timestamp` round-trip, `unclaim` nulling, and `claim`
+  leaving stored content — including an absent optional field — untouched) against
+  `FakeFirebaseFirestore`. The field-scope repository test and the use case's
+  `verifyNever(update)` together guard the regression.
+- `test/features/wishlist/presentation/` — `claimFailureMessage` copy and its fallback for
+  a thrown object that is not a `ClaimFailure`; the pages themselves have no widget tests.
+- `rules_tests/` — a whole-map claim carrying stale content is denied, documenting the
+  denial the pair-only write avoids; the rules themselves are unchanged.

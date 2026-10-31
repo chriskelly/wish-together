@@ -118,6 +118,33 @@ profile).
   read fails. Sign out lives only on `HomePage`, so an account whose read never succeeds has no
   in-app way to sign out or switch account either. The page recovers on the first read that
   succeeds.
+- **Home-page reads belong to the signed-in session, and end before it does.**
+  `_HomePageState` starts its three reads — the user document, the wishlists query and the groups
+  query, all keyed by the uid it reads at that moment — through `_subscribeDataStreams()`, and
+  `build()` renders from state without touching a repository. `_cancelDataStreams()` cancels all
+  three; the logout button calls it immediately before awaiting `AuthService.signOut()`,
+  `dispose()` calls it as a safety net, and every start is preceded by a cancel so a second
+  lifecycle cannot leak the first. The ordering is the point:
+  a home listener that outlives the credential makes Firestore re-issue its reads unauthenticated,
+  which the rules deny — the sign-out bug this page used to have. The cancel is a Dart
+  subscription cancel, and that is the mechanism: each stream turns it into its own listener
+  removal inside the same call (for queries, cancelling the snapshot `EventChannel` subscription,
+  which sends the platform's cancel), so the detach is issued before the credential is cleared.
+  The returned futures are deliberately not awaited: the detach is already issued, so awaiting
+  would only add a microtask. A page built with no uid subscribes to nothing, so a rebuild cannot
+  read or throw.
+  A sign-out that *fails* is handled by what the session looks like afterwards: still live, the
+  page reports the failure and then restarts its reads; already cleared, it starts nothing and
+  drops the session, so the page shows only its loading state. The failure is reported as an
+  `error` event with code `sign-out-failed`; it is retryable, so it tracks a user retrying rather
+  than a crash loop. One sign-out runs at a time — a tap while one is in flight is ignored, and the
+  button is served again once it settles — and a sign-out that never settles leaves the page
+  without its reads until it does, because nothing on this path has a timeout. A read that errors
+  is not final — the same subscription delivers later, and a value clears the error — but nothing
+  re-subscribes on a rebuild any more, so a user-document read that never succeeds leaves the error
+  screen with a relaunch (a page reload on web) as its only exit. Sign out lives on this page
+  today; if it ever gains a second call site, that teardown belongs with whatever owns the session,
+  not with one page.
 - The default wishlist is created only on the first save (when the prior `displayName`
   was empty), so it is not duplicated on later profile edits.
 - `google_sign_in_stub.dart` is a compile-time stub that `login_page.dart` falls back to on
@@ -258,6 +285,16 @@ validate it on the **staging** site (or live) with a throwaway account for each 
   the phone flow leaving the code page on top of login through the real router, with a back
   action that returns to login and keeps the typed number; a second Send tap before the
   platform reports being ignored, Send re-enabling after a failure, and the timeout message.
+- `test/features/auth/presentation/home_page_test.dart` — the home page's read lifecycle against
+  mocked repositories and broadcast stream controllers: every read is cancelled *before*
+  `AuthService.signOut()` runs; no read is issued after sign-out, even for a late snapshot and a
+  rebuild; a page built with no signed-in user reads nothing, renders the spinner and survives a
+  rebuild; the three reads start together and a rebuild adds none; a failed sign-out with a live
+  session restarts the reads and clears the previous error; a tap during a sign-out is ignored
+  and served again once it settles, and a failed sign-out leaves no extra listener behind; a
+  failed sign-out that cleared the session starts nothing and shows only the loading state; a
+  sign-out cancels its reads before the session is cleared; a list error clears when data arrives;
+  and a failed or empty profile read shows the error screen.
 - `test/features/auth/presentation/verification_page_test.dart` — the code page's support code
   (visible on arrival and after a failed confirmation), the "sign-in expired" message when the
   page outlives the web sign-in, and the pending sign-in being discarded when the page closes.

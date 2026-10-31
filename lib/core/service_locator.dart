@@ -31,6 +31,9 @@ final getIt = GetIt.instance;
 /// neither and the locator builds them, while a caller that has its own — a
 /// test, or any session that must not touch Firebase — supplies it.
 ///
+/// [createAuthService] builds the production service when no session is
+/// supplied. Tests pass one because the real constructor needs Firebase.
+///
 /// A supplied session that is not an [AuthService] leaves the sign-in,
 /// verification and account-deletion screens unbuildable: resolving
 /// [AuthService] throws rather than constructing a second identity.
@@ -38,6 +41,7 @@ void setupServiceLocator({
   FirebaseFirestore? firestore,
   AppLog? appLog,
   AuthSession? authSession,
+  AuthService Function() createAuthService = AuthService.new,
 }) {
   // Diagnostics are optional: tests register only the collaborators they need,
   // and every call site goes through `appLogOrNull`.
@@ -55,7 +59,7 @@ void setupServiceLocator({
   // flows, so resolving it is an error rather than a silent second identity.
   getIt.registerLazySingleton<AuthService>(
     () => switch (authSession) {
-      null => AuthService(),
+      null => createAuthService(),
       final AuthService service => service,
       _ => throw StateError(
         'AuthService was resolved for a session that is not one: sign-in, '

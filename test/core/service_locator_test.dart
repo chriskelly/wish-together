@@ -49,6 +49,26 @@ void main() {
     expect(getIt<AuthService>(), same(authService));
   });
 
+  test('the production branch builds one service and serves both types', () {
+    final firestore = MockFirebaseFirestore();
+    final authService = MockAuthService();
+    var builds = 0;
+
+    // No session supplied: the locator builds the service, and both types must
+    // resolve to that one object. A second build would mean two identities.
+    setupServiceLocator(
+      firestore: firestore,
+      createAuthService: () {
+        builds++;
+        return authService;
+      },
+    );
+
+    expect(getIt<AuthSession>(), same(authService));
+    expect(getIt<AuthService>(), same(authService));
+    expect(builds, 1);
+  });
+
   test('a supplied session is what the signed-in shell resolves', () {
     final firestore = MockFirebaseFirestore();
     final session = MockAuthSession();

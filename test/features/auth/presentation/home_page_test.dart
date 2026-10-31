@@ -28,6 +28,8 @@ const String groupName = 'Family';
 const String signOutFailedMessage = 'Could not sign out. Please try again.';
 const String userLoadFailedMessage = 'Could not load user profile.';
 const String emptyWishlistsMessage = 'No wishlists yet. Create one!';
+const String lateWishlistName = 'Late arrival';
+const String lateGroupName = 'Late group';
 
 void main() {
   late MockAuthService authService;
@@ -149,21 +151,33 @@ void main() {
     expect(listenersAtSignOut, everyElement(isFalse));
   });
 
-  testWidgets('issues no read after sign-out, even for a late snapshot', (
-    tester,
-  ) async {
+  testWidgets('drops a snapshot that arrives after sign-out', (tester) async {
     // Arrange
     await loadSignedInHome(tester);
     await tester.tap(find.byTooltip('Logout'));
     await tester.pump();
     final readsBefore = (userReads, wishlistReads, groupReads);
+    final lateWishlist = Wishlist(
+      id: 'w2',
+      name: lateWishlistName,
+      ownerId: uid,
+    );
+    final lateGroup = Group(
+      id: 'g2',
+      name: lateGroupName,
+      ownerId: uid,
+      members: [uid],
+    );
 
     // Act
-    wishlistStream.add([wishlist]);
-    groupStream.add([group]);
+    wishlistStream.add([lateWishlist]);
+    groupStream.add([lateGroup]);
     await forcePageRebuild(tester);
 
-    // Assert
+    // Assert: the cancelled reads drop the late values, and the rebuild issues
+    // no new read. Without the cancel, the page would render them.
+    expect(find.text(lateWishlistName), findsNothing);
+    expect(find.text(lateGroupName), findsNothing);
     expect((userReads, wishlistReads, groupReads), readsBefore);
     expect(tester.takeException(), isNull);
   });

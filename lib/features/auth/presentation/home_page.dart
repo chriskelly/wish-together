@@ -150,8 +150,12 @@ class _HomePageState extends State<HomePage> {
   /// Called before signing out, so no listener is attached while the session is
   /// cleared: a listener that outlives the credential is what made Firestore
   /// re-issue its reads unauthenticated and report `permission-denied` for
-  /// `users`, `wishlists` and `groups`. The guarantee is at the Dart
-  /// subscription level, which is where the SDK's read is issued from.
+  /// `users`, `wishlists` and `groups`. The cancel is synchronous: the SDK's
+  /// query stream turns it into its own listener removal (cancelling the
+  /// snapshot `EventChannel` subscription, which sends the platform's cancel),
+  /// so the detach is issued before `signOut()` clears the credential. Waiting
+  /// on the returned future would wait for the platform's reply, not change
+  /// whether that call is made.
   void _cancelDataStreams() {
     unawaited(_userSubscription?.cancel());
     _userSubscription = null;

@@ -190,7 +190,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('restarts its reads and clears the previous error on failure', (
+  testWidgets('restarts its reads and clears the previous errors on failure', (
     tester,
   ) async {
     // Arrange: a failed list read, so the restart has an error to clear.

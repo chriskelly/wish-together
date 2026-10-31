@@ -36,7 +36,8 @@ class _HomePageState extends State<HomePage> {
   final WishlistRepository _wishlistRepository = getIt<WishlistRepository>();
   final GroupRepository _groupRepository = getIt<GroupRepository>();
 
-  /// The session the page is showing, captured when its reads start.
+  /// The uid the current reads were started for; null when no session is
+  /// readable, which is what stops the page rendering anything.
   String? _uid;
 
   StreamSubscription<User>? _userSubscription;
@@ -68,20 +69,21 @@ class _HomePageState extends State<HomePage> {
 
   /// Starts the three reads that belong to the current session.
   ///
-  /// Called when the page is created and again if a sign-out fails while the
-  /// session survives. Nothing is read without a uid: on the first call the
-  /// router is about to show the login page, and a read here would race the
-  /// session being cleared.
+  /// Called when the page is created and again whenever a failed sign-out
+  /// leaves the page alive. A start with no session reads nothing: both the
+  /// first call (the router is about to show the login page) and a sign-out
+  /// that cleared the session before failing arrive here, and a read would
+  /// race the session being cleared.
   void _subscribeDataStreams() {
     // A start always replaces whatever a previous lifecycle left behind.
     _cancelDataStreams();
 
     final uid = _authService.currentUserId;
     // A start clears each read's failure, so a restarted lifecycle cannot show
-    // the previous one's error. Results are kept: the page keeps rendering what
-    // it already shows rather than blanking until the next snapshot arrives.
-    // Nothing is readable without a uid, so a start with no session is also how
-    // a cleared session settles back to the loading state.
+    // the previous one's error. Results are kept, so a restart with a live
+    // session keeps rendering what it already shows instead of blanking until
+    // the next snapshot arrives; a start with no session settles the page back
+    // to its loading state, because nothing is readable without a uid.
     _uid = uid;
     _userError = null;
     _userStreamEnded = false;

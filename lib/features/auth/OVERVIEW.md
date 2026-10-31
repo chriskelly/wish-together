@@ -128,8 +128,9 @@ profile).
   Firestore re-issue its reads unauthenticated, which the rules deny — the sign-out bug this page
   used to have. A page built with no uid subscribes to nothing, so a rebuild cannot read or throw.
   A sign-out that *fails* is handled by what the session looks like afterwards: still live, the
-  page reports the failure and then restarts its reads; already cleared, it drops everything that
-  belonged to the session and shows only its loading state. One sign-out runs at a time — a tap
+  page reports the failure and then restarts its reads; already cleared, it starts nothing and
+  drops the session, so the page shows only its loading state and the dead session's data is never
+  rendered. One sign-out runs at a time — a tap
   while one is in flight is ignored, and the button is served again once it settles — and a
   sign-out that never settles leaves the page without its reads until it does, because nothing on
   this path has a timeout. A read that errors is not final — the same subscription delivers later,

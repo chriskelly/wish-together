@@ -128,8 +128,9 @@ profile).
   Firestore re-issue its reads unauthenticated, which the rules deny — the sign-out bug this page
   used to have. A page built with no uid subscribes to nothing, so a rebuild cannot read or throw.
   A sign-out that *fails* is handled by what the session looks like afterwards: still live, the
-  page restarts its reads and reports the failure; already cleared, it drops to its loading state
-  and shows nothing of the dead session. A read that errors is not final — the same subscription
+  page restarts its reads and reports the failure; already cleared, it drops everything that
+  belonged to the session and shows only its loading state. One sign-out runs at a time: a second
+  tap while one is in flight is ignored, and the button is served again once it settles. A read that errors is not final — the same subscription
   delivers later, and a value clears the error — but nothing re-subscribes on a rebuild any more,
   so a profile read that never succeeds leaves the error screen with a reload as its only exit.
   The cancellation guarantee is at the Dart subscription level, which is where the SDK's read is
@@ -275,6 +276,14 @@ validate it on the **staging** site (or live) with a throwaway account for each 
   the phone flow leaving the code page on top of login through the real router, with a back
   action that returns to login and keeps the typed number; a second Send tap before the
   platform reports being ignored, Send re-enabling after a failure, and the timeout message.
+- `test/features/auth/presentation/home_page_test.dart` — the home page's read lifecycle against
+  mocked repositories and broadcast stream controllers: every read is cancelled *before*
+  `AuthService.signOut()` runs; no read is issued after sign-out, even for a late snapshot and a
+  rebuild; a page built with no signed-in user reads nothing, renders the spinner and survives a
+  rebuild; the three reads start together and a rebuild adds none; a failed sign-out with a live
+  session restarts the reads, clears the previous error and ignores a second tap; a failed
+  sign-out that cleared the session starts nothing and drops the session's data; a list error
+  clears when data arrives; and a failed or empty profile read shows the error screen.
 - `test/features/auth/presentation/verification_page_test.dart` — the code page's support code
   (visible on arrival and after a failed confirmation), the "sign-in expired" message when the
   page outlives the web sign-in, and the pending sign-in being discarded when the page closes.

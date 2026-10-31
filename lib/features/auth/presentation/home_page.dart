@@ -68,11 +68,13 @@ class _HomePageState extends State<HomePage> {
 
   /// Starts the three reads that belong to the current session.
   ///
-  /// Nothing is read without a uid: the router is about to show the login page,
-  /// and subscribing here would race the session being cleared.
+  /// Called when the page is created and again if a sign-out fails while the
+  /// session survives. Nothing is read without a uid: on the first call the
+  /// router is about to show the login page, and a read here would race the
+  /// session being cleared.
   void _subscribeDataStreams() {
-    // A start always replaces whatever a previous lifecycle left behind, so a
-    // second call cannot leak the first set of listeners.
+    // A start always replaces whatever a previous lifecycle left behind. The
+    // callers already cancel first; this keeps a future caller safe.
     _cancelDataStreams();
 
     final uid = _authService.currentUserId;
@@ -80,13 +82,18 @@ class _HomePageState extends State<HomePage> {
       return;
     }
     _uid = uid;
+    // A start begins with no result and no failure for any of the three reads,
+    // so a restarted lifecycle cannot show the previous one's error.
+    _userError = null;
+    _userStreamEnded = false;
+    _wishlistsError = null;
+    _groupsError = null;
 
     _userSubscription = _listen<User>(
       _userRepository.streamOne(uid),
       (user) => setState(() {
         _user = user;
         _userError = null;
-        _userStreamEnded = false;
       }),
       (error) => setState(() => _userError = error),
       onDone: () => setState(() => _userStreamEnded = true),
@@ -116,7 +123,7 @@ class _HomePageState extends State<HomePage> {
     Stream<T> stream,
     void Function(T value) onValue,
     void Function(Object error) onError, {
-    void Function()? onDone,
+    required void Function() onDone,
   }) {
     return stream.listen(
       (value) {
@@ -129,7 +136,7 @@ class _HomePageState extends State<HomePage> {
       },
       onDone: () {
         if (!mounted) return;
-        onDone?.call();
+        onDone();
       },
     );
   }
@@ -164,26 +171,24 @@ class _HomePageState extends State<HomePage> {
 
       if (_authService.currentUserId == null) {
         // The sign-out cleared the session before it failed: there is nothing
-        // left to read, so stop presenting a session that no longer exists and
-        // let the router take the page away.
-        setState(() => _uid = null);
+        // left to read, so drop everything that belonged to the dead session
+        // and let the router take the page away.
+        setState(() {
+          _uid = null;
+          _user = null;
+          _wishlists = null;
+          _groups = null;
+        });
         return;
       }
 
-      // The session is still live, so the page has to keep working: restart
-      // the reads instead of leaving a mounted page that never updates again.
-      try {
-        _subscribeDataStreams();
-      } catch (_) {
-        // A read that cannot even be created must not hide the failure report.
-      }
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text('Could not sign out. Please try again.'),
-          ),
-        );
+      // The session is still live, so the page has to keep working. Report the
+      // failure before restarting, so a restart that throws stays loud instead
+      // of vanishing behind a caught error.
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not sign out. Please try again.')),
+      );
+      setState(_subscribeDataStreams);
     } finally {
       _signingOut = false;
     }

@@ -43,6 +43,13 @@ void main() {
   late int wishlistReads;
   late int groupReads;
 
+  /// Whether each of the page's three reads currently has a listener.
+  List<bool> listenerState() => [
+    userStream.hasListener,
+    wishlistStream.hasListener,
+    groupStream.hasListener,
+  ];
+
   final user = User(id: uid, displayName: displayName);
   final wishlist = Wishlist(id: 'w1', name: wishlistName, ownerId: uid);
   final group = Group(id: 'g1', name: groupName, ownerId: uid, members: [uid]);
@@ -53,8 +60,8 @@ void main() {
     userRepository = MockUserRepository();
     wishlistRepository = MockWishlistRepository();
     groupRepository = MockGroupRepository();
-    // Broadcast: the pre-change code resubscribes per rebuild, and a
-    // single-subscription stream would fail structurally instead of logically.
+    // Broadcast, so the same controller can be listened to again after a
+    // restart and `hasListener` stays a usable assertion.
     userStream = StreamController<User>.broadcast();
     wishlistStream = StreamController<List<Wishlist>>.broadcast();
     groupStream = StreamController<List<Group>>.broadcast();
@@ -67,11 +74,7 @@ void main() {
     when(() => authService.currentUserId)
         .thenAnswer((_) => signedIn ? uid : null);
     when(() => authService.signOut()).thenAnswer((_) async {
-      listenersAtSignOut.addAll([
-        userStream.hasListener,
-        wishlistStream.hasListener,
-        groupStream.hasListener,
-      ]);
+      listenersAtSignOut.addAll(listenerState());
       signedIn = false;
     });
     when(() => userRepository.streamOne(uid)).thenAnswer((_) {
@@ -108,10 +111,10 @@ void main() {
   /// Rebuilds the page the way the router does: the element is dirtied and a
   /// frame runs, so `_HomePageState.build` executes again.
   ///
-  /// A `StatefulBuilder` returning the same `const HomePage()` would be a
-  /// no-op: `Element.updateChild` short-circuits an identical widget, so the
-  /// page would never rebuild and the assertions below would pass against the
-  /// broken code.
+  /// Dirtying the element is what makes the rebuild real: `Element.updateChild`
+  /// short-circuits an identical widget, so a parent that rebuilds with the
+  /// same `const HomePage()` would leave `build()` unrun and the "no read on
+  /// rebuild" assertions would prove nothing.
   Future<void> forcePageRebuild(WidgetTester tester) async {
     tester.element(find.byType(HomePage)).markNeedsBuild();
     await tester.pump();
@@ -135,11 +138,7 @@ void main() {
     // Arrange
     await loadSignedInHome(tester);
     expect((userReads, wishlistReads, groupReads), (1, 1, 1));
-    expect([
-      userStream.hasListener,
-      wishlistStream.hasListener,
-      groupStream.hasListener,
-    ], everyElement(isTrue));
+    expect(listenerState(), everyElement(isTrue));
 
     // Act
     await tester.tap(find.byTooltip('Logout'));
@@ -192,10 +191,18 @@ void main() {
   });
 
   testWidgets('restores its reads when sign-out fails', (tester) async {
-    // Arrange
+    // Arrange: a failed list read, so the restart has an error to clear.
     await loadSignedInHome(tester);
-    when(() => authService.signOut())
-        .thenAnswer((_) async => throw Exception('network'));
+    final listError = Exception('offline');
+    wishlistStream.addError(listError);
+    await tester.pump();
+    expect(find.text('An error occurred: $listError'), findsOneWidget);
+
+    var signOutCalls = 0;
+    when(() => authService.signOut()).thenAnswer((_) async {
+      signOutCalls++;
+      throw Exception('network');
+    });
     final readsBefore = (userReads, wishlistReads, groupReads);
 
     // Act
@@ -204,16 +211,32 @@ void main() {
     await tester.pump();
 
     // Assert: the session is still live, so the page must not be left inert.
+    expect(signOutCalls, 1);
     expect(userReads, readsBefore.$1 + 1);
     expect(wishlistReads, readsBefore.$2 + 1);
     expect(groupReads, readsBefore.$3 + 1);
-    expect([
-      userStream.hasListener,
-      wishlistStream.hasListener,
-      groupStream.hasListener,
-    ], everyElement(isTrue));
+    expect(listenerState(), everyElement(isTrue));
     expect(find.text(signOutFailedMessage), findsOneWidget);
+    expect(find.text('An error occurred: $listError'), findsNothing);
     expect(tester.takeException(), isNull);
+
+    // Act: the in-flight guard was reset, so a second attempt is served.
+    await tester.tap(find.byTooltip('Logout'));
+    await tester.pump();
+
+    // Assert
+    expect(signOutCalls, 2);
+
+    // Act: a successful sign-out cancels every listener. A duplicate listener
+    // left behind by the restart would keep `hasListener` true.
+    when(() => authService.signOut()).thenAnswer((_) async {
+      signedIn = false;
+    });
+    await tester.tap(find.byTooltip('Logout'));
+    await tester.pump();
+
+    // Assert
+    expect(listenerState(), everyElement(isFalse));
   });
 
   testWidgets(
@@ -235,13 +258,11 @@ void main() {
       // Assert: no restart against a session that is already gone, and no claim
       // that the user is still signed in.
       expect((userReads, wishlistReads, groupReads), readsBefore);
-      expect([
-        userStream.hasListener,
-        wishlistStream.hasListener,
-        groupStream.hasListener,
-      ], everyElement(isFalse));
+      expect(listenerState(), everyElement(isFalse));
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
       expect(find.text(signOutFailedMessage), findsNothing);
+      expect(find.text(wishlistName), findsNothing);
+      expect(find.text(groupName), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );
@@ -289,16 +310,9 @@ void main() {
     userStream.add(user);
     await tester.pump();
 
-    // Assert: the wishlist section settles on its placeholder, not a spinner
-    // (the group section is still waiting, so the page has a spinner of its own).
+    // Assert: the wishlist section settles on its placeholder. The group
+    // section is still waiting, so the page itself keeps its spinner.
     expect(find.text(emptyWishlistsMessage), findsOneWidget);
-    expect(
-      find.descendant(
-        of: find.text('My Wishlists'),
-        matching: find.byType(CircularProgressIndicator),
-      ),
-      findsNothing,
-    );
   });
 
   testWidgets('shows the error screen when the profile read fails', (

@@ -10,7 +10,8 @@ typedef EntityWidgetBuilder<T> = Widget Function(BuildContext context, T item);
 /// passes it directly, so both paths render the same thing: an error, a loading
 /// indicator, an empty placeholder, or the entries.
 class ListContentBuilder<T> extends StatelessWidget {
-  /// The current entries, or `null` while nothing has arrived yet.
+  /// The current entries, or `null` while nothing has arrived yet — including
+  /// while a stream subscription is being re-established.
   final List<T>? items;
 
   /// The failure to show in place of the entries, if any.
@@ -44,8 +45,6 @@ class ListContentBuilder<T> extends StatelessWidget {
     // An error outranks a missing value: a failed read has no entries to show,
     // and the caller that holds state keeps the two independent.
     if (error != null) {
-      // Reported at the data seam (FirebaseRepository); this widget only
-      // decides what to render.
       return errorWidget ?? Center(child: Text('An error occurred: $error'));
     }
     if (items == null) {

@@ -5,16 +5,25 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:wishtogether/common/widgets/stream_list_builder.dart';
 
 const emptyMessage = 'nothing here';
+const firstItem = 'one';
+const customEmpty = 'custom';
+const listPadding = EdgeInsets.only(bottom: 48);
 
 Widget host(Widget child) => MaterialApp(home: Scaffold(body: child));
 
-Widget listBuilder(Stream<List<String>> stream, {Widget? emptyWidget}) =>
-    StreamListBuilder<String>(
-      stream: stream,
-      entityWidgetBuilder: (_, item) => Text(item),
-      emptyMessage: emptyMessage,
-      emptyWidget: emptyWidget,
-    );
+Widget listBuilder(
+  Stream<List<String>> stream, {
+  Widget? emptyWidget,
+  bool isScrollable = true,
+  EdgeInsets? padding,
+}) => StreamListBuilder<String>(
+  stream: stream,
+  entityWidgetBuilder: (_, item) => Text(item),
+  emptyMessage: emptyMessage,
+  emptyWidget: emptyWidget,
+  isScrollable: isScrollable,
+  listPadding: padding,
+);
 
 void main() {
   testWidgets('shows the spinner until the stream emits', (tester) async {
@@ -24,9 +33,9 @@ void main() {
     await tester.pumpWidget(host(listBuilder(controller.stream)));
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
-    controller.add(const ['one']);
+    controller.add(const [firstItem]);
     await tester.pump();
-    expect(find.text('one'), findsOneWidget);
+    expect(find.text(firstItem), findsOneWidget);
   });
 
   testWidgets('shows the error text when the stream errors', (tester) async {
@@ -69,12 +78,14 @@ void main() {
     addTearDown(controller.close);
 
     await tester.pumpWidget(
-      host(listBuilder(controller.stream, emptyWidget: const Text('custom'))),
+      host(
+        listBuilder(controller.stream, emptyWidget: const Text(customEmpty)),
+      ),
     );
     controller.add(const []);
     await tester.pump();
 
-    expect(find.text('custom'), findsOneWidget);
+    expect(find.text(customEmpty), findsOneWidget);
     expect(find.text(emptyMessage), findsNothing);
   });
 
@@ -87,14 +98,37 @@ void main() {
     addTearDown(second.close);
 
     await tester.pumpWidget(host(listBuilder(first.stream)));
-    first.add(const ['one']);
+    first.add(const [firstItem]);
     await tester.pump();
-    expect(find.text('one'), findsOneWidget);
+    expect(find.text(firstItem), findsOneWidget);
 
     await tester.pumpWidget(host(listBuilder(second.stream)));
     await tester.pump();
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
-    expect(find.text('one'), findsNothing);
+    expect(find.text(firstItem), findsNothing);
+  });
+
+  testWidgets('forwards the list padding and the non-scrollable layout', (
+    tester,
+  ) async {
+    final controller = StreamController<List<String>>.broadcast();
+    addTearDown(controller.close);
+
+    await tester.pumpWidget(
+      host(
+        listBuilder(
+          controller.stream,
+          isScrollable: false,
+          padding: listPadding,
+        ),
+      ),
+    );
+    controller.add(const [firstItem]);
+    await tester.pump();
+
+    final listView = tester.widget<ListView>(find.byType(ListView));
+    expect(listView.padding, listPadding);
+    expect(listView.shrinkWrap, isTrue);
   });
 }

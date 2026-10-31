@@ -8,6 +8,8 @@ import 'package:wishtogether/common/widgets/list_content_builder.dart';
 const title = 'My Things';
 const emptyListMessage = 'No things yet.';
 const addTooltip = 'Add new string';
+const firstItem = 'one';
+const placeholderHeight = 100.0;
 
 Widget section(Stream<List<String>> stream, {VoidCallback? onAdd}) =>
     MaterialApp(
@@ -33,9 +35,9 @@ void main() {
     await tester.pumpWidget(section(controller.stream, onAdd: () => adds++));
     expect(find.text(title), findsOneWidget);
 
-    controller.add(const ['one']);
+    controller.add(const [firstItem]);
     await tester.pump();
-    expect(find.text('one'), findsOneWidget);
+    expect(find.text(firstItem), findsOneWidget);
 
     await tester.tap(find.byTooltip(addTooltip));
     expect(adds, 1);
@@ -52,6 +54,9 @@ void main() {
     await tester.pump();
 
     expect(find.text(emptyListMessage), findsOneWidget);
-    expect(tester.getSize(find.byType(ListEmptyPlaceholder)).height, 100);
+    expect(
+      tester.getSize(find.byType(ListEmptyPlaceholder)).height,
+      placeholderHeight,
+    );
   });
 }

@@ -35,7 +35,7 @@ class _HomePageState extends State<HomePage> {
   final WishlistRepository _wishlistRepository = getIt<WishlistRepository>();
   final GroupRepository _groupRepository = getIt<GroupRepository>();
 
-  /// The session the page is showing, captured once when the page is created.
+  /// The session the page is showing, captured when its reads start.
   String? _uid;
 
   StreamSubscription<User>? _userSubscription;
@@ -44,69 +44,19 @@ class _HomePageState extends State<HomePage> {
 
   User? _user;
   Object? _userError;
+  bool _userStreamEnded = false;
   List<Wishlist>? _wishlists;
   Object? _wishlistsError;
   List<Group>? _groups;
   Object? _groupsError;
 
+  /// Guards against a second tap while a sign-out is already in flight.
+  bool _signingOut = false;
+
   @override
   void initState() {
     super.initState();
-
-    // The page's reads belong to the session that was live when it was built.
-    // Without a uid there is nothing to read: the router is about to show the
-    // login page, and subscribing here would race the session being cleared.
-    final uid = _authService.currentUserId;
-    if (uid == null) {
-      return;
-    }
-    _uid = uid;
-
-    _userSubscription = _userRepository
-        .streamOne(uid)
-        .listen(
-          (user) {
-            if (!mounted) return;
-            setState(() {
-              _user = user;
-              _userError = null;
-            });
-          },
-          onError: (Object error) {
-            if (!mounted) return;
-            setState(() => _userError = error);
-          },
-        );
-    _wishlistSubscription = _wishlistRepository
-        .streamWhere('ownerId', isEqualTo: uid)
-        .listen(
-          (wishlists) {
-            if (!mounted) return;
-            setState(() {
-              _wishlists = wishlists;
-              _wishlistsError = null;
-            });
-          },
-          onError: (Object error) {
-            if (!mounted) return;
-            setState(() => _wishlistsError = error);
-          },
-        );
-    _groupSubscription = _groupRepository
-        .streamWhere('members', arrayContains: uid)
-        .listen(
-          (groups) {
-            if (!mounted) return;
-            setState(() {
-              _groups = groups;
-              _groupsError = null;
-            });
-          },
-          onError: (Object error) {
-            if (!mounted) return;
-            setState(() => _groupsError = error);
-          },
-        );
+    _subscribeDataStreams();
   }
 
   @override
@@ -115,12 +65,75 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
+  /// Starts the three reads that belong to the current session.
+  ///
+  /// Nothing is read without a uid: the router is about to show the login page,
+  /// and subscribing here would race the session being cleared.
+  void _subscribeDataStreams() {
+    final uid = _authService.currentUserId;
+    if (uid == null) {
+      return;
+    }
+    _uid = uid;
+
+    _userSubscription = _listen<User>(
+      _userRepository.streamOne(uid),
+      (user) => setState(() {
+        _user = user;
+        _userError = null;
+        _userStreamEnded = false;
+      }),
+      (error) => setState(() => _userError = error),
+      onDone: () => setState(() => _userStreamEnded = true),
+    );
+    _wishlistSubscription = _listen<List<Wishlist>>(
+      _wishlistRepository.streamWhere('ownerId', isEqualTo: uid),
+      (wishlists) => setState(() {
+        _wishlists = wishlists;
+        _wishlistsError = null;
+      }),
+      (error) => setState(() => _wishlistsError = error),
+    );
+    _groupSubscription = _listen<List<Group>>(
+      _groupRepository.streamWhere('members', arrayContains: uid),
+      (groups) => setState(() {
+        _groups = groups;
+        _groupsError = null;
+      }),
+      (error) => setState(() => _groupsError = error),
+    );
+  }
+
+  /// Subscribes, dropping any event that arrives after the page is gone.
+  StreamSubscription<T> _listen<T>(
+    Stream<T> stream,
+    void Function(T value) onValue,
+    void Function(Object error) onError, {
+    void Function()? onDone,
+  }) {
+    return stream.listen(
+      (value) {
+        if (!mounted) return;
+        onValue(value);
+      },
+      onError: (Object error) {
+        if (!mounted) return;
+        onError(error);
+      },
+      onDone: () {
+        if (!mounted) return;
+        onDone?.call();
+      },
+    );
+  }
+
   /// Drops every home read.
   ///
   /// Called before signing out, so no listener is attached while the session is
   /// cleared: a listener that outlives the credential is what made Firestore
   /// re-issue its reads unauthenticated and report `permission-denied` for
-  /// `users`, `wishlists` and `groups`.
+  /// `users`, `wishlists` and `groups`. The guarantee is at the Dart
+  /// subscription level, which is where the SDK's read is issued from.
   void _cancelDataStreams() {
     unawaited(_userSubscription?.cancel());
     _userSubscription = null;
@@ -131,18 +144,36 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _signOut() async {
+    if (_signingOut) {
+      return;
+    }
+    _signingOut = true;
     _cancelDataStreams();
-    await _authService.signOut();
+    try {
+      await _authService.signOut();
+    } catch (_) {
+      // The session is still live, so the page has to keep working: restart
+      // the reads (they are gated on a uid that is still present) instead of
+      // leaving a mounted page that never updates again.
+      if (!mounted) return;
+      _subscribeDataStreams();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not sign out. Please try again.')),
+      );
+    } finally {
+      _signingOut = false;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_userError != null) {
+    final user = _user;
+    final uid = _uid;
+
+    if (_userError != null || (_userStreamEnded && user == null)) {
       return _userLoadError();
     }
-
-    final user = _user;
-    if (user == null) {
+    if (user == null || uid == null) {
       return _userLoading();
     }
 
@@ -171,7 +202,7 @@ class _HomePageState extends State<HomePage> {
               items: _groups,
               error: _groupsError,
               emptyMessage: 'No groups yet. Create or join one!',
-              entityWidgetBuilder: _groupWidgetBuilder(userId: _uid!),
+              entityWidgetBuilder: _groupWidgetBuilder(userId: uid),
             ),
           ],
         ),

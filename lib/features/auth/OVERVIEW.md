@@ -125,9 +125,14 @@ profile).
   it **before** awaiting `AuthService.signOut()`; `dispose()` calls it again as a safety net.
   The ordering is the point: a home listener that outlives the credential makes Firestore
   re-issue its reads unauthenticated, which the rules deny — the sign-out bug this page used to
-  have. A page built with no uid subscribes to nothing, so a rebuild cannot read or throw. Sign
-  out lives on this page today; if it ever gains a second call site, or the `AuthService` API is
-  redesigned (#61), that teardown belongs with the session owner instead.
+  have. A page built with no uid subscribes to nothing, so a rebuild cannot read or throw. If the
+  sign-out call itself fails, the page restarts its reads (the session is still live) and says so,
+  rather than staying mounted with no data sources. A read that errors — or a profile stream that
+  ends without a document — is final for this page: nothing re-subscribes automatically, so the
+  way out is to leave and return, which is deliberate now that a rebuild no longer issues reads.
+  The cancellation guarantee is at the Dart subscription level, which is where the SDK's read is
+  issued from. Sign out lives on this page today; if it ever gains a second call site, or the
+  `AuthService` API is redesigned (#61), that teardown belongs with the session owner instead.
 - The default wishlist is created only on the first save (when the prior `displayName`
   was empty), so it is not duplicated on later profile edits.
 - `google_sign_in_stub.dart` is a compile-time stub that `login_page.dart` falls back to on

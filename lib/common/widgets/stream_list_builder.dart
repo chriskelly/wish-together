@@ -32,8 +32,8 @@ class StreamListBuilder<T> extends StatelessWidget {
       builder: (context, snapshot) {
         // A new stream identity — a parent rebuild passing a freshly built
         // stream — makes the snapshot report `waiting` while it keeps the
-        // previous data and error. Both are cleared here so the resubscribe
-        // shows the loading state, which is what this widget has always done.
+        // previous data and error. Both are cleared here so a resubscribe
+        // shows the loading state rather than the previous query's result.
         final waiting = snapshot.connectionState == ConnectionState.waiting;
         return ListContentBuilder<T>(
           items: waiting ? null : (snapshot.hasData ? snapshot.data : <T>[]),

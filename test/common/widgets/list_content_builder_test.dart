@@ -3,16 +3,27 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:wishtogether/common/widgets/list_content_builder.dart';
 
 const emptyMessage = 'nothing here';
+const firstItem = 'one';
+const secondItem = 'two';
+const customLoading = 'custom loading';
+const customError = 'custom error';
+const placeholderHeight = 100.0;
 
 Widget host(Widget child) => MaterialApp(home: Scaffold(body: child));
 
-Widget content({List<String>? items, Object? error}) =>
-    ListContentBuilder<String>(
-      items: items,
-      error: error,
-      entityWidgetBuilder: (_, item) => Text(item),
-      emptyMessage: emptyMessage,
-    );
+Widget content({
+  List<String>? items,
+  Object? error,
+  Widget? loadingWidget,
+  Widget? errorWidget,
+}) => ListContentBuilder<String>(
+  items: items,
+  error: error,
+  entityWidgetBuilder: (_, item) => Text(item),
+  emptyMessage: emptyMessage,
+  loadingWidget: loadingWidget,
+  errorWidget: errorWidget,
+);
 
 void main() {
   testWidgets('shows the spinner while items are null and no error is set', (
@@ -40,21 +51,44 @@ void main() {
   });
 
   testWidgets('shows one widget per item', (tester) async {
-    await tester.pumpWidget(host(content(items: const ['one', 'two'])));
+    await tester.pumpWidget(
+      host(content(items: const [firstItem, secondItem])),
+    );
 
-    expect(find.text('one'), findsOneWidget);
-    expect(find.text('two'), findsOneWidget);
+    expect(find.text(firstItem), findsOneWidget);
+    expect(find.text(secondItem), findsOneWidget);
     expect(find.text(emptyMessage), findsNothing);
   });
 
-  testWidgets('ListEmptyPlaceholder renders a 100px box with its message', (
-    tester,
-  ) async {
+  testWidgets('prefers the custom loading and error widgets', (tester) async {
     await tester.pumpWidget(
-      host(const ListEmptyPlaceholder(message: emptyMessage)),
+      host(content(loadingWidget: const Text(customLoading))),
     );
+    expect(find.text(customLoading), findsOneWidget);
 
-    expect(find.text(emptyMessage), findsOneWidget);
-    expect(tester.getSize(find.byType(ListEmptyPlaceholder)).height, 100);
+    await tester.pumpWidget(
+      host(
+        content(
+          error: Exception('offline'),
+          errorWidget: const Text(customError),
+        ),
+      ),
+    );
+    expect(find.text(customError), findsOneWidget);
   });
+
+  testWidgets(
+    'ListEmptyPlaceholder renders a fixed-height box with its message',
+    (tester) async {
+      await tester.pumpWidget(
+        host(const ListEmptyPlaceholder(message: emptyMessage)),
+      );
+
+      expect(find.text(emptyMessage), findsOneWidget);
+      expect(
+        tester.getSize(find.byType(ListEmptyPlaceholder)).height,
+        placeholderHeight,
+      );
+    },
+  );
 }

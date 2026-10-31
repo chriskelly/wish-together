@@ -25,6 +25,8 @@ const String uid = 'user-1';
 const String displayName = 'Grace';
 const String wishlistName = 'Beach trip';
 const String groupName = 'Family';
+const String signOutFailedMessage = 'Could not sign out. Please try again.';
+const String userLoadFailedMessage = 'Could not load user profile.';
 
 void main() {
   late MockAuthService authService;
@@ -114,8 +116,9 @@ void main() {
     await tester.pump();
   }
 
-  /// Loads the page in production order: the user document first, then the two
-  /// lists.
+  /// Loads the page with all three reads filled: the user document first,
+  /// then the two lists (the reads themselves start together when the page is
+  /// created).
   Future<void> loadSignedInHome(WidgetTester tester) async {
     await pumpHome(tester);
     userStream.add(user);
@@ -131,6 +134,11 @@ void main() {
     // Arrange
     await loadSignedInHome(tester);
     expect((userReads, wishlistReads, groupReads), (1, 1, 1));
+    expect([
+      userStream.hasListener,
+      wishlistStream.hasListener,
+      groupStream.hasListener,
+    ], everyElement(isTrue));
 
     // Act
     await tester.tap(find.byTooltip('Logout'));
@@ -169,11 +177,74 @@ void main() {
     // Act
     await pumpHome(tester);
     await tester.pump();
+
+    // Assert: nothing to read, no crash, and the loading state is what shows.
+    expect((userReads, wishlistReads, groupReads), (0, 0, 0));
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    // Act
     await forcePageRebuild(tester);
 
     // Assert
     expect((userReads, wishlistReads, groupReads), (0, 0, 0));
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('restores its reads when sign-out fails', (tester) async {
+    // Arrange
+    await loadSignedInHome(tester);
+    when(() => authService.signOut())
+        .thenAnswer((_) async => throw Exception('network'));
+    final readsBefore = (userReads, wishlistReads, groupReads);
+
+    // Act
+    await tester.tap(find.byTooltip('Logout'));
+    await tester.pump();
+    await tester.pump();
+
+    // Assert: the session is still live, so the page must not be left inert.
+    expect(userReads, readsBefore.$1 + 1);
+    expect(wishlistReads, readsBefore.$2 + 1);
+    expect(groupReads, readsBefore.$3 + 1);
+    expect([
+      userStream.hasListener,
+      wishlistStream.hasListener,
+      groupStream.hasListener,
+    ], everyElement(isTrue));
+    expect(find.text(signOutFailedMessage), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('shows the error screen when the profile read fails', (
+    tester,
+  ) async {
+    // Arrange
+    await pumpHome(tester);
+
+    // Act
+    userStream.addError(Exception('offline'));
+    await tester.pump();
+
+    // Assert
+    expect(find.text(userLoadFailedMessage), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
+
+  testWidgets('shows the error screen when the profile stream ends empty', (
+    tester,
+  ) async {
+    // Arrange: a profile stream that completes without ever emitting. Awaiting
+    // `StreamController.close()` inside a widget test hangs (the done event
+    // needs the real event loop), so the stream is stubbed directly.
+    when(() => userRepository.streamOne(uid))
+        .thenAnswer((_) => Stream<User>.empty());
+
+    // Act
+    await pumpHome(tester);
+    await tester.pump();
+
+    // Assert
+    expect(find.text(userLoadFailedMessage), findsOneWidget);
   });
 
   testWidgets(

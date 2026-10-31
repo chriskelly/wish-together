@@ -60,12 +60,15 @@ void main() {
     expect(find.text(emptyMessage), findsNothing);
   });
 
-  testWidgets('prefers the custom loading and error widgets', (tester) async {
+  testWidgets('prefers the custom loading widget', (tester) async {
     await tester.pumpWidget(
       host(content(loadingWidget: const Text(customLoading))),
     );
-    expect(find.text(customLoading), findsOneWidget);
 
+    expect(find.text(customLoading), findsOneWidget);
+  });
+
+  testWidgets('prefers the custom error widget', (tester) async {
     await tester.pumpWidget(
       host(
         content(
@@ -74,6 +77,7 @@ void main() {
         ),
       ),
     );
+
     expect(find.text(customError), findsOneWidget);
   });
 

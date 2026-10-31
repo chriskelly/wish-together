@@ -79,6 +79,7 @@ class ListContentBuilder<T> extends StatelessWidget {
 
 /// The bordered, fixed-height box a data section shows when it has no entries.
 class ListEmptyPlaceholder extends StatelessWidget {
+  /// The copy shown inside the box.
   final String message;
 
   const ListEmptyPlaceholder({super.key, required this.message});

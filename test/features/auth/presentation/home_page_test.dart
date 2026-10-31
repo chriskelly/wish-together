@@ -27,6 +27,7 @@ const String wishlistName = 'Beach trip';
 const String groupName = 'Family';
 const String signOutFailedMessage = 'Could not sign out. Please try again.';
 const String userLoadFailedMessage = 'Could not load user profile.';
+const String emptyWishlistsMessage = 'No wishlists yet. Create one!';
 
 void main() {
   late MockAuthService authService;
@@ -213,6 +214,91 @@ void main() {
     ], everyElement(isTrue));
     expect(find.text(signOutFailedMessage), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'drops the dead session when sign-out cleared it before failing',
+    (tester) async {
+      // Arrange
+      await loadSignedInHome(tester);
+      when(() => authService.signOut()).thenAnswer((_) async {
+        signedIn = false;
+        throw Exception('network');
+      });
+      final readsBefore = (userReads, wishlistReads, groupReads);
+
+      // Act
+      await tester.tap(find.byTooltip('Logout'));
+      await tester.pump();
+      await tester.pump();
+
+      // Assert: no restart against a session that is already gone, and no claim
+      // that the user is still signed in.
+      expect((userReads, wishlistReads, groupReads), readsBefore);
+      expect([
+        userStream.hasListener,
+        wishlistStream.hasListener,
+        groupStream.hasListener,
+      ], everyElement(isFalse));
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.text(signOutFailedMessage), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('ignores a second tap while sign-out is in flight', (
+    tester,
+  ) async {
+    // Arrange
+    await loadSignedInHome(tester);
+    final pending = Completer<void>();
+    var signOutCalls = 0;
+    when(() => authService.signOut()).thenAnswer((_) {
+      signOutCalls++;
+      return pending.future;
+    });
+
+    // Act: both taps land before the first sign-out completes.
+    await tester.tap(find.byTooltip('Logout'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Logout'));
+    await tester.pump();
+
+    // Assert
+    expect(signOutCalls, 1);
+
+    // Act: a tap after the first one finishes is served again.
+    pending.complete();
+    await tester.pump();
+    await tester.tap(find.byTooltip('Logout'));
+    await tester.pump();
+
+    // Assert
+    expect(signOutCalls, 2);
+  });
+
+  testWidgets('shows the empty placeholder when a list stream ends empty', (
+    tester,
+  ) async {
+    // Arrange
+    when(() => wishlistRepository.streamWhere('ownerId', isEqualTo: uid))
+        .thenAnswer((_) => Stream<List<Wishlist>>.empty());
+
+    // Act
+    await pumpHome(tester);
+    userStream.add(user);
+    await tester.pump();
+
+    // Assert: the wishlist section settles on its placeholder, not a spinner
+    // (the group section is still waiting, so the page has a spinner of its own).
+    expect(find.text(emptyWishlistsMessage), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.text('My Wishlists'),
+        matching: find.byType(CircularProgressIndicator),
+      ),
+      findsNothing,
+    );
   });
 
   testWidgets('shows the error screen when the profile read fails', (

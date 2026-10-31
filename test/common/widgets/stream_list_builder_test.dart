@@ -109,6 +109,28 @@ void main() {
     expect(find.text(firstItem), findsNothing);
   });
 
+  testWidgets(
+    'shows the spinner, not a retained error, when the stream changes',
+    (tester) async {
+      final first = StreamController<List<String>>.broadcast();
+      final second = StreamController<List<String>>.broadcast();
+      addTearDown(first.close);
+      addTearDown(second.close);
+      final error = Exception('offline');
+
+      await tester.pumpWidget(host(listBuilder(first.stream)));
+      first.addError(error);
+      await tester.pump();
+      expect(find.text('An error occurred: $error'), findsOneWidget);
+
+      await tester.pumpWidget(host(listBuilder(second.stream)));
+      await tester.pump();
+
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.text('An error occurred: $error'), findsNothing);
+    },
+  );
+
   testWidgets('forwards the list padding and the non-scrollable layout', (
     tester,
   ) async {

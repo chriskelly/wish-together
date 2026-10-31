@@ -6,6 +6,7 @@ import 'package:wishtogether/common/widgets/confirmation_dialog.dart';
 import 'package:wishtogether/common/widgets/data_section_builder.dart';
 import 'package:wishtogether/common/widgets/list_content_builder.dart';
 import 'package:wishtogether/common/widgets/list_item_actions.dart';
+import 'package:wishtogether/core/logging/diagnostics.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
 import 'package:wishtogether/features/group/data/group_repository.dart';
@@ -70,6 +71,10 @@ class _HomePageState extends State<HomePage> {
   /// Nothing is read without a uid: the router is about to show the login page,
   /// and subscribing here would race the session being cleared.
   void _subscribeDataStreams() {
+    // A start always replaces whatever a previous lifecycle left behind, so a
+    // second call cannot leak the first set of listeners.
+    _cancelDataStreams();
+
     final uid = _authService.currentUserId;
     if (uid == null) {
       return;
@@ -93,6 +98,7 @@ class _HomePageState extends State<HomePage> {
         _wishlistsError = null;
       }),
       (error) => setState(() => _wishlistsError = error),
+      onDone: () => setState(() => _wishlists ??= const <Wishlist>[]),
     );
     _groupSubscription = _listen<List<Group>>(
       _groupRepository.streamWhere('members', arrayContains: uid),
@@ -101,6 +107,7 @@ class _HomePageState extends State<HomePage> {
         _groupsError = null;
       }),
       (error) => setState(() => _groupsError = error),
+      onDone: () => setState(() => _groups ??= const <Group>[]),
     );
   }
 
@@ -151,15 +158,32 @@ class _HomePageState extends State<HomePage> {
     _cancelDataStreams();
     try {
       await _authService.signOut();
-    } catch (_) {
-      // The session is still live, so the page has to keep working: restart
-      // the reads (they are gated on a uid that is still present) instead of
-      // leaving a mounted page that never updates again.
+    } catch (error, stackTrace) {
+      appLogOrNull?.error(error, stackTrace, code: 'sign-out-failed');
       if (!mounted) return;
-      _subscribeDataStreams();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not sign out. Please try again.')),
-      );
+
+      if (_authService.currentUserId == null) {
+        // The sign-out cleared the session before it failed: there is nothing
+        // left to read, so stop presenting a session that no longer exists and
+        // let the router take the page away.
+        setState(() => _uid = null);
+        return;
+      }
+
+      // The session is still live, so the page has to keep working: restart
+      // the reads instead of leaving a mounted page that never updates again.
+      try {
+        _subscribeDataStreams();
+      } catch (_) {
+        // A read that cannot even be created must not hide the failure report.
+      }
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Could not sign out. Please try again.'),
+          ),
+        );
     } finally {
       _signingOut = false;
     }

@@ -39,7 +39,7 @@ Every failed operation reports a `FirestoreErrorEvent` at this one seam, tagged 
 `collectionName` and the structured code, and then behaves exactly as before: a future
 `rethrow`s the original error and a stream re-emits it through a transformer (not
 `Stream.handleError`, which would make the stream forget the error and break
-the list renderers' error UI — `StreamListBuilder`, `ListContentBuilder`).
+the error UI that `StreamListBuilder` and `ListContentBuilder` render).
 Diagnostics never change the outcome. The guard covers the
 model mapping too, so a `fromFirestore`/`toFirestore` `TypeError` is reported as a
 `firestoreError` with no code — a client bug, not a backend code.

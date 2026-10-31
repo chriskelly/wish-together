@@ -118,18 +118,20 @@ profile).
   read fails. Sign out lives only on `HomePage`, so an account whose read never succeeds has no
   in-app way to sign out or switch account either. The page recovers on the first read that
   succeeds.
-- **Home-page reads belong to one signed-in session, and end before the session does.**
-  `_HomePageState` subscribes once, in `initState`, to the user document and to the wishlist and
-  group queries (all three keyed by the uid captured there); `build()` renders from state and
-  never calls a repository. `_cancelDataStreams()` cancels all three, and the logout button calls
-  it **before** awaiting `AuthService.signOut()`; `dispose()` calls it again as a safety net.
-  The ordering is the point: a home listener that outlives the credential makes Firestore
-  re-issue its reads unauthenticated, which the rules deny — the sign-out bug this page used to
-  have. A page built with no uid subscribes to nothing, so a rebuild cannot read or throw. If the
-  sign-out call itself fails, the page restarts its reads (the session is still live) and says so,
-  rather than staying mounted with no data sources. A read that errors — or a profile stream that
-  ends without a document — is final for this page: nothing re-subscribes automatically, so the
-  way out is to leave and return, which is deliberate now that a rebuild no longer issues reads.
+- **Home-page reads belong to the signed-in session, and end before it does.**
+  `_HomePageState` starts its three reads — the user document, the wishlists query and the groups
+  query, all keyed by the uid it reads at that moment — through `_subscribeDataStreams()`, and
+  `build()` renders from state without touching a repository. `_cancelDataStreams()` cancels all
+  three; the logout button calls it **before** awaiting `AuthService.signOut()`, `dispose()` calls
+  it again as a safety net, and every start is preceded by a cancel so a second lifecycle cannot
+  leak the first. The ordering is the point: a home listener that outlives the credential makes
+  Firestore re-issue its reads unauthenticated, which the rules deny — the sign-out bug this page
+  used to have. A page built with no uid subscribes to nothing, so a rebuild cannot read or throw.
+  A sign-out that *fails* is handled by what the session looks like afterwards: still live, the
+  page restarts its reads and reports the failure; already cleared, it drops to its loading state
+  and shows nothing of the dead session. A read that errors is not final — the same subscription
+  delivers later, and a value clears the error — but nothing re-subscribes on a rebuild any more,
+  so a profile read that never succeeds leaves the error screen with a reload as its only exit.
   The cancellation guarantee is at the Dart subscription level, which is where the SDK's read is
   issued from. Sign out lives on this page today; if it ever gains a second call site, or the
   `AuthService` API is redesigned (#61), that teardown belongs with the session owner instead.

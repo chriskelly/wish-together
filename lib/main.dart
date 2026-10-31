@@ -240,7 +240,14 @@ Future<void> _activateAppCheck() async {
 class WishTogetherApp extends StatelessWidget {
   final GoRouter router;
 
-  const WishTogetherApp({super.key, required this.router});
+  /// Rendered as a strip above every page, outside the navigator.
+  ///
+  /// Production passes nothing. A development entrypoint uses it to mark the
+  /// build and name the scenario it is showing, so a screenshot can never be
+  /// mistaken for the real app.
+  final Widget? banner;
+
+  const WishTogetherApp({super.key, required this.router, this.banner});
 
   @override
   Widget build(BuildContext context) {
@@ -254,7 +261,7 @@ class WishTogetherApp extends StatelessWidget {
       darkTheme: darkTheme,
       themeMode: ThemeMode.system,
       builder: (context, child) {
-        return Container(
+        final pages = Container(
           color: Theme.of(context).scaffoldBackgroundColor,
           child: Center(
             child: ConstrainedBox(
@@ -262,6 +269,16 @@ class WishTogetherApp extends StatelessWidget {
               child: child,
             ),
           ),
+        );
+        final banner = this.banner;
+        if (banner == null) {
+          return pages;
+        }
+        return Column(
+          children: [
+            banner,
+            Expanded(child: pages),
+          ],
         );
       },
     );

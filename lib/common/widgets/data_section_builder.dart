@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:wishtogether/common/widgets/list_content_builder.dart';
 import 'package:wishtogether/common/widgets/stream_list_builder.dart';
 
 class DataSectionBuilder<T> extends StatelessWidget {

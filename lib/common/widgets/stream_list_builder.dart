@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-
-// Defines a function signature for building a widget for an item of type T.
-typedef EntityWidgetBuilder<T> = Widget Function(BuildContext context, T item);
+import 'package:wishtogether/common/widgets/list_content_builder.dart';
 
 class StreamListBuilder<T> extends StatelessWidget {
   final Stream<List<T>> stream;
@@ -32,39 +30,21 @@ class StreamListBuilder<T> extends StatelessWidget {
     return StreamBuilder<List<T>>(
       stream: stream,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return loadingWidget ??
-              const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          // Reported at the data seam (FirebaseRepository); this widget only
-          // decides what to render.
-          return errorWidget ??
-              Center(child: Text('An error occurred: ${snapshot.error}'));
-        }
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return emptyWidget ??
-              Center(
-                child: Text(
-                  emptyMessage ?? "No items found",
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              );
-        }
-
-        final items = snapshot.data!;
-
-        return ListView.builder(
-          // Control scrolling behavior based on the isScrollable flag
-          physics: isScrollable
-              ? const AlwaysScrollableScrollPhysics()
-              : const NeverScrollableScrollPhysics(),
-          shrinkWrap: !isScrollable, // Must be true for non-scrollable lists
-          padding: listPadding,
-          itemCount: items.length,
-          itemBuilder: (context, index) {
-            return entityWidgetBuilder(context, items[index]);
-          },
+        // A new stream identity — a parent rebuild passing a freshly built
+        // stream — makes the snapshot report `waiting` while it keeps the
+        // previous data and error. Both are cleared here so the resubscribe
+        // shows the loading state, which is what this widget has always done.
+        final waiting = snapshot.connectionState == ConnectionState.waiting;
+        return ListContentBuilder<T>(
+          items: waiting ? null : (snapshot.hasData ? snapshot.data : <T>[]),
+          error: waiting ? null : (snapshot.hasError ? snapshot.error : null),
+          entityWidgetBuilder: entityWidgetBuilder,
+          loadingWidget: loadingWidget,
+          errorWidget: errorWidget,
+          emptyWidget: emptyWidget,
+          emptyMessage: emptyMessage,
+          isScrollable: isScrollable,
+          listPadding: listPadding,
         );
       },
     );

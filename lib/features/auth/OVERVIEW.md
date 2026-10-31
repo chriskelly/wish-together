@@ -118,6 +118,16 @@ profile).
   read fails. Sign out lives only on `HomePage`, so an account whose read never succeeds has no
   in-app way to sign out or switch account either. The page recovers on the first read that
   succeeds.
+- **Home-page reads belong to one signed-in session, and end before the session does.**
+  `_HomePageState` subscribes once, in `initState`, to the user document and to the wishlist and
+  group queries (all three keyed by the uid captured there); `build()` renders from state and
+  never calls a repository. `_cancelDataStreams()` cancels all three, and the logout button calls
+  it **before** awaiting `AuthService.signOut()`; `dispose()` calls it again as a safety net.
+  The ordering is the point: a home listener that outlives the credential makes Firestore
+  re-issue its reads unauthenticated, which the rules deny — the sign-out bug this page used to
+  have. A page built with no uid subscribes to nothing, so a rebuild cannot read or throw. Sign
+  out lives on this page today; if it ever gains a second call site, or the `AuthService` API is
+  redesigned (#61), that teardown belongs with the session owner instead.
 - The default wishlist is created only on the first save (when the prior `displayName`
   was empty), so it is not duplicated on later profile edits.
 - `google_sign_in_stub.dart` is a compile-time stub that `login_page.dart` falls back to on

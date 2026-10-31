@@ -20,7 +20,7 @@ class MockDocumentReference extends Mock implements DocumentReference {}
 
 void main() {
   group('SaveUserProfileUseCase', () {
-    late MockAuthSession mockAuthService;
+    late MockAuthSession mockAuthSession;
     late MockUserRepository mockUserRepository;
     late MockWishlistRepository mockWishlistRepository;
     late SaveUserProfileUseCase saveUserProfileUseCase;
@@ -31,10 +31,10 @@ void main() {
 
     setUp(() {
       getIt.reset();
-      mockAuthService = MockAuthSession();
+      mockAuthSession = MockAuthSession();
       mockUserRepository = MockUserRepository();
       mockWishlistRepository = MockWishlistRepository();
-      getIt.registerSingleton<AuthSession>(mockAuthService);
+      getIt.registerSingleton<AuthSession>(mockAuthSession);
       getIt.registerSingleton<UserRepository>(mockUserRepository);
       getIt.registerSingleton<WishlistRepository>(mockWishlistRepository);
       saveUserProfileUseCase = SaveUserProfileUseCase();
@@ -50,7 +50,7 @@ void main() {
       const displayName = 'John Doe';
       final existingUser = User(id: userId, displayName: 'Old Name');
 
-      when(() => mockAuthService.currentUserId).thenReturn(userId);
+      when(() => mockAuthSession.currentUserId).thenReturn(userId);
       when(() => mockUserRepository.get(userId))
           .thenAnswer((_) async => existingUser);
       when(() => mockUserRepository.updateData(any(), any()))
@@ -73,7 +73,7 @@ void main() {
       final existingUser = User(id: userId, displayName: null);
       final mockDocRef = MockDocumentReference();
 
-      when(() => mockAuthService.currentUserId).thenReturn(userId);
+      when(() => mockAuthSession.currentUserId).thenReturn(userId);
       when(() => mockUserRepository.get(userId))
           .thenAnswer((_) async => existingUser);
       when(() => mockUserRepository.updateData(any(), any()))
@@ -99,7 +99,7 @@ void main() {
       const displayName = 'John Doe';
       final existingUser = User(id: userId, displayName: 'Old Name');
 
-      when(() => mockAuthService.currentUserId).thenReturn(userId);
+      when(() => mockAuthSession.currentUserId).thenReturn(userId);
       when(() => mockUserRepository.get(userId))
           .thenAnswer((_) async => existingUser);
       when(() => mockUserRepository.updateData(any(), any()))
@@ -118,7 +118,7 @@ void main() {
 
     test('should throw exception when user is not authenticated', () async {
       // Arrange
-      when(() => mockAuthService.currentUserId).thenReturn(null);
+      when(() => mockAuthSession.currentUserId).thenReturn(null);
 
       // Act & Assert
       expect(
@@ -132,7 +132,7 @@ void main() {
       // Arrange
       const userId = 'user123';
       final exception = Exception('Failed to update user');
-      when(() => mockAuthService.currentUserId).thenReturn(userId);
+      when(() => mockAuthSession.currentUserId).thenReturn(userId);
       when(() => mockUserRepository.get(userId))
           .thenAnswer((_) async => User(id: userId));
       when(() => mockUserRepository.updateData(any(), any()))

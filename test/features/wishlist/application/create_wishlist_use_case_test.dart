@@ -16,7 +16,7 @@ class MockDocumentReference extends Mock implements DocumentReference {}
 
 void main() {
   group('CreateWishlistUseCase', () {
-    late MockAuthSession mockAuthService;
+    late MockAuthSession mockAuthSession;
     late MockWishlistRepository mockWishlistRepository;
     late CreateWishlistUseCase createWishlistUseCase;
 
@@ -26,9 +26,9 @@ void main() {
 
     setUp(() {
       getIt.reset();
-      mockAuthService = MockAuthSession();
+      mockAuthSession = MockAuthSession();
       mockWishlistRepository = MockWishlistRepository();
-      getIt.registerSingleton<AuthSession>(mockAuthService);
+      getIt.registerSingleton<AuthSession>(mockAuthSession);
       getIt.registerSingleton<WishlistRepository>(mockWishlistRepository);
       createWishlistUseCase = CreateWishlistUseCase();
     });
@@ -43,7 +43,7 @@ void main() {
       const wishlistName = 'My Wishlist';
       final mockDocRef = MockDocumentReference();
 
-      when(() => mockAuthService.currentUserId).thenReturn(userId);
+      when(() => mockAuthSession.currentUserId).thenReturn(userId);
       when(() => mockWishlistRepository.add(any()))
           .thenAnswer((_) async => mockDocRef);
 
@@ -61,7 +61,7 @@ void main() {
 
     test('should throw exception when user is not authenticated', () async {
       // Arrange
-      when(() => mockAuthService.currentUserId).thenReturn(null);
+      when(() => mockAuthSession.currentUserId).thenReturn(null);
 
       // Act & Assert
       expect(
@@ -75,7 +75,7 @@ void main() {
       // Arrange
       const userId = 'user123';
       final exception = Exception('Failed to create wishlist');
-      when(() => mockAuthService.currentUserId).thenReturn(userId);
+      when(() => mockAuthSession.currentUserId).thenReturn(userId);
       when(() => mockWishlistRepository.add(any())).thenThrow(exception);
 
       // Act & Assert

@@ -30,6 +30,10 @@ final getIt = GetIt.instance;
 /// [firestore] and [authSession] are composition seams: production passes
 /// neither and the locator builds them, while a caller that has its own — a
 /// test, or any session that must not touch Firebase — supplies it.
+///
+/// A supplied session that is not an [AuthService] leaves the sign-in,
+/// verification and account-deletion screens unbuildable: resolving
+/// [AuthService] throws rather than constructing a second identity.
 void setupServiceLocator({
   FirebaseFirestore? firestore,
   AppLog? appLog,
@@ -49,18 +53,16 @@ void setupServiceLocator({
   // resolves and the concrete service the sign-in and deletion flows resolve.
   // A supplied session that is not the production service cannot answer those
   // flows, so resolving it is an error rather than a silent second identity.
-  getIt.registerLazySingleton<AuthService>(() {
-    if (authSession == null) {
-      return AuthService();
-    }
-    if (authSession is AuthService) {
-      return authSession;
-    }
-    throw StateError(
-      'AuthService was resolved for a session that is not one: sign-in, '
-      're-authentication and account deletion need the production service.',
-    );
-  });
+  getIt.registerLazySingleton<AuthService>(
+    () => switch (authSession) {
+      null => AuthService(),
+      final AuthService service => service,
+      _ => throw StateError(
+        'AuthService was resolved for a session that is not one: sign-in, '
+        're-authentication and account deletion need the production service.',
+      ),
+    },
+  );
   getIt.registerLazySingleton<AuthSession>(
     () => authSession ?? getIt<AuthService>(),
   );

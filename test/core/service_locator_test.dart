@@ -10,10 +10,10 @@ import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 
 class MockFirebaseFirestore extends Mock implements FirebaseFirestore {}
 
-/// The production service.
 class MockAuthService extends Mock implements AuthService {}
 
-/// A session with no Firebase behind it, which is what the seam exists for.
+/// A session that is not the production service, which is what the seam exists
+/// for.
 class MockAuthSession extends Mock implements AuthSession {}
 
 void main() {
@@ -53,8 +53,7 @@ void main() {
     final firestore = MockFirebaseFirestore();
     final session = MockAuthSession();
 
-    // Resolving the session must not build the production service: that
-    // constructor needs Firebase, so a wrong wiring throws here.
+    // The mock stands in, so resolving the session needs no Firebase.
     setupServiceLocator(firestore: firestore, authSession: session);
 
     expect(getIt<AuthSession>(), same(session));

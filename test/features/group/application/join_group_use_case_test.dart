@@ -11,15 +11,15 @@ class MockGroupRepository extends Mock implements GroupRepository {}
 
 void main() {
   group('JoinGroupUseCase', () {
-    late MockAuthSession mockAuthService;
+    late MockAuthSession mockAuthSession;
     late MockGroupRepository mockGroupRepository;
     late JoinGroupUseCase joinGroupUseCase;
 
     setUp(() {
       getIt.reset();
-      mockAuthService = MockAuthSession();
+      mockAuthSession = MockAuthSession();
       mockGroupRepository = MockGroupRepository();
-      getIt.registerSingleton<AuthSession>(mockAuthService);
+      getIt.registerSingleton<AuthSession>(mockAuthSession);
       getIt.registerSingleton<GroupRepository>(mockGroupRepository);
       joinGroupUseCase = JoinGroupUseCase();
     });
@@ -33,7 +33,7 @@ void main() {
       const groupId = 'group123';
       const userId = 'user123';
 
-      when(() => mockAuthService.currentUserId).thenReturn(userId);
+      when(() => mockAuthSession.currentUserId).thenReturn(userId);
       when(() => mockGroupRepository.joinGroup(any(), any()))
           .thenAnswer((_) async => {});
 
@@ -46,7 +46,7 @@ void main() {
 
     test('should throw exception when user is not authenticated', () async {
       // Arrange
-      when(() => mockAuthService.currentUserId).thenReturn(null);
+      when(() => mockAuthSession.currentUserId).thenReturn(null);
 
       // Act & Assert
       expect(
@@ -61,7 +61,7 @@ void main() {
       const groupId = 'group123';
       const userId = 'user123';
       final exception = Exception('Failed to join group');
-      when(() => mockAuthService.currentUserId).thenReturn(userId);
+      when(() => mockAuthSession.currentUserId).thenReturn(userId);
       when(() => mockGroupRepository.joinGroup(any(), any()))
           .thenThrow(exception);
 

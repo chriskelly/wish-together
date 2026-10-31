@@ -21,7 +21,7 @@ class MockItemRepository extends Mock implements ItemRepository {}
 
 void main() {
   group('ClaimItemUseCase', () {
-    late MockAuthSession mockAuthService;
+    late MockAuthSession mockAuthSession;
     late MockWishlistRepository mockWishlistRepository;
     late MockItemRepository mockItemRepository;
     late ClaimItemUseCase claimItemUseCase;
@@ -32,10 +32,10 @@ void main() {
 
     setUp(() {
       getIt.reset();
-      mockAuthService = MockAuthSession();
+      mockAuthSession = MockAuthSession();
       mockWishlistRepository = MockWishlistRepository();
       mockItemRepository = MockItemRepository();
-      getIt.registerSingleton<AuthSession>(mockAuthService);
+      getIt.registerSingleton<AuthSession>(mockAuthSession);
       getIt.registerSingleton<WishlistRepository>(mockWishlistRepository);
       claimItemUseCase = ClaimItemUseCase();
     });
@@ -51,7 +51,7 @@ void main() {
       const userId = 'user123';
       final item = Item(id: itemId, name: 'Test Item');
 
-      when(() => mockAuthService.currentUserId).thenReturn(userId);
+      when(() => mockAuthSession.currentUserId).thenReturn(userId);
       when(() => mockWishlistRepository.items(wishlistId))
           .thenReturn(mockItemRepository);
       when(() => mockItemRepository.update(any(), any()))
@@ -75,7 +75,7 @@ void main() {
       const wishlistId = 'wishlist123';
       final item = Item(id: 'item123', name: 'Test Item');
 
-      when(() => mockAuthService.currentUserId).thenReturn(null);
+      when(() => mockAuthSession.currentUserId).thenReturn(null);
 
       // Act & Assert
       expect(
@@ -92,7 +92,7 @@ void main() {
       final item = Item(id: 'item123', name: 'Test Item');
       final exception = Exception('Failed to claim item');
 
-      when(() => mockAuthService.currentUserId).thenReturn(userId);
+      when(() => mockAuthSession.currentUserId).thenReturn(userId);
       when(() => mockWishlistRepository.items(wishlistId))
           .thenReturn(mockItemRepository);
       when(() => mockItemRepository.update(any(), any())).thenThrow(exception);
@@ -103,7 +103,7 @@ void main() {
   });
 
   group('ClaimItemUseCase diagnostics', () {
-    late MockAuthSession mockAuthService;
+    late MockAuthSession mockAuthSession;
     late MockWishlistRepository mockWishlistRepository;
     late MockItemRepository mockItemRepository;
     late ClaimItemUseCase claimItemUseCase;
@@ -119,11 +119,11 @@ void main() {
 
     setUp(() async {
       await getIt.reset();
-      mockAuthService = MockAuthSession();
+      mockAuthSession = MockAuthSession();
       mockWishlistRepository = MockWishlistRepository();
       mockItemRepository = MockItemRepository();
       sink = RecordingSink();
-      getIt.registerSingleton<AuthSession>(mockAuthService);
+      getIt.registerSingleton<AuthSession>(mockAuthSession);
       getIt.registerSingleton<WishlistRepository>(mockWishlistRepository);
       getIt.registerSingleton<AppLog>(
         AppLog(session: testSession, sinks: <LogSink>[sink]),
@@ -136,7 +136,7 @@ void main() {
     tearDown(getIt.reset);
 
     test('reports started then completed', () async {
-      when(() => mockAuthService.currentUserId).thenReturn(userId);
+      when(() => mockAuthSession.currentUserId).thenReturn(userId);
       when(() => mockItemRepository.update(any(), any()))
           .thenAnswer((_) async {});
 
@@ -152,7 +152,7 @@ void main() {
     });
 
     test('reports denied when nobody is signed in', () async {
-      when(() => mockAuthService.currentUserId).thenReturn(null);
+      when(() => mockAuthSession.currentUserId).thenReturn(null);
 
       await expectLater(
         claimItemUseCase.execute(
@@ -172,7 +172,7 @@ void main() {
       'reports denied with the error code and rethrows on a failed write',
       () async {
         const code = 'permission-denied';
-        when(() => mockAuthService.currentUserId).thenReturn(userId);
+        when(() => mockAuthSession.currentUserId).thenReturn(userId);
         when(() => mockItemRepository.update(any(), any()))
             .thenThrow(const CodedError(code));
 
@@ -196,7 +196,7 @@ void main() {
       // Arrange
       const phoneNumber = '+15555550123';
       const updateMessageToken = 'MAINTENANCE-WINDOW-42';
-      when(() => mockAuthService.currentUserId).thenReturn(userId);
+      when(() => mockAuthSession.currentUserId).thenReturn(userId);
       when(() => mockItemRepository.update(any(), any()))
           .thenAnswer((_) async {});
 

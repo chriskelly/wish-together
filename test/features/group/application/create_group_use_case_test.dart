@@ -16,7 +16,7 @@ class MockDocumentReference extends Mock implements DocumentReference {}
 
 void main() {
   group('CreateGroupUseCase', () {
-    late MockAuthSession mockAuthService;
+    late MockAuthSession mockAuthSession;
     late MockGroupRepository mockGroupRepository;
     late CreateGroupUseCase createGroupUseCase;
 
@@ -26,9 +26,9 @@ void main() {
 
     setUp(() {
       getIt.reset();
-      mockAuthService = MockAuthSession();
+      mockAuthSession = MockAuthSession();
       mockGroupRepository = MockGroupRepository();
-      getIt.registerSingleton<AuthSession>(mockAuthService);
+      getIt.registerSingleton<AuthSession>(mockAuthSession);
       getIt.registerSingleton<GroupRepository>(mockGroupRepository);
       createGroupUseCase = CreateGroupUseCase();
     });
@@ -43,7 +43,7 @@ void main() {
       const groupName = 'My Group';
       final mockDocRef = MockDocumentReference();
 
-      when(() => mockAuthService.currentUserId).thenReturn(userId);
+      when(() => mockAuthSession.currentUserId).thenReturn(userId);
       when(() => mockGroupRepository.add(any()))
           .thenAnswer((_) async => mockDocRef);
 
@@ -63,7 +63,7 @@ void main() {
 
     test('should throw exception when user is not authenticated', () async {
       // Arrange
-      when(() => mockAuthService.currentUserId).thenReturn(null);
+      when(() => mockAuthSession.currentUserId).thenReturn(null);
 
       // Act & Assert
       expect(
@@ -77,7 +77,7 @@ void main() {
       // Arrange
       const userId = 'user123';
       final exception = Exception('Failed to create group');
-      when(() => mockAuthService.currentUserId).thenReturn(userId);
+      when(() => mockAuthSession.currentUserId).thenReturn(userId);
       when(() => mockGroupRepository.add(any())).thenThrow(exception);
 
       // Act & Assert

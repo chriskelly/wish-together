@@ -133,8 +133,9 @@ profile).
   while one is in flight is ignored, and the button is served again once it settles — and a
   sign-out that never settles leaves the page without its reads until it does, because nothing on
   this path has a timeout. A read that errors is not final — the same subscription delivers later,
-  and a value clears the error — but nothing re-subscribes on a rebuild any more, so a profile read
-  that never succeeds leaves the error screen with a reload as its only exit.
+  and a value clears the error — but nothing re-subscribes on a rebuild any more, so a user-document
+  read that never succeeds leaves the error screen with a relaunch (a page reload on web) as its
+  only exit.
   The cancellation guarantee is at the Dart subscription level, which is where the SDK's read is
   issued from. Sign out lives on this page today; if it ever gains a second call site, or the
   `AuthService` API is redesigned (#61), that teardown belongs with the session owner instead.

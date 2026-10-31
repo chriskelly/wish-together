@@ -77,20 +77,19 @@ class _HomePageState extends State<HomePage> {
     _cancelDataStreams();
 
     final uid = _authService.currentUserId;
-    if (uid == null) {
-      // The session went away between the caller's check and this one: stop
-      // presenting its data rather than leaving reads that cannot be started.
-      _uid = null;
-      return;
-    }
-    _uid = uid;
     // A start clears each read's failure, so a restarted lifecycle cannot show
     // the previous one's error. Results are kept: the page keeps rendering what
     // it already shows rather than blanking until the next snapshot arrives.
+    // Nothing is readable without a uid, so a start with no session is also how
+    // a cleared session settles back to the loading state.
+    _uid = uid;
     _userError = null;
     _userStreamEnded = false;
     _wishlistsError = null;
     _groupsError = null;
+    if (uid == null) {
+      return;
+    }
 
     _userSubscription = _listen<User>(
       _userRepository.streamOne(uid),
@@ -174,18 +173,8 @@ class _HomePageState extends State<HomePage> {
 
       if (_authService.currentUserId == null) {
         // The sign-out cleared the session before it failed: there is nothing
-        // left to read, so drop everything that belonged to the dead session
-        // and let the router take the page away.
-        setState(() {
-          _uid = null;
-          _user = null;
-          _userError = null;
-          _userStreamEnded = false;
-          _wishlists = null;
-          _wishlistsError = null;
-          _groups = null;
-          _groupsError = null;
-        });
+        // left to read, so start nothing and let the router take the page away.
+        setState(_subscribeDataStreams);
         return;
       }
 

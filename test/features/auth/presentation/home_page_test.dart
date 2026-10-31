@@ -196,9 +196,12 @@ void main() {
     // Arrange: a failed list read, so the restart has an error to clear.
     await loadSignedInHome(tester);
     final listError = Exception('offline');
+    final groupsError = Exception('groups offline');
     wishlistStream.addError(listError);
+    groupStream.addError(groupsError);
     await tester.pump();
     expect(find.text('An error occurred: $listError'), findsOneWidget);
+    expect(find.text('An error occurred: $groupsError'), findsOneWidget);
 
     when(() => authService.signOut()).thenAnswer((_) async {
       throw Exception('network');
@@ -217,42 +220,53 @@ void main() {
     expect(listenerState(), everyElement(isTrue));
     expect(find.text(signOutFailedMessage), findsOneWidget);
     expect(find.text('An error occurred: $listError'), findsNothing);
+    expect(find.text('An error occurred: $groupsError'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets(
-    'serves another attempt and leaves no extra listener on failure',
-    (tester) async {
-      // Arrange
-      await loadSignedInHome(tester);
-      var signOutCalls = 0;
-      when(() => authService.signOut()).thenAnswer((_) async {
-        signOutCalls++;
-        throw Exception('network');
-      });
+  testWidgets('serves another attempt after a failed sign-out', (tester) async {
+    // Arrange
+    await loadSignedInHome(tester);
+    var signOutCalls = 0;
+    when(() => authService.signOut()).thenAnswer((_) async {
+      signOutCalls++;
+      throw Exception('network');
+    });
+    await tester.tap(find.byTooltip('Logout'));
+    await tester.pump();
+    await tester.pump();
 
-      // Act
-      await tester.tap(find.byTooltip('Logout'));
-      await tester.pump();
-      await tester.pump();
+    // Act: the in-flight guard was reset by the failed attempt.
+    await tester.tap(find.byTooltip('Logout'));
+    await tester.pump();
 
-      // Assert: the in-flight guard was reset by the failed attempt.
-      await tester.tap(find.byTooltip('Logout'));
-      await tester.pump();
-      expect(signOutCalls, 2);
+    // Assert
+    expect(signOutCalls, 2);
+  });
 
-      // Act: a successful sign-out cancels every listener. A duplicate listener
-      // left behind by the restart would keep `hasListener` true.
-      when(() => authService.signOut()).thenAnswer((_) async {
-        signedIn = false;
-      });
-      await tester.tap(find.byTooltip('Logout'));
-      await tester.pump();
+  testWidgets('leaves no extra listener behind after a failed sign-out', (
+    tester,
+  ) async {
+    // Arrange
+    await loadSignedInHome(tester);
+    when(() => authService.signOut()).thenAnswer((_) async {
+      throw Exception('network');
+    });
+    await tester.tap(find.byTooltip('Logout'));
+    await tester.pump();
+    await tester.pump();
 
-      // Assert
-      expect(listenerState(), everyElement(isFalse));
-    },
-  );
+    // Act: a successful sign-out cancels every listener. A duplicate listener
+    // left behind by the restart would keep `hasListener` true.
+    when(() => authService.signOut()).thenAnswer((_) async {
+      signedIn = false;
+    });
+    await tester.tap(find.byTooltip('Logout'));
+    await tester.pump();
+
+    // Assert
+    expect(listenerState(), everyElement(isFalse));
+  });
 
   testWidgets(
     'drops the dead session when sign-out cleared it before failing',

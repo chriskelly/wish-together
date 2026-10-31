@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
+import 'package:wishtogether/features/auth/domain/auth_session.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
 import 'package:wishtogether/features/auth/domain/user.dart';
 import 'package:wishtogether/features/group/application/leave_group_use_case.dart';
@@ -102,7 +103,7 @@ void main() {
       when(() => userRepository.streamUsersFromIds(memberIds))
           .thenAnswer((_) => Stream.value(members));
 
-      getIt.registerSingleton<AuthService>(authService);
+      getIt.registerSingleton<AuthSession>(authService);
       getIt.registerSingleton<GroupRepository>(groupRepository);
       getIt.registerSingleton<WishlistRepository>(wishlistRepository);
       getIt.registerSingleton<UserRepository>(userRepository);

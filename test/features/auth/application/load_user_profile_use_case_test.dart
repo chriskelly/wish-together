@@ -2,25 +2,25 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/application/load_user_profile_use_case.dart';
-import 'package:wishtogether/features/auth/data/auth_service.dart';
+import 'package:wishtogether/features/auth/domain/auth_session.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
 import 'package:wishtogether/features/auth/domain/user.dart';
 
-class MockAuthService extends Mock implements AuthService {}
+class MockAuthSession extends Mock implements AuthSession {}
 
 class MockUserRepository extends Mock implements UserRepository {}
 
 void main() {
   group('LoadUserProfileUseCase', () {
-    late MockAuthService mockAuthService;
+    late MockAuthSession mockAuthSession;
     late MockUserRepository mockUserRepository;
     late LoadUserProfileUseCase loadUserProfileUseCase;
 
     setUp(() {
       getIt.reset();
-      mockAuthService = MockAuthService();
+      mockAuthSession = MockAuthSession();
       mockUserRepository = MockUserRepository();
-      getIt.registerSingleton<AuthService>(mockAuthService);
+      getIt.registerSingleton<AuthSession>(mockAuthSession);
       getIt.registerSingleton<UserRepository>(mockUserRepository);
       loadUserProfileUseCase = LoadUserProfileUseCase();
     });
@@ -38,7 +38,7 @@ void main() {
         email: 'test@example.com',
       );
 
-      when(() => mockAuthService.currentUserId).thenReturn(userId);
+      when(() => mockAuthSession.currentUserId).thenReturn(userId);
       when(() => mockUserRepository.get(userId)).thenAnswer((_) async => user);
 
       // Act
@@ -53,7 +53,7 @@ void main() {
 
     test('should return null when user is not authenticated', () async {
       // Arrange
-      when(() => mockAuthService.currentUserId).thenReturn(null);
+      when(() => mockAuthSession.currentUserId).thenReturn(null);
 
       // Act
       final result = await loadUserProfileUseCase.execute();
@@ -67,7 +67,7 @@ void main() {
       // Arrange
       const userId = 'user123';
       final exception = Exception('Failed to load user');
-      when(() => mockAuthService.currentUserId).thenReturn(userId);
+      when(() => mockAuthSession.currentUserId).thenReturn(userId);
       when(() => mockUserRepository.get(userId)).thenThrow(exception);
 
       // Act & Assert

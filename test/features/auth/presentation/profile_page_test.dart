@@ -13,6 +13,7 @@ import 'package:wishtogether/features/auth/application/delete_account_use_case.d
 import 'package:wishtogether/features/auth/application/load_user_profile_use_case.dart';
 import 'package:wishtogether/features/auth/application/save_user_profile_use_case.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
+import 'package:wishtogether/features/auth/domain/auth_session.dart';
 import 'package:wishtogether/features/auth/domain/user.dart';
 import 'package:wishtogether/features/auth/presentation/home_page.dart';
 import 'package:wishtogether/features/auth/presentation/profile_page.dart';
@@ -113,17 +114,23 @@ void main() {
 
   group('ProfilePage', () {
     late MockLoadUserProfileUseCase loadUserProfile;
+    late MockAuthService authService;
 
     setUp(() {
       getIt.reset();
       loadUserProfile = MockLoadUserProfileUseCase();
+      authService = MockAuthService();
+      // The production session offers deletion; the page only hides the danger
+      // zone for a session that cannot delete an account.
+      when(() => authService.supportsAccountDeletion).thenReturn(true);
       getIt.registerSingleton<LoadUserProfileUseCase>(loadUserProfile);
       // `_ProfilePageState` resolves the save use case when it is created and
       // the delete section resolves its two services when the form is built,
       // so all three must be registered even though these tests never save or
       // delete.
       getIt.registerSingleton<SaveUserProfileUseCase>(SaveUserProfileUseCase());
-      getIt.registerSingleton<AuthService>(MockAuthService());
+      getIt.registerSingleton<AuthService>(authService);
+      getIt.registerSingleton<AuthSession>(authService);
       getIt.registerSingleton<DeleteAccountUseCase>(DeleteAccountUseCase());
     });
 
@@ -214,6 +221,28 @@ void main() {
       );
       expect(find.text(loadFailedHeadline), findsNothing);
     });
+
+    testWidgets(
+      'hides account deletion when the session cannot delete accounts',
+      (tester) async {
+        // Arrange
+        when(() => authService.supportsAccountDeletion).thenReturn(false);
+        when(() => loadUserProfile.execute()).thenAnswer(
+          (_) async => User(id: 'user-1', displayName: 'Grace Hopper'),
+        );
+
+        // Act
+        await pumpProfilePage(tester);
+        await tester.pumpAndSettle();
+
+        // Assert
+        expect(find.text('Save and Continue'), findsOneWidget);
+        expect(
+          find.widgetWithText(OutlinedButton, 'Delete account'),
+          findsNothing,
+        );
+      },
+    );
 
     testWidgets(
       'keeps a nameless user in onboarding after a successful retry',
@@ -405,7 +434,10 @@ void main() {
       loadUserProfile = MockLoadUserProfileUseCase();
       getIt.registerSingleton<LoadUserProfileUseCase>(loadUserProfile);
       getIt.registerSingleton<SaveUserProfileUseCase>(SaveUserProfileUseCase());
-      getIt.registerSingleton<AuthService>(MockAuthService());
+      final authService = MockAuthService();
+      when(() => authService.supportsAccountDeletion).thenReturn(true);
+      getIt.registerSingleton<AuthService>(authService);
+      getIt.registerSingleton<AuthSession>(authService);
       getIt.registerSingleton<DeleteAccountUseCase>(DeleteAccountUseCase());
       getIt.registerSingleton<AppLog>(
         AppLog(session: testSession, sinks: const []),

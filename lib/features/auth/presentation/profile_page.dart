@@ -5,6 +5,7 @@ import 'package:wishtogether/core/logging/diagnostics.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/application/load_user_profile_use_case.dart';
 import 'package:wishtogether/features/auth/application/save_user_profile_use_case.dart';
+import 'package:wishtogether/features/auth/domain/auth_session.dart';
 import 'package:wishtogether/features/auth/presentation/delete_account_section.dart';
 import 'package:wishtogether/features/auth/presentation/home_page.dart';
 
@@ -88,6 +89,7 @@ class _ProfilePageState extends State<ProfilePage> {
   final _displayNameController = TextEditingController();
   final _loadUserProfileUseCase = getIt<LoadUserProfileUseCase>();
   final _saveUserProfileUseCase = getIt<SaveUserProfileUseCase>();
+  final _session = getIt<AuthSession>();
 
   User? _currentUser;
   ProfileLoadState _loadState = ProfileLoadState.loading;
@@ -244,9 +246,8 @@ class _ProfilePageState extends State<ProfilePage> {
           const SizedBox(height: 30),
           _saveButton(context),
           // The account exists as soon as the user signs in — even before they
-          // have picked a display name — so deletion must be reachable whenever
-          // the profile has loaded.
-          const DeleteAccountSection(),
+          // have picked a display name — so deletion belongs in the loaded form.
+          if (_session.supportsAccountDeletion) const DeleteAccountSection(),
           if (supportCode != null) ...[
             const SizedBox(height: 16),
             SupportCodeTile(supportCode: supportCode),

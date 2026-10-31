@@ -18,6 +18,7 @@ import 'package:wishtogether/core/logging/diagnostics.dart';
 import 'package:wishtogether/core/logging/redaction.dart';
 import 'package:wishtogether/features/auth/data/apple_auth_error.dart';
 import 'package:wishtogether/features/auth/data/phone_verification.dart';
+import 'package:wishtogether/features/auth/domain/auth_session.dart';
 
 /// Fetches an Apple ID credential.
 ///
@@ -48,7 +49,9 @@ const Set<String> _authCancellationCodes = <String>{
   'web-context-canceled',
 };
 
-class AuthService {
+/// The production [AuthSession]: Firebase Auth, Google Sign-In and Sign in with
+/// Apple, plus the sign-in, re-authentication and deletion flows that need them.
+class AuthService implements AuthSession {
   /// The web OAuth client id. Used by the web build and as the server client id.
   static String clientId =
       "1063002805065-eobumao8o4tk4s54ea41jogjvls62pu5.apps.googleusercontent.com";
@@ -67,7 +70,10 @@ class AuthService {
   /// successful [confirmPhoneCode] and by [discardPendingPhoneSignIn]. Web only.
   ConfirmationResult? _webConfirmation;
 
-  Stream<User?> get authStateChanges => _auth.authStateChanges();
+  /// The signed-in user's id on every auth transition, and `null` on sign-out.
+  @override
+  Stream<String?> get uidChanges =>
+      _auth.authStateChanges().map((user) => user?.uid);
 
   /// [auth], [isWeb], [appleCredentialFetcher] and [googleSignIn] are injectable
   /// so the platform-specific sign-in and re-authentication flows can be unit
@@ -122,6 +128,7 @@ class AuthService {
   //
   // The sign-out transition is reported by the router's auth listener (it is
   // the only app-wide subscription), so nothing is logged here.
+  @override
   Future<void> signOut() async {
     await _googleSignIn.signOut();
     await _auth.signOut();
@@ -130,11 +137,19 @@ class AuthService {
   // Expose the GoogleSignIn instance for the UI to use
   GoogleSignIn get googleSignIn => _googleSignIn;
 
+  @override
   String? get currentUserId => _auth.currentUser?.uid;
 
+  @override
   String? get currentUserEmail => _auth.currentUser?.email;
 
+  @override
   String? get currentUserPhoneNumber => _auth.currentUser?.phoneNumber;
+
+  /// In-app deletion re-authenticates against the real provider and deletes the
+  /// real auth account, so the production session always offers it.
+  @override
+  bool get supportsAccountDeletion => true;
 
   Future<void> verifyPhoneNumber({
     required String phoneNumber,
@@ -291,6 +306,7 @@ class AuthService {
   }
 
   /// The provider ids linked to the signed-in account.
+  @override
   List<String> get providerIds =>
       _auth.currentUser?.providerData.map((info) => info.providerId).toList() ??
       const <String>[];

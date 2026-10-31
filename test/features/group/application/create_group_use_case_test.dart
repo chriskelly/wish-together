@@ -2,12 +2,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:wishtogether/core/service_locator.dart';
-import 'package:wishtogether/features/auth/data/auth_service.dart';
+import 'package:wishtogether/features/auth/domain/auth_session.dart';
 import 'package:wishtogether/features/group/application/create_group_use_case.dart';
 import 'package:wishtogether/features/group/data/group_repository.dart';
 import 'package:wishtogether/features/group/domain/group.dart';
 
-class MockAuthService extends Mock implements AuthService {}
+class MockAuthSession extends Mock implements AuthSession {}
 
 class MockGroupRepository extends Mock implements GroupRepository {}
 
@@ -16,7 +16,7 @@ class MockDocumentReference extends Mock implements DocumentReference {}
 
 void main() {
   group('CreateGroupUseCase', () {
-    late MockAuthService mockAuthService;
+    late MockAuthSession mockAuthSession;
     late MockGroupRepository mockGroupRepository;
     late CreateGroupUseCase createGroupUseCase;
 
@@ -26,9 +26,9 @@ void main() {
 
     setUp(() {
       getIt.reset();
-      mockAuthService = MockAuthService();
+      mockAuthSession = MockAuthSession();
       mockGroupRepository = MockGroupRepository();
-      getIt.registerSingleton<AuthService>(mockAuthService);
+      getIt.registerSingleton<AuthSession>(mockAuthSession);
       getIt.registerSingleton<GroupRepository>(mockGroupRepository);
       createGroupUseCase = CreateGroupUseCase();
     });
@@ -43,7 +43,7 @@ void main() {
       const groupName = 'My Group';
       final mockDocRef = MockDocumentReference();
 
-      when(() => mockAuthService.currentUserId).thenReturn(userId);
+      when(() => mockAuthSession.currentUserId).thenReturn(userId);
       when(() => mockGroupRepository.add(any()))
           .thenAnswer((_) async => mockDocRef);
 
@@ -63,7 +63,7 @@ void main() {
 
     test('should throw exception when user is not authenticated', () async {
       // Arrange
-      when(() => mockAuthService.currentUserId).thenReturn(null);
+      when(() => mockAuthSession.currentUserId).thenReturn(null);
 
       // Act & Assert
       expect(
@@ -77,7 +77,7 @@ void main() {
       // Arrange
       const userId = 'user123';
       final exception = Exception('Failed to create group');
-      when(() => mockAuthService.currentUserId).thenReturn(userId);
+      when(() => mockAuthSession.currentUserId).thenReturn(userId);
       when(() => mockGroupRepository.add(any())).thenThrow(exception);
 
       // Act & Assert

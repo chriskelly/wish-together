@@ -30,6 +30,8 @@ import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 /// a mid-way failure leaves a partially-deleted account that a rerun finishes.
 class DeleteAccountUseCase {
   Future<void> execute() async {
+    // `deleteAccount()` is deliberately not on AuthSession: only the
+    // implementation that owns the auth account can delete it.
     final authService = getIt<AuthService>();
     final userRepository = getIt<UserRepository>();
     final wishlistRepository = getIt<WishlistRepository>();

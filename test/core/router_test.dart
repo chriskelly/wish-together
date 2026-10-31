@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:wishtogether/core/logging/app_event.dart';
 import 'package:wishtogether/core/logging/app_log.dart';
 import 'package:wishtogether/core/logging/log_sink.dart';
@@ -13,7 +12,7 @@ import 'logging/recording_sink.dart';
 import 'package:wishtogether/core/logging/session_context.dart';
 import 'package:wishtogether/core/router.dart';
 import 'package:wishtogether/core/service_locator.dart';
-import 'package:wishtogether/features/auth/data/auth_service.dart';
+import 'package:wishtogether/features/auth/domain/auth_session.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
 import 'package:wishtogether/features/auth/domain/user.dart';
 import 'package:wishtogether/features/auth/presentation/home_page.dart';
@@ -21,37 +20,33 @@ import 'package:wishtogether/features/auth/presentation/login_page.dart';
 import 'package:wishtogether/features/auth/presentation/profile_page.dart';
 import 'package:wishtogether/features/auth/presentation/verification_page.dart';
 
-class MockAuthService extends Mock implements AuthService {}
+class MockAuthSession extends Mock implements AuthSession {}
 
 class MockUserRepository extends Mock implements UserRepository {}
-
-class MockFirebaseUser extends Mock implements firebase_auth.User {}
-
-class MockProviderInfo extends Mock implements firebase_auth.UserInfo {}
 
 const joinPath = '/join?group=123';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  late MockAuthService mockAuthService;
+  late MockAuthSession mockSession;
   late MockUserRepository mockUserRepository;
 
   setUp(() {
-    mockAuthService = MockAuthService();
+    mockSession = MockAuthSession();
     mockUserRepository = MockUserRepository();
   });
 
   group('handleRedirect', () {
     group('user not logged in', () {
       setUp(() {
-        when(() => mockAuthService.currentUserId).thenReturn(null);
+        when(() => mockSession.currentUserId).thenReturn(null);
       });
 
       test('should not redirect when on the login page', () async {
         final result = await handleRedirect(
           LoginPage.route,
-          mockAuthService,
+          mockSession,
           userRepo: mockUserRepository,
         );
         expect(result, isNull);
@@ -60,7 +55,7 @@ void main() {
       test('should not redirect when on the verify page', () async {
         final result = await handleRedirect(
           VerificationPage.route,
-          mockAuthService,
+          mockSession,
           userRepo: mockUserRepository,
         );
         expect(result, isNull);
@@ -70,7 +65,7 @@ void main() {
         const initialRoute = HomePage.route; // This is '/'
         final result = await handleRedirect(
           initialRoute,
-          mockAuthService,
+          mockSession,
           userRepo: mockUserRepository,
         );
         final expectedRedirect =
@@ -81,7 +76,7 @@ void main() {
       test('should redirect to login page preserving the join link as redirect_to', () async {
         final result = await handleRedirect(
           joinPath,
-          mockAuthService,
+          mockSession,
           userRepo: mockUserRepository,
         );
         final expectedRedirect =
@@ -92,9 +87,9 @@ void main() {
 
     group('user logged in', () {
       setUp(() {
-        when(() => mockAuthService.currentUserId).thenReturn('test-uid');
-        when(() => mockAuthService.currentUserEmail).thenReturn(null);
-        when(() => mockAuthService.currentUserPhoneNumber).thenReturn(null);
+        when(() => mockSession.currentUserId).thenReturn('test-uid');
+        when(() => mockSession.currentUserEmail).thenReturn(null);
+        when(() => mockSession.currentUserPhoneNumber).thenReturn(null);
       });
 
       group('user has no display name', () {
@@ -111,7 +106,7 @@ void main() {
         test('should not redirect when on the profile page', () async {
           final result = await handleRedirect(
             ProfilePage.route,
-            mockAuthService,
+            mockSession,
             userRepo: mockUserRepository,
           );
           expect(result, isNull);
@@ -121,7 +116,7 @@ void main() {
           const initialRoute = HomePage.route; // This is '/'
           final result = await handleRedirect(
             initialRoute,
-            mockAuthService,
+            mockSession,
             userRepo: mockUserRepository,
           );
           final expectedRedirect =
@@ -134,7 +129,7 @@ void main() {
           // to render, so it must reach onboarding instead.
           final result = await handleRedirect(
             LoginPage.route,
-            mockAuthService,
+            mockSession,
             userRepo: mockUserRepository,
           );
           expect(result, ProfilePage.route);
@@ -145,7 +140,7 @@ void main() {
               '${LoginPage.route}?$redirectToParam=${Uri.encodeComponent(joinPath)}';
           final result = await handleRedirect(
             loginUriWithRedirect,
-            mockAuthService,
+            mockSession,
             userRepo: mockUserRepository,
           );
           final expectedRedirect =
@@ -156,7 +151,7 @@ void main() {
         test('should redirect to profile page preserving the join link as redirect_to', () async {
           final result = await handleRedirect(
             joinPath,
-            mockAuthService,
+            mockSession,
             userRepo: mockUserRepository,
           );
           final expectedRedirect =
@@ -169,7 +164,7 @@ void main() {
               '${VerificationPage.route}?$redirectToParam=${Uri.encodeComponent(joinPath)}';
           final result = await handleRedirect(
             verifyUriWithRedirect,
-            mockAuthService,
+            mockSession,
             userRepo: mockUserRepository,
           );
           final expectedRedirect =
@@ -200,7 +195,7 @@ void main() {
           () async {
             final result = await handleRedirect(
               LoginPage.route,
-              mockAuthService,
+              mockSession,
               userRepo: mockUserRepository,
             );
             expect(result, HomePage.route);
@@ -212,7 +207,7 @@ void main() {
               '${LoginPage.route}?$redirectToParam=${Uri.encodeComponent(joinPath)}';
           final result = await handleRedirect(
             loginUriWithRedirect,
-            mockAuthService,
+            mockSession,
             userRepo: mockUserRepository,
           );
           expect(result, joinPath);
@@ -223,7 +218,7 @@ void main() {
               '${VerificationPage.route}?$redirectToParam=${Uri.encodeComponent(joinPath)}';
           final result = await handleRedirect(
             verifyUriWithRedirect,
-            mockAuthService,
+            mockSession,
             userRepo: mockUserRepository,
           );
           expect(result, joinPath);
@@ -235,7 +230,7 @@ void main() {
             // From home
             var result = await handleRedirect(
               HomePage.route,
-              mockAuthService,
+              mockSession,
               userRepo: mockUserRepository,
             );
             expect(result, isNull);
@@ -243,7 +238,7 @@ void main() {
             // From join link
             result = await handleRedirect(
               '/join?group=123',
-              mockAuthService,
+              mockSession,
               userRepo: mockUserRepository,
             );
             expect(result, isNull);
@@ -255,9 +250,9 @@ void main() {
 
   group('handleRedirect repository resolution', () {
     test('uses the registered UserRepository when none is passed', () async {
-      when(() => mockAuthService.currentUserId).thenReturn('test-uid');
-      when(() => mockAuthService.currentUserEmail).thenReturn(null);
-      when(() => mockAuthService.currentUserPhoneNumber).thenReturn(null);
+      when(() => mockSession.currentUserId).thenReturn('test-uid');
+      when(() => mockSession.currentUserEmail).thenReturn(null);
+      when(() => mockSession.currentUserPhoneNumber).thenReturn(null);
       when(
         () => mockUserRepository.getOrCreateUser(
           any(),
@@ -268,7 +263,7 @@ void main() {
       getIt.registerSingleton<UserRepository>(mockUserRepository);
       addTearDown(getIt.reset);
 
-      final result = await handleRedirect(HomePage.route, mockAuthService);
+      final result = await handleRedirect(HomePage.route, mockSession);
 
       expect(result, isNull);
       verify(
@@ -298,12 +293,12 @@ void main() {
 
   group('deep-link startup', () {
     test('createRouter starts at the supplied initial location', () {
-      when(() => mockAuthService.authStateChanges)
-          .thenAnswer((_) => const Stream.empty());
+      when(() => mockSession.uidChanges)
+          .thenAnswer((_) => const Stream<String?>.empty());
 
       const initialLocation = '/join?group=123';
       final router = createRouter(
-        mockAuthService,
+        mockSession,
         userRepository: mockUserRepository,
         initialLocation: initialLocation,
       );
@@ -316,12 +311,12 @@ void main() {
     });
 
     test('forwards a full URL as an opaque location', () async {
-      when(() => mockAuthService.currentUserId).thenReturn(null);
+      when(() => mockSession.currentUserId).thenReturn(null);
 
       const hashLogin = 'https://wishtogether.gift/#/login';
       final result = await handleRedirect(
         hashLogin,
-        mockAuthService,
+        mockSession,
         userRepo: mockUserRepository,
       );
 
@@ -341,9 +336,9 @@ void main() {
       getIt.registerSingleton<AppLog>(
         AppLog(session: testSession, sinks: <LogSink>[sink]),
       );
-      when(() => mockAuthService.authStateChanges)
-          .thenAnswer((_) => const Stream.empty());
-      when(() => mockAuthService.currentUserId).thenReturn('user-1');
+      when(() => mockSession.uidChanges)
+          .thenAnswer((_) => const Stream<String?>.empty());
+      when(() => mockSession.currentUserId).thenReturn('user-1');
       when(
         () => mockUserRepository.getOrCreateUser(
           any(),
@@ -360,7 +355,7 @@ void main() {
 
     GoRouter buildRouter({String? initialLocation}) {
       final router = createRouter(
-        mockAuthService,
+        mockSession,
         userRepository: mockUserRepository,
         initialLocation: initialLocation,
       );
@@ -411,18 +406,18 @@ void main() {
 
   group('auth diagnostics', () {
     late RecordingSink sink;
-    late StreamController<firebase_auth.User?> authChanges;
+    late StreamController<String?> authChanges;
 
     setUp(() async {
       await getIt.reset();
       sink = RecordingSink();
-      authChanges = StreamController<firebase_auth.User?>();
+      authChanges = StreamController<String?>();
       addTearDown(authChanges.close);
       getIt.registerSingleton<AppLog>(
         AppLog(session: testSession, sinks: <LogSink>[sink]),
       );
-      when(() => mockAuthService.authStateChanges)
-          .thenAnswer((_) => authChanges.stream);
+      when(() => mockSession.uidChanges).thenAnswer((_) => authChanges.stream);
+      when(() => mockSession.providerIds).thenReturn(const <String>[]);
     });
 
     tearDown(getIt.reset);
@@ -432,7 +427,7 @@ void main() {
 
     GoRouter buildRouter() {
       final router = createRouter(
-        mockAuthService,
+        mockSession,
         userRepository: mockUserRepository,
       );
       addTearDown(router.dispose);
@@ -443,15 +438,10 @@ void main() {
       'reports the signed-in provider and stores only the derived ref',
       () async {
         const uid = 'firebase-uid-1';
-        final user = MockFirebaseUser();
-        final phone = MockProviderInfo();
-        when(() => user.uid).thenReturn(uid);
-        when(() => user.providerData)
-            .thenReturn(<firebase_auth.UserInfo>[phone]);
-        when(() => phone.providerId).thenReturn('phone');
+        when(() => mockSession.providerIds).thenReturn(const <String>['phone']);
         buildRouter();
 
-        authChanges.add(user);
+        authChanges.add(uid);
         await pumpEventQueue();
 
         expect(authEvents().single.outcome, AuthOutcome.phone);
@@ -461,6 +451,27 @@ void main() {
           record.toMap().values.join(' '),
           isNot(contains(uid)),
           reason: 'a raw uid must never reach a record',
+        );
+      },
+    );
+
+    test(
+      'reports each transition with the provider of that transition',
+      () async {
+        buildRouter();
+        when(() => mockSession.providerIds).thenReturn(const <String>['phone']);
+
+        authChanges.add('uid-phone');
+        await pumpEventQueue();
+
+        when(() => mockSession.providerIds)
+            .thenReturn(const <String>['apple.com']);
+        authChanges.add('uid-apple');
+        await pumpEventQueue();
+
+        expect(
+          authEvents().map((event) => event.outcome).toList(),
+          <AuthOutcome>[AuthOutcome.phone, AuthOutcome.apple],
         );
       },
     );

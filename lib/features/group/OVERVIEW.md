@@ -60,7 +60,7 @@ members identified by Firebase Auth uid; wishlists are shared *into* a group.
 `GroupDetailsPage` streams the group, streams member `User` documents via
 `UserRepository.streamUsersFromIds(group.members)`, and streams shared wishlists via
 `streamWhere('sharedWithGroups', arrayContains: groupId)`. Joining uses the current uid
-from `AuthService`; no uid is passed in from the UI.
+from `AuthSession`; no uid is passed in from the UI.
 
 ## How it is tested
 

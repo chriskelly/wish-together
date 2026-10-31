@@ -11,11 +11,11 @@ import 'package:wishtogether/core/logging/log_sink.dart';
 import 'core/logging/recording_sink.dart';
 
 import 'package:wishtogether/core/service_locator.dart';
-import 'package:wishtogether/features/auth/data/auth_service.dart';
+import 'package:wishtogether/features/auth/domain/auth_session.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
 import 'package:wishtogether/main.dart';
 
-class MockAuthService extends Mock implements AuthService {}
+class MockAuthSession extends Mock implements AuthSession {}
 
 class MockUserRepository extends Mock implements UserRepository {}
 
@@ -23,9 +23,10 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   test('applies a queued link and forwards warm links', () async {
-    final auth = MockAuthService();
+    final session = MockAuthSession();
     final repository = MockUserRepository();
-    when(() => auth.authStateChanges).thenAnswer((_) => const Stream.empty());
+    when(() => session.uidChanges)
+        .thenAnswer((_) => const Stream<String?>.empty());
     getIt.registerSingleton<UserRepository>(repository);
     addTearDown(getIt.reset);
 
@@ -40,7 +41,7 @@ void main() {
     await pumpEventQueue();
 
     WishTogetherApp? mounted;
-    startApp(links: links, auth: auth, mount: (app) => mounted = app);
+    startApp(links: links, session: session, mount: (app) => mounted = app);
 
     expect(
       mounted!.router.routeInformationProvider.value.uri.toString(),
@@ -57,10 +58,11 @@ void main() {
   });
 
   test('reports one session start carrying the real identifiers', () async {
-    final auth = MockAuthService();
+    final session = MockAuthSession();
     final repository = MockUserRepository();
     final sink = RecordingSink();
-    when(() => auth.authStateChanges).thenAnswer((_) => const Stream.empty());
+    when(() => session.uidChanges)
+        .thenAnswer((_) => const Stream<String?>.empty());
     getIt.registerSingleton<UserRepository>(repository);
     getIt.registerSingleton<AppLog>(
       AppLog(session: testSession, sinks: <LogSink>[sink]),
@@ -76,7 +78,7 @@ void main() {
     controller.add(Uri.parse('https://wishtogether.gift/join?group=one'));
     await pumpEventQueue();
 
-    startApp(links: links, auth: auth, mount: (_) {});
+    startApp(links: links, session: session, mount: (_) {});
 
     final starts = sink.eventsOf<SessionStartEvent>().toList();
     expect(starts, hasLength(1));

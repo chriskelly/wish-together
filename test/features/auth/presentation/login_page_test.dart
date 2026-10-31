@@ -212,8 +212,8 @@ void main() {
       authService = MockAuthService();
       userRepository = MockUserRepository();
       when(() => authService.currentUserId).thenReturn(null);
-      when(() => authService.authStateChanges)
-          .thenAnswer((_) => const Stream<User?>.empty());
+      when(() => authService.uidChanges)
+          .thenAnswer((_) => const Stream<String?>.empty());
       getIt.registerSingleton<AuthService>(authService);
       getIt.registerSingleton<AppLog>(
         AppLog(session: testSession, sinks: const []),

@@ -20,7 +20,7 @@ import 'package:wishtogether/features/group/presentation/group_form_page.dart';
 import 'package:wishtogether/features/wishlist/presentation/wishlist_details_page.dart';
 import 'package:wishtogether/features/wishlist/presentation/wishlist_form_page.dart';
 
-import '../data/auth_service.dart';
+import '../domain/auth_session.dart';
 
 class HomePage extends StatefulWidget {
   static const String route = '/';
@@ -31,7 +31,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  final AuthService _authService = getIt<AuthService>();
+  final AuthSession _session = getIt<AuthSession>();
   final UserRepository _userRepository = getIt<UserRepository>();
   final WishlistRepository _wishlistRepository = getIt<WishlistRepository>();
   final GroupRepository _groupRepository = getIt<GroupRepository>();
@@ -78,7 +78,7 @@ class _HomePageState extends State<HomePage> {
     // A start always replaces whatever a previous lifecycle left behind.
     _cancelDataStreams();
 
-    final uid = _authService.currentUserId;
+    final uid = _session.currentUserId;
     // A start clears each read's failure, so a restarted lifecycle cannot show
     // the previous one's error. Results are kept, so a restart with a live
     // session keeps rendering what it already shows instead of blanking until
@@ -172,12 +172,12 @@ class _HomePageState extends State<HomePage> {
     _signingOut = true;
     _cancelDataStreams();
     try {
-      await _authService.signOut();
+      await _session.signOut();
     } catch (error, stackTrace) {
       appLogOrNull?.error(error, stackTrace, code: 'sign-out-failed');
       if (!mounted) return;
 
-      if (_authService.currentUserId == null) {
+      if (_session.currentUserId == null) {
         // The sign-out cleared the session before it failed: there is nothing
         // left to read, so start nothing and let the router take the page away.
         setState(_subscribeDataStreams);

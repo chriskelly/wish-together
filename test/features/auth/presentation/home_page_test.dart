@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
+import 'package:wishtogether/features/auth/domain/auth_session.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
 import 'package:wishtogether/features/auth/domain/user.dart';
 import 'package:wishtogether/features/auth/presentation/home_page.dart';
@@ -95,6 +96,8 @@ void main() {
         });
 
     getIt.registerSingleton<AuthService>(authService);
+
+    getIt.registerSingleton<AuthSession>(authService);
     getIt.registerSingleton<UserRepository>(userRepository);
     getIt.registerSingleton<WishlistRepository>(wishlistRepository);
     getIt.registerSingleton<GroupRepository>(groupRepository);

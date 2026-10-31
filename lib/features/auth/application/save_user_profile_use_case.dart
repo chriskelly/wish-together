@@ -1,16 +1,16 @@
 import 'package:wishtogether/core/service_locator.dart';
-import 'package:wishtogether/features/auth/data/auth_service.dart';
+import 'package:wishtogether/features/auth/domain/auth_session.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
 import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
 
 class SaveUserProfileUseCase {
   Future<void> execute(String displayName) async {
-    final authService = getIt<AuthService>();
+    final session = getIt<AuthSession>();
     final userRepository = getIt<UserRepository>();
     final wishlistRepository = getIt<WishlistRepository>();
 
-    final userId = authService.currentUserId;
+    final userId = session.currentUserId;
     if (userId == null) {
       throw Exception('User is not authenticated');
     }

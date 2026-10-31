@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:wishtogether/core/logging/app_event.dart';
 import 'package:wishtogether/core/logging/app_log.dart';
 import 'package:wishtogether/core/logging/log_sink.dart';
@@ -24,10 +23,6 @@ import 'package:wishtogether/features/auth/presentation/verification_page.dart';
 class MockAuthService extends Mock implements AuthService {}
 
 class MockUserRepository extends Mock implements UserRepository {}
-
-class MockFirebaseUser extends Mock implements firebase_auth.User {}
-
-class MockProviderInfo extends Mock implements firebase_auth.UserInfo {}
 
 const joinPath = '/join?group=123';
 
@@ -298,8 +293,8 @@ void main() {
 
   group('deep-link startup', () {
     test('createRouter starts at the supplied initial location', () {
-      when(() => mockAuthService.authStateChanges)
-          .thenAnswer((_) => const Stream.empty());
+      when(() => mockAuthService.uidChanges)
+          .thenAnswer((_) => const Stream<String?>.empty());
 
       const initialLocation = '/join?group=123';
       final router = createRouter(
@@ -341,8 +336,8 @@ void main() {
       getIt.registerSingleton<AppLog>(
         AppLog(session: testSession, sinks: <LogSink>[sink]),
       );
-      when(() => mockAuthService.authStateChanges)
-          .thenAnswer((_) => const Stream.empty());
+      when(() => mockAuthService.uidChanges)
+          .thenAnswer((_) => const Stream<String?>.empty());
       when(() => mockAuthService.currentUserId).thenReturn('user-1');
       when(
         () => mockUserRepository.getOrCreateUser(
@@ -411,18 +406,19 @@ void main() {
 
   group('auth diagnostics', () {
     late RecordingSink sink;
-    late StreamController<firebase_auth.User?> authChanges;
+    late StreamController<String?> authChanges;
 
     setUp(() async {
       await getIt.reset();
       sink = RecordingSink();
-      authChanges = StreamController<firebase_auth.User?>();
+      authChanges = StreamController<String?>();
       addTearDown(authChanges.close);
       getIt.registerSingleton<AppLog>(
         AppLog(session: testSession, sinks: <LogSink>[sink]),
       );
-      when(() => mockAuthService.authStateChanges)
+      when(() => mockAuthService.uidChanges)
           .thenAnswer((_) => authChanges.stream);
+      when(() => mockAuthService.providerIds).thenReturn(const <String>[]);
     });
 
     tearDown(getIt.reset);
@@ -443,15 +439,11 @@ void main() {
       'reports the signed-in provider and stores only the derived ref',
       () async {
         const uid = 'firebase-uid-1';
-        final user = MockFirebaseUser();
-        final phone = MockProviderInfo();
-        when(() => user.uid).thenReturn(uid);
-        when(() => user.providerData)
-            .thenReturn(<firebase_auth.UserInfo>[phone]);
-        when(() => phone.providerId).thenReturn('phone');
+        when(() => mockAuthService.providerIds)
+            .thenReturn(const <String>['phone']);
         buildRouter();
 
-        authChanges.add(user);
+        authChanges.add(uid);
         await pumpEventQueue();
 
         expect(authEvents().single.outcome, AuthOutcome.phone);

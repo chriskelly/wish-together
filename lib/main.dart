@@ -25,7 +25,7 @@ import 'package:wishtogether/features/app_update/data/app_update_service.dart';
 import 'package:wishtogether/features/app_update/domain/update_decision.dart';
 import 'package:wishtogether/features/app_update/domain/update_url.dart';
 import 'package:wishtogether/features/app_update/presentation/update_required_page.dart';
-import 'package:wishtogether/features/auth/data/auth_service.dart';
+import 'package:wishtogether/features/auth/domain/auth_session.dart';
 
 import 'firebase_options.dart';
 
@@ -149,7 +149,7 @@ void _startApp() {
   if (_appStarted) {
     return;
   }
-  startApp(links: _deepLinks, auth: getIt<AuthService>(), mount: runApp);
+  startApp(links: _deepLinks, auth: getIt<AuthSession>(), mount: runApp);
   _appStarted = true;
 }
 
@@ -158,7 +158,7 @@ void _startApp() {
 @visibleForTesting
 void startApp({
   required DeepLinkService links,
-  required AuthService auth,
+  required AuthSession auth,
   required void Function(WishTogetherApp app) mount,
 }) {
   final initialLocation = links.takePendingLocation();

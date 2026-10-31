@@ -660,6 +660,40 @@ void main() {
     });
   });
 
+  group('AuthService.uidChanges', () {
+    test('emits the signed-in uid and null on sign-out', () async {
+      // ARRANGE
+      final changes = StreamController<User?>();
+      addTearDown(changes.close);
+      when(() => mockAuth.authStateChanges()).thenAnswer((_) => changes.stream);
+      const uid = 'uid-1';
+      final user = MockUser();
+      when(() => user.uid).thenReturn(uid);
+      final service = AuthService(auth: mockAuth);
+      final seen = <String?>[];
+      final subscription = service.uidChanges.listen(seen.add);
+      addTearDown(subscription.cancel);
+
+      // ACT
+      changes.add(user);
+      changes.add(null);
+      await pumpEventQueue();
+
+      // ASSERT
+      expect(seen, [uid, null]);
+    });
+  });
+
+  group('AuthService.supportsAccountDeletion', () {
+    test('offers in-app deletion', () {
+      // ARRANGE
+      final service = AuthService(auth: mockAuth);
+
+      // ACT & ASSERT
+      expect(service.supportsAccountDeletion, isTrue);
+    });
+  });
+
   group('AuthService.startPhoneVerification', () {
     const phoneNumber = '+15550001111';
 

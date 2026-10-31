@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
+import 'package:wishtogether/features/auth/domain/auth_session.dart';
 import 'package:wishtogether/features/group/application/create_group_use_case.dart';
 import 'package:wishtogether/features/group/data/group_repository.dart';
 import 'package:wishtogether/features/group/domain/group.dart';
@@ -29,6 +30,7 @@ void main() {
       mockAuthService = MockAuthService();
       mockGroupRepository = MockGroupRepository();
       getIt.registerSingleton<AuthService>(mockAuthService);
+      getIt.registerSingleton<AuthSession>(mockAuthService);
       getIt.registerSingleton<GroupRepository>(mockGroupRepository);
       createGroupUseCase = CreateGroupUseCase();
     });

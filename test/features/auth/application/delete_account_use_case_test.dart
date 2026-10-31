@@ -3,6 +3,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/application/delete_account_use_case.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
+import 'package:wishtogether/features/auth/domain/auth_session.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
 import 'package:wishtogether/features/group/data/group_repository.dart';
 import 'package:wishtogether/features/group/domain/group.dart';
@@ -38,6 +39,7 @@ void main() {
       wishlistRepository = MockWishlistRepository();
       groupRepository = MockGroupRepository();
       getIt.registerSingleton<AuthService>(authService);
+      getIt.registerSingleton<AuthSession>(authService);
       getIt.registerSingleton<UserRepository>(userRepository);
       getIt.registerSingleton<WishlistRepository>(wishlistRepository);
       getIt.registerSingleton<GroupRepository>(groupRepository);

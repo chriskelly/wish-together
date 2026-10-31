@@ -3,6 +3,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/application/load_user_profile_use_case.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
+import 'package:wishtogether/features/auth/domain/auth_session.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
 import 'package:wishtogether/features/auth/domain/user.dart';
 
@@ -21,6 +22,7 @@ void main() {
       mockAuthService = MockAuthService();
       mockUserRepository = MockUserRepository();
       getIt.registerSingleton<AuthService>(mockAuthService);
+      getIt.registerSingleton<AuthSession>(mockAuthService);
       getIt.registerSingleton<UserRepository>(mockUserRepository);
       loadUserProfileUseCase = LoadUserProfileUseCase();
     });

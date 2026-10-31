@@ -15,16 +15,23 @@ profile).
 
 | Layer | Files |
 | ----- | ----- |
-| `domain/` | `user.dart` |
+| `domain/` | `auth_session.dart`, `user.dart` |
 | `data/` | `auth_service.dart`, `user_repository.dart`, `google_sign_in_stub.dart`, `phone_auth_error.dart`, `apple_auth_error.dart`, `reauth_provider.dart`, `delete_account_error.dart`, `phone_verification.dart` |
 | `application/` | `load_user_profile_use_case.dart`, `save_user_profile_use_case.dart`, `delete_account_use_case.dart` |
 | `presentation/` | `login_page.dart`, `verification_page.dart`, `profile_page.dart`, `delete_account_section.dart`, `home_page.dart` |
 
 ## Key types
 
-- `AuthService` — wraps `FirebaseAuth`, `GoogleSignIn`, and `SignInWithApple`. Exposes
-  `authStateChanges`, `currentUserId` / `currentUserEmail` / `currentUserPhoneNumber`,
-  `signOut()`, and the underlying `googleSignIn` instance. Google sign-in is completed by
+- `AuthSession` — the narrow, Firebase-free view of the signed-in identity that the app shell
+  depends on: `currentUserId` / `currentUserEmail` / `currentUserPhoneNumber`, `providerIds`,
+  `uidChanges` (a `Stream<String?>` of uids, not Firebase users), `signOut()`, and
+  `supportsAccountDeletion`. The router, the signed-in pages and the use cases resolve this
+  type; sign-in, re-authentication and account deletion are deliberately not on it, so an
+  implementation that never touches Firebase can stand in for the production one.
+- `AuthService implements AuthSession` — wraps `FirebaseAuth`, `GoogleSignIn`, and
+  `SignInWithApple`. Adds `googleSignIn`, `isWeb`, the sign-in and
+  re-authentication flows, `signInProvider()` and `deleteAccount()`.
+  `supportsAccountDeletion` is `true`. Google sign-in is completed by
   subscribing to `_googleSignIn.onCurrentUserChanged` and exchanging the account for a
   Firebase `GoogleAuthProvider` credential. Phone auth is **split by platform**: web uses
   `startWebPhoneSignIn(...)` (which calls `FirebaseAuth.signInWithPhoneNumber` and keeps the
@@ -70,7 +77,10 @@ profile).
   they do not own, deletes `users/{uid}`, then deletes the auth account last.
 - `DeleteAccountSection` — the profile page's danger zone: confirm dialog,
   provider-appropriate re-authentication (Google/Apple prompt or an SMS-code
-  dialog), then the use case.
+  dialog), then the use case. `ProfilePage` renders it only when the session reports
+  `supportsAccountDeletion`, so a session that cannot delete an account (a dev session) does
+  not offer the control at all. The section itself keeps `AuthService`, because the
+  re-authentication flows it drives are not part of the session.
 - `phoneAuthErrorMessage(...)` — maps a phone `FirebaseAuthException` to a short user-facing
   message, including the "domain not authorized" case.
 - `appleAuthErrorMessage(...)` — maps an Apple sign-in failure (Apple-sheet exceptions or a

@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wishtogether/core/logging/app_event.dart';
@@ -6,8 +5,8 @@ import 'package:wishtogether/core/logging/app_log.dart';
 import 'package:wishtogether/core/logging/diagnostics.dart';
 import 'package:wishtogether/core/logging/redaction.dart';
 import 'package:wishtogether/core/service_locator.dart';
-import 'package:wishtogether/features/auth/data/auth_service.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
+import 'package:wishtogether/features/auth/domain/auth_session.dart';
 import 'package:wishtogether/features/auth/presentation/home_page.dart';
 import 'package:wishtogether/features/auth/presentation/login_page.dart';
 import 'package:wishtogether/features/auth/presentation/verification_page.dart';
@@ -26,31 +25,29 @@ import 'package:wishtogether/features/wishlist/presentation/item_form_page.dart'
 const String redirectToParam = 'redirect_to';
 
 class AuthListenable extends ChangeNotifier {
-  final AuthService authService;
-  late final Stream<firebase_auth.User?> _stream;
+  final AuthSession session;
 
-  AuthListenable(this.authService) {
-    _stream = authService.authStateChanges;
-    _stream.listen(_handleAuthChange);
+  AuthListenable(this.session) {
+    session.uidChanges.listen(_handleAuthChange);
   }
 
   /// Owns the auth transition: derives the user reference and reports the
   /// outcome on every change, including sign-out.
   ///
+  /// The provider list is read from the session at the moment of the change,
+  /// because the uid stream cannot carry it: a sign-in has already installed
+  /// the user by the time this runs, and a sign-out has already cleared it.
+  ///
   /// Tolerates a missing [AppLog] because `createRouter` is called by tests
   /// that register only a `UserRepository`.
-  void _handleAuthChange(firebase_auth.User? user) {
+  void _handleAuthChange(String? uid) {
     try {
       final log = appLogOrNull;
       if (log != null) {
-        log.setUserRef(user?.uid);
+        log.setUserRef(uid);
         final outcome = authOutcomeFor(
-          signedIn: user != null,
-          providerIds:
-              user?.providerData
-                  .map((info) => info.providerId)
-                  .toList(growable: false) ??
-              const <String>[],
+          signedIn: uid != null,
+          providerIds: session.providerIds,
         );
         if (outcome != null) {
           log.event(AuthStateEvent(outcome: outcome));
@@ -111,7 +108,7 @@ class RouteChangeRecorder {
 }
 
 GoRouter createRouter(
-  AuthService authService, {
+  AuthSession session, {
   UserRepository? userRepository,
   String? initialLocation,
 }) {
@@ -121,9 +118,9 @@ GoRouter createRouter(
 
   final router = GoRouter(
     initialLocation: initialLocation,
-    refreshListenable: AuthListenable(authService),
+    refreshListenable: AuthListenable(session),
     redirect: (BuildContext context, GoRouterState state) =>
-        handleRedirect(state.uri.toString(), authService, userRepo: repository),
+        handleRedirect(state.uri.toString(), session, userRepo: repository),
     // `logRouteLiterals` mirrors these page path constants; the literal test in
     // test/core/logging/route_literals_test.dart fails if one is missing.
     routes: <RouteBase>[
@@ -146,11 +143,11 @@ GoRouter createRouter(
 
 Future<String?> handleRedirect(
   String uriString,
-  AuthService authService, {
+  AuthSession session, {
   UserRepository? userRepo,
 }) async {
   final uri = Uri.parse(uriString);
-  final loggedIn = authService.currentUserId != null;
+  final loggedIn = session.currentUserId != null;
   if (!loggedIn) {
     return _redirectIfNotLoggedIn(uri, uriString);
   }
@@ -161,9 +158,9 @@ Future<String?> handleRedirect(
   // The login redirect used to return before this, which sent a brand-new
   // account to home with no `users/{uid}` document to render.
   final user = await resolveUserRepository(userRepo).getOrCreateUser(
-    authService.currentUserId!,
-    email: authService.currentUserEmail,
-    phoneNumber: authService.currentUserPhoneNumber,
+    session.currentUserId!,
+    email: session.currentUserEmail,
+    phoneNumber: session.currentUserPhoneNumber,
   );
   final hasDisplayName =
       user.displayName != null && user.displayName!.isNotEmpty;

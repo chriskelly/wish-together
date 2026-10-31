@@ -18,12 +18,12 @@ is a feature; features import from `core/`.
 | ---- | ---- | ---------- |
 | `FirebaseRepository<T>` | `data/firebase_repository.dart` | Abstract base for feature repositories. |
 | `resolveFirestoreDatabaseId` / `createFirestoreInstance` | `firestore_target.dart` | Build-time Firestore database selection (`WT_FIRESTORE_DATABASE`). |
-| `createRouter(AuthService, {UserRepository?, String? initialLocation})` / `handleRedirect(...)` | `router.dart` | The `go_router` graph and the redirect contract. |
+| `createRouter(AuthSession, {UserRepository?, String? initialLocation})` / `handleRedirect(...)` | `router.dart` | The `go_router` graph and the redirect contract. |
 | `RouteChangeRecorder` / `AuthListenable` | `router.dart` | The two instrumentation seams: one `routeChanged` per location change, and the auth transition that owns `AppLog.setUserRef`. |
 | `AppLog` / `LogSink` / `SessionContext` / `AppEvent` / `LogRecord` | `logging/` | The typed reporting seam (the facade is pure Dart; only the Sentry files know the SDK), its vocabulary, and the §4.3 allowlist (`logging/OVERVIEW.md`). |
 | `appOrigin` / `locationFromUniversalLink(...)` | `app_urls.dart` | Canonical URL and the allowlisted Universal-Link → location mapping. |
 | `DeepLinkService` | `deep_links.dart` | iOS link delivery (`app_links`) with a startup queue and a warm-link callback. |
-| `setupServiceLocator()` / `getIt` | `service_locator.dart` | Registers the log (eagerly, when supplied), repositories and use cases. |
+| `setupServiceLocator({firestore, appLog, authSession})` / `getIt` | `service_locator.dart` | Registers the log (eagerly, when supplied), repositories and use cases. `firestore` and `authSession` are composition seams: production passes neither, tests and the dev entrypoint supply their own. |
 | `PackageInfoLoader` | `platform_info.dart` | The injectable `PackageInfo.fromPlatform` seam shared by the update gate and the build-identity read. |
 | `lightTheme`, `darkTheme`, `appTextTheme` | `theme.dart` | Material 3 theme from a blue seed color (`google_fonts`). |
 
@@ -61,11 +61,13 @@ app code — repositories are only constructed by `setupServiceLocator`.
 ### `router.dart`
 
 `createRouter` builds a `GoRouter` whose `refreshListenable` re-evaluates on auth changes
-and whose `redirect` delegates to the pure function `handleRedirect(uriString, AuthService,
+and whose `redirect` delegates to the pure function `handleRedirect(uriString, AuthSession,
 {UserRepository?})`. Keeping the logic in `handleRedirect` is what makes it unit-testable.
 `AuthListenable` is the only app-wide auth subscription: on every transition it calls
 `AppLog.setUserRef(uid)` and emits an `AuthStateEvent` (including `signedOut`), tolerating a
-missing `AppLog` so tests can build a router with only a `UserRepository`.
+missing `AppLog` so tests can build a router with only a `UserRepository`. It listens to the
+session's `uidChanges` (ids, not Firebase users) and reads `providerIds` from the session at
+the moment of the change, because the stream cannot carry the provider list.
 `RouteChangeRecorder` listens to the router's own route-information notifier, because
 `GoRouter.observers` sees only Navigator push/pop and would miss `go()`, redirects and deep
 links. It records one `routeChanged` per *pattern* change, seeded with the initial location, so

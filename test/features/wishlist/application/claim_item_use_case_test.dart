@@ -5,6 +5,7 @@ import 'package:wishtogether/core/logging/app_log.dart';
 import 'package:wishtogether/core/logging/log_sink.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
+import 'package:wishtogether/features/auth/domain/auth_session.dart';
 import 'package:wishtogether/features/wishlist/application/claim_item_use_case.dart';
 import 'package:wishtogether/features/wishlist/data/item_repository.dart';
 import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
@@ -36,6 +37,7 @@ void main() {
       mockWishlistRepository = MockWishlistRepository();
       mockItemRepository = MockItemRepository();
       getIt.registerSingleton<AuthService>(mockAuthService);
+      getIt.registerSingleton<AuthSession>(mockAuthService);
       getIt.registerSingleton<WishlistRepository>(mockWishlistRepository);
       claimItemUseCase = ClaimItemUseCase();
     });
@@ -124,6 +126,7 @@ void main() {
       mockItemRepository = MockItemRepository();
       sink = RecordingSink();
       getIt.registerSingleton<AuthService>(mockAuthService);
+      getIt.registerSingleton<AuthSession>(mockAuthService);
       getIt.registerSingleton<WishlistRepository>(mockWishlistRepository);
       getIt.registerSingleton<AppLog>(
         AppLog(session: testSession, sinks: <LogSink>[sink]),

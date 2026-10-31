@@ -25,7 +25,8 @@ void main() {
   test('applies a queued link and forwards warm links', () async {
     final auth = MockAuthService();
     final repository = MockUserRepository();
-    when(() => auth.authStateChanges).thenAnswer((_) => const Stream.empty());
+    when(() => auth.uidChanges)
+        .thenAnswer((_) => const Stream<String?>.empty());
     getIt.registerSingleton<UserRepository>(repository);
     addTearDown(getIt.reset);
 
@@ -60,7 +61,8 @@ void main() {
     final auth = MockAuthService();
     final repository = MockUserRepository();
     final sink = RecordingSink();
-    when(() => auth.authStateChanges).thenAnswer((_) => const Stream.empty());
+    when(() => auth.uidChanges)
+        .thenAnswer((_) => const Stream<String?>.empty());
     getIt.registerSingleton<UserRepository>(repository);
     getIt.registerSingleton<AppLog>(
       AppLog(session: testSession, sinks: <LogSink>[sink]),

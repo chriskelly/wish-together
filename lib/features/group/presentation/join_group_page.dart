@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wishtogether/core/service_locator.dart';
-import 'package:wishtogether/features/auth/data/auth_service.dart';
+import 'package:wishtogether/features/auth/domain/auth_session.dart';
 import 'package:wishtogether/features/auth/presentation/home_page.dart';
 import 'package:wishtogether/features/group/application/join_group_use_case.dart';
 import 'package:wishtogether/features/group/data/group_repository.dart';
@@ -21,7 +21,7 @@ class JoinGroupPage extends StatefulWidget {
 
 class _JoinGroupPageState extends State<JoinGroupPage> {
   final _groupRepository = getIt<GroupRepository>();
-  final _authService = getIt<AuthService>();
+  final _session = getIt<AuthSession>();
   final _joinGroupUseCase = getIt<JoinGroupUseCase>();
   bool _isJoining = false;
 
@@ -40,7 +40,7 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
           }
 
           final group = snapshot.data!;
-          final currentUserId = _authService.currentUserId;
+          final currentUserId = _session.currentUserId;
           if (currentUserId != null && group.members.contains(currentUserId)) {
             return _buildAlreadyMemberWidget(group);
           }

@@ -5,7 +5,7 @@ import 'package:wishtogether/common/widgets/confirmation_dialog.dart';
 import 'package:wishtogether/common/widgets/list_item_actions.dart';
 import 'package:wishtogether/common/widgets/stream_list_builder.dart';
 import 'package:wishtogether/core/service_locator.dart';
-import 'package:wishtogether/features/auth/data/auth_service.dart';
+import 'package:wishtogether/features/auth/domain/auth_session.dart';
 import 'package:wishtogether/features/wishlist/application/claim_item_use_case.dart';
 import 'package:wishtogether/features/wishlist/application/unclaim_item_use_case.dart';
 import 'package:wishtogether/features/wishlist/data/item_repository.dart';
@@ -40,7 +40,7 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
   void initState() {
     super.initState();
     _itemRepository = _wishlistRepository.items(widget.wishlistId);
-    _currentUserId = getIt<AuthService>().currentUserId;
+    _currentUserId = getIt<AuthSession>().currentUserId;
   }
 
   @override

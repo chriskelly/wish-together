@@ -127,12 +127,12 @@ profile).
   lifecycle cannot leak the first. The ordering is the point:
   a home listener that outlives the credential makes Firestore re-issue its reads unauthenticated,
   which the rules deny — the sign-out bug this page used to have. The cancel is a Dart
-  subscription cancel, and that is the mechanism: the SDK's query stream turns it into its own
-  listener removal inside the same call (it cancels its snapshot `EventChannel` subscription, which
-  sends the platform's cancel), so the detach is issued before the credential is cleared. The
-  returned futures are deliberately not awaited: that would wait for the platform's reply, not
-  change whether the call is made. A page built with no uid subscribes to
-  nothing, so a rebuild cannot read or throw.
+  subscription cancel, and that is the mechanism: each stream turns it into its own listener
+  removal inside the same call (for queries, cancelling the snapshot `EventChannel` subscription,
+  which sends the platform's cancel), so the detach is issued before the credential is cleared.
+  The returned futures are deliberately not awaited: the detach is already issued, so awaiting
+  would only add a microtask. A page built with no uid subscribes to nothing, so a rebuild cannot
+  read or throw.
   A sign-out that *fails* is handled by what the session looks like afterwards: still live, the
   page reports the failure and then restarts its reads; already cleared, it starts nothing and
   drops the session, so the page shows only its loading state. The failure is reported as an
@@ -293,8 +293,8 @@ validate it on the **staging** site (or live) with a throwaway account for each 
   session restarts the reads and clears the previous error; a tap during a sign-out is ignored
   and served again once it settles, and a failed sign-out leaves no extra listener behind; a
   failed sign-out that cleared the session starts nothing and shows only the loading state; a
-  sign-out waits for its cancellations before the session is cleared; a list error clears when
-  data arrives; and a failed or empty profile read shows the error screen.
+  sign-out cancels its reads before the session is cleared; a list error clears when data arrives;
+  and a failed or empty profile read shows the error screen.
 - `test/features/auth/presentation/verification_page_test.dart` — the code page's support code
   (visible on arrival and after a failed confirmation), the "sign-in expired" message when the
   page outlives the web sign-in, and the pending sign-in being discarded when the page closes.

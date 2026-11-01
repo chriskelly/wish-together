@@ -342,6 +342,14 @@ version — its iOS build otherwise fails on the upload, not on the code. The Ap
 unaffected by this: it takes the marketing version from the tag or dispatch input, which is
 why a release tag must match the bumped `pubspec.yaml`.
 
+**A TestFlight upload never needs a version bump of its own.** `testflight_marketing_version`
+(Fastfile) reads App Store Connect's highest version and, when the branch's `pubspec.yaml` is
+not above it, uploads the build under the next patch — the repository is untouched, so a PR on
+a released version still builds. If App Store Connect cannot be read the committed version is
+used, with a warning. The App Store lane does the opposite and **refuses a tag that is not above
+the latest App Store version** before it builds (`validate_release_version!`), because there the
+version is the release identity and must be bumped deliberately.
+
 Security posture: `testflight-release.yml` runs the *PR's* `fastlane/Fastfile` and app code
 with the `match` signing key, App Store Connect API key and Sentry auth token in the
 environment. It is restricted to same-repo pull requests and the `no-deploy` label opts a PR

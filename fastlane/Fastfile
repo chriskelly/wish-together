@@ -83,6 +83,67 @@ def pubspec_version
   version.split("+").first
 end
 
+# The highest marketing version App Store Connect knows about, released or in
+# review. A released version closes its TestFlight train — later uploads on it
+# fail with 90062/90186 — so every upload has to stay above this.
+def latest_app_store_version_string
+  Spaceship::ConnectAPI.token = Spaceship::ConnectAPI::Token.create(
+    key_id: ENV.fetch("APP_STORE_CONNECT_API_KEY_KEY_ID"),
+    issuer_id: ENV.fetch("APP_STORE_CONNECT_API_KEY_ISSUER_ID"),
+    key: ENV.fetch("APP_STORE_CONNECT_API_KEY_CONTENT"),
+    is_key_content_base64: true
+  )
+  app = Spaceship::ConnectAPI::App.find(BUNDLE_ID)
+  return nil unless app
+
+  strings = app.get_app_store_versions(limit: 100).map(&:version_string).compact
+  strings.max_by { |value| Gem::Version.new(value) }
+rescue StandardError => e
+  # A read failure must not turn into a failed build: the upload is still the
+  # thing that decides, and the caller falls back to the committed version.
+  UI.important("Could not read App Store Connect versions (#{e.message})")
+  nil
+end
+
+def bump_patch_version(version_string)
+  segments = version_string.split(".")
+  segments << "0" if segments.length < 2
+  segments[-1] = (segments[-1].to_i + 1).to_s
+  segments.join(".")
+end
+
+# A pull request does not have to carry a version bump to be buildable. When the
+# branch's version is not above what App Store Connect already has, upload it
+# under the next patch — for this build only; the repository is left alone, so
+# the version that ships is still the one a human chose in pubspec.yaml.
+def testflight_marketing_version
+  committed = pubspec_version
+  published = latest_app_store_version_string
+  return committed if published.nil?
+  return committed if Gem::Version.new(committed) > Gem::Version.new(published)
+
+  bumped = bump_patch_version(published)
+  UI.message(
+    "pubspec version #{committed} is not above App Store Connect's latest (#{published}); " \
+    "uploading this build as #{bumped}. The repository is unchanged."
+  )
+  bumped
+end
+
+# The App Store lane takes its version from the tag, so a tag at or below what is
+# already in App Store Connect cannot work — the upload would be refused ~15
+# minutes later with an opaque altool error. Refuse here, before the archive.
+def validate_release_version!(version)
+  published = latest_app_store_version_string
+  return if published.nil?
+  return if Gem::Version.new(version) > Gem::Version.new(published)
+
+  UI.user_error!(
+    "Release version #{version} is not above the latest App Store version (#{published}). " \
+    "Bump `version:` in pubspec.yaml and tag the matching version."
+  )
+end
+
 # App Store Connect rejects a build number that is not above the highest already
 # uploaded for the app, and `github.run_number` counts per workflow — the two
 # release workflows would otherwise collide. Resolve ASC's latest and never go
@@ -211,7 +272,7 @@ platform :ios do
 
     build_number = resolve_build_number
     publish_build_number(build_number)
-    build_ipa(marketing_version: pubspec_version, build_number: build_number)
+    build_ipa(marketing_version: testflight_marketing_version, build_number: build_number)
     upload_symbols(build_number: build_number)
 
     upload_to_testflight(
@@ -231,6 +292,7 @@ platform :ios do
     write_export_options(profile)
 
     marketing_version = ENV.fetch("RELEASE_VERSION")
+    validate_release_version!(marketing_version)
     build_number = resolve_build_number
     publish_build_number(build_number)
     build_ipa(marketing_version: marketing_version, build_number: build_number)

@@ -170,6 +170,39 @@ def upload_symbols(build_number:)
   end
 end
 
+# What's New, kept in the repository so a release runs end to end without
+# opening App Store Connect. The locale has to match the app record's primary
+# language; deliver uploads every file it finds under that directory.
+def release_notes_path
+  File.join(PROJECT_ROOT, "fastlane/metadata/en-US/release_notes.txt")
+end
+
+# `submit_for_review` rejects an update whose What's New is empty, but only after
+# a signed archive has been built and uploaded. Fail before the build instead, so
+# a forgotten note costs seconds. The file is emptied after every release
+# (the App Store Release workflow clears it), which makes this check the thing
+# that forces the next release to describe itself.
+def validate_release_notes!
+  path = release_notes_path
+  unless File.exist?(path)
+    UI.user_error!("#{path} is missing; an App Store update needs What's New")
+  end
+
+  notes = File.read(path).strip
+  if notes.empty?
+    UI.user_error!(
+      "#{path} is empty; write this release's customer-facing changes before releasing"
+    )
+  end
+
+  limit = 4000
+  if notes.length > limit
+    UI.user_error!("#{path} is #{notes.length} characters; App Store Connect accepts #{limit}")
+  end
+
+  UI.message("Release notes: #{notes.length}/#{limit} characters")
+end
+
 platform :ios do
   desc "Upload a release build to TestFlight (internal testers)"
   lane :testflight_release do
@@ -192,6 +225,8 @@ platform :ios do
 
   desc "Upload and submit a release to the App Store"
   lane :app_store_release do
+    validate_release_notes!
+
     profile = install_appstore_signing
     write_export_options(profile)
 
@@ -210,7 +245,10 @@ platform :ios do
       submit_for_review: true,
       automatic_release: true,
       force: true,
-      skip_metadata: true,
+      # What's New comes from fastlane/metadata/<locale>/release_notes.txt. Only
+      # that file exists in the directory, so deliver uploads release notes and
+      # leaves the rest of the live listing untouched.
+      skip_metadata: false,
       skip_screenshots: true,
       precheck_include_in_app_purchases: false,
       precheck_default_rule_level: :error

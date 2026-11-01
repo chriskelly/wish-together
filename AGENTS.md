@@ -312,6 +312,9 @@ iOS has its own pipeline, all on `macos-26` runners with the same pinned Flutter
   the build number on the PR.
 - `.github/workflows/app-store-release.yml` — on a `v*` tag or manual dispatch, uploads and
   submits for App Store review.
+- `.github/workflows/clear-release-notes.yml` — runs when *App Store Release* succeeds and
+  empties `release_notes.txt` on `master` (see Release notes below). It is the only workflow
+  that commits, and it pushes with `[skip ci]`.
 
 Signing uses fastlane [`match`](https://docs.fastlane.tools/actions/match/) against the
 private certificate repo `chriskelly/ios-match-certs`; uploads use an App Store Connect API
@@ -350,8 +353,30 @@ One-time local setup (on a Mac with Xcode): `bundle install`, then
 (add a read-only deploy key to the cert repo and set `MATCH_GIT_PRIVATE_KEY`). Before the
 first `app-store-release`, the App Store Connect listing (description, screenshots, privacy)
 must be complete — precheck validates the live listing, not the PR. The lane creates or
-updates the editable App Store version for the tag; App Store metadata is maintained in App
-Store Connect, not in git.
+updates the editable App Store version for the tag; the listing itself is maintained in App
+Store Connect **except for What's New**, which lives in git (see below).
+
+### Release notes (App Store What's New)
+
+`fastlane/metadata/en-US/release_notes.txt` is the "What's New in This Version" text, and it is
+uploaded by the release lane (`skip_metadata: false`; only this file exists in the metadata
+directory, so nothing else in the live listing is touched). The directory locale must match the
+app record's primary language — English (U.S.), so `en-US`.
+
+- **Every pull request with a customer-facing change adds one short line to that file.** Write it
+  for the person who installed the app, not for the team: what changed, in plain words, no
+  emoji (App Store metadata has choked on them before), no issue numbers, no jargon. Keep the
+  whole file under Apple's 4,000-character limit; a release is usually two to five bullets.
+- **Every release writes its own notes.** The release lane calls `validate_release_notes!` before
+  it builds, and fails on a missing, empty or oversized file — so a release cannot be submitted
+  with stale or absent notes, and the failure costs seconds instead of a signed archive.
+- **The file is cleared after a successful release.**
+  `.github/workflows/clear-release-notes.yml` runs on `workflow_run` success for *App Store
+  Release*, truncates the file on `master` and pushes with `[skip ci]`. Pull before you branch
+  after a release, or the clearing commit shows up as a surprise in your diff.
+- If a release is submitted and then rejected, the notes are already in App Store Connect; edit
+  them there. Re-running the release needs a non-empty file again.
+
 
 Running the lanes locally does not need Bundler: this repo's lockfile pins bundler 2.4.20,
 which may be absent for a newer Ruby — `fastlane match appstore` (without `bundle exec`)

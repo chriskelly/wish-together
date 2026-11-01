@@ -329,6 +329,16 @@ manual signing with the match profile. `aps-environment` is `production` in
 Build numbers are resolved from App Store Connect (highest already uploaded + 1), never from
 the per-workflow run number, so the TestFlight and App Store lanes cannot collide.
 
+**A released marketing version closes its TestFlight train.** Once a version is approved and
+released, App Store Connect refuses any further build on it: `CFBundleShortVersionString
+[1.0.0] must contain a higher version than the previously approved version [1.0.0]` (90062)
+and `Invalid Pre-Release Train … is closed for new build submissions` (90186). Since every
+same-repo PR uploads a TestFlight build, **bump `version:` in `pubspec.yaml` on `master`
+immediately after a release**, and rebase (or label `no-deploy`) any PR still on the closed
+version — its iOS build otherwise fails on the upload, not on the code. The App Store lane is
+unaffected by this: it takes the marketing version from the tag or dispatch input, which is
+why a release tag must match the bumped `pubspec.yaml`.
+
 Security posture: `testflight-release.yml` runs the *PR's* `fastlane/Fastfile` and app code
 with the `match` signing key, App Store Connect API key and Sentry auth token in the
 environment. It is restricted to same-repo pull requests and the `no-deploy` label opts a PR

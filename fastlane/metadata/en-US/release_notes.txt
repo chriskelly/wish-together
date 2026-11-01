@@ -1,0 +1,6 @@
+Thanks for using WishTogether!
+
+- If something goes wrong, the app now shows a short support code. Send it to us and we can find the problem quickly.
+- Fixed the home screen retrying reads after you sign out.
+- The Leave Group button no longer sits under the share button.
+- The verification screen has a back button, and a profile that fails to load now offers Retry.

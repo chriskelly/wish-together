@@ -151,6 +151,10 @@ class AuthService implements AuthSession {
   @override
   bool get supportsAccountDeletion => true;
 
+  /// Production has a sign-in flow to return to, and signs out for real.
+  @override
+  bool get supportsSignOut => true;
+
   Future<void> verifyPhoneNumber({
     required String phoneNumber,
     required Function(PhoneAuthCredential) verificationCompleted,

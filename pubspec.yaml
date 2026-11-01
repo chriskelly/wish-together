@@ -60,6 +60,11 @@ dependencies:
   sentry_flutter: ^10.2.0
   flutter_web_plugins:
     sdk: flutter
+  # A runtime dependency, not a dev one: the committed development entrypoint
+  # (lib/dev/dev_main.dart) imports it, and `flutter analyze` fails a lib/ import
+  # of a dev_dependency. It ships in no bundle — nothing under lib/ outside
+  # lib/dev/ imports it.
+  fake_cloud_firestore: ^4.1.0+1
 
 dev_dependencies:
   flutter_test:
@@ -71,7 +76,6 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
-  fake_cloud_firestore: ^4.0.0
   mocktail: ^1.0.4
   test: ^1.26.2
   sentry_dart_plugin: ^3.4.0

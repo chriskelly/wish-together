@@ -240,7 +240,18 @@ Future<void> _activateAppCheck() async {
 class WishTogetherApp extends StatelessWidget {
   final GoRouter router;
 
-  const WishTogetherApp({super.key, required this.router});
+  /// Wraps the page area, outside the navigator.
+  ///
+  /// Production passes nothing. A development entrypoint uses it to frame every
+  /// page with the strip that marks the build and names the scenario, so a
+  /// screenshot can never be mistaken for the real app.
+  ///
+  /// The frame is an *ancestor* of the pages, not a sibling: Flutter drops the
+  /// semantics of anything painted before a route, so a labelled strip placed
+  /// beside the navigator would never reach an accessibility tree.
+  final Widget Function(Widget pages)? pageFrame;
+
+  const WishTogetherApp({super.key, required this.router, this.pageFrame});
 
   @override
   Widget build(BuildContext context) {
@@ -254,7 +265,7 @@ class WishTogetherApp extends StatelessWidget {
       darkTheme: darkTheme,
       themeMode: ThemeMode.system,
       builder: (context, child) {
-        return Container(
+        final pages = Container(
           color: Theme.of(context).scaffoldBackgroundColor,
           child: Center(
             child: ConstrainedBox(
@@ -263,6 +274,11 @@ class WishTogetherApp extends StatelessWidget {
             ),
           ),
         );
+        final frame = pageFrame;
+        if (frame == null) {
+          return pages;
+        }
+        return frame(pages);
       },
     );
   }

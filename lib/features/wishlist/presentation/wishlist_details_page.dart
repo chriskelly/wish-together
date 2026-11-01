@@ -4,14 +4,17 @@ import 'package:intl/intl.dart';
 import 'package:wishtogether/common/widgets/confirmation_dialog.dart';
 import 'package:wishtogether/common/widgets/list_item_actions.dart';
 import 'package:wishtogether/common/widgets/stream_list_builder.dart';
+import 'package:wishtogether/core/logging/diagnostics.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/domain/auth_session.dart';
+import 'package:wishtogether/features/wishlist/application/claim_failure.dart';
 import 'package:wishtogether/features/wishlist/application/claim_item_use_case.dart';
 import 'package:wishtogether/features/wishlist/application/unclaim_item_use_case.dart';
 import 'package:wishtogether/features/wishlist/data/item_repository.dart';
 import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 import 'package:wishtogether/features/wishlist/domain/item.dart';
 import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
+import 'package:wishtogether/features/wishlist/presentation/claim_failure_message.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:wishtogether/features/wishlist/presentation/item_form_page.dart';
 import 'package:wishtogether/features/wishlist/presentation/wishlist_form_page.dart';
@@ -276,13 +279,18 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
 
   Future<void> _claimItem(Item item) async {
     try {
-      await _claimItemUseCase.execute(widget.wishlistId, item);
+      await _claimItemUseCase.execute(widget.wishlistId, item.id!);
       if (mounted) {
         _showSuccessSnackbar('Item claimed!');
       }
-    } catch (e) {
+    } catch (error, stackTrace) {
+      if (error is! ClaimFailure) {
+        // No repository seam saw this one, so it would otherwise leave no
+        // trail; a classified failure is already reported by the write itself.
+        appLogOrNull?.error(error, stackTrace);
+      }
       if (mounted) {
-        _showErrorSnackbar('Failed to claim item: $e');
+        _showErrorSnackbar(claimFailureMessage(error));
       }
     }
   }

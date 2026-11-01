@@ -1,13 +1,12 @@
 import 'package:wishtogether/core/logging/app_event.dart';
 import 'package:wishtogether/core/logging/diagnostics.dart';
-import 'package:wishtogether/core/logging/redaction.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/domain/auth_session.dart';
+import 'package:wishtogether/features/wishlist/application/claim_failure.dart';
 import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
-import 'package:wishtogether/features/wishlist/domain/item.dart';
 
 class ClaimItemUseCase {
-  Future<void> execute(String wishlistId, Item item) async {
+  Future<void> execute(String wishlistId, String itemId) async {
     final log = appLogOrNull;
     final session = getIt<AuthSession>();
     final wishlistRepository = getIt<WishlistRepository>();
@@ -17,25 +16,25 @@ class ClaimItemUseCase {
       log?.event(
         const ClaimActionEvent(
           phase: ClaimPhase.denied,
-          code: 'unauthenticated',
+          code: unauthenticatedCode,
         ),
       );
-      throw Exception('User is not authenticated');
+      throw const ClaimFailure(
+        ClaimFailureReason.signedOut,
+        code: unauthenticatedCode,
+      );
     }
 
     log?.event(const ClaimActionEvent(phase: ClaimPhase.started));
     final itemRepository = wishlistRepository.items(wishlistId);
-    final updatedItem = item.copyWith(
-      claimedBy: userId,
-      claimedAt: DateTime.now(),
-    );
     try {
-      await itemRepository.update(item.id!, updatedItem);
-    } catch (error) {
+      await itemRepository.claim(itemId, claimedBy: userId);
+    } catch (error, stackTrace) {
+      final failure = ClaimFailure.from(error);
       log?.event(
-        ClaimActionEvent(phase: ClaimPhase.denied, code: readErrorCode(error)),
+        ClaimActionEvent(phase: ClaimPhase.denied, code: failure.code),
       );
-      rethrow;
+      Error.throwWithStackTrace(failure, stackTrace);
     }
     log?.event(const ClaimActionEvent(phase: ClaimPhase.completed));
   }

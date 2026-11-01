@@ -21,8 +21,9 @@ from `lib/main.dart`.
 | `dev_main.dart` | The committed entrypoint: reads the URL and the defines, resolves a fixture, boots. |
 | `dev_config.dart` | Define names, the bundle marker literal, and the pure resolution rules. |
 | `dev_session.dart` | `DevAuthSession implements AuthSession`: the session's identity, no Firebase. |
-| `dev_banner.dart` | The strip above every page naming the active scenario. |
-| `run_dev_session.dart` | `buildDevApp(fixture)` (composition, used by tests) and `runDevSession(fixture)` (the one-off entrypoint helper). |
+| `dev_banner.dart` | `DevSessionFrame`: the strip above every page plus the one accessibility node naming the active scenario. |
+| `dev_error_screen.dart` | The page shown for a scenario id that does not exist, naming the ids that do. |
+| `run_dev_session.dart` | `buildDevApp(fixture)` and `buildDevAppForScenario(id)` (composition, used by tests), the `runDevSession*` entrypoint helpers, and `buildUnknownScenarioApp`. |
 | `fixtures/dev_fixture.dart` | `DevFixture` and the seeding loop. |
 | `fixtures/registry.dart` | Scenario id → fixture, with a loud failure for an unknown id. |
 | `fixtures/default_scenario.dart` | The scenario shown when nothing else is asked for. |
@@ -41,8 +42,8 @@ flutter run -t lib/dev/dev_main.dart -d chrome
 | neither | the `default` scenario |
 | `--dart-define=WT_DEV_BACKEND=fake` | the in-memory backend; anything else stops the launch |
 
-An unknown scenario id fails the launch and lists the available ids: an agent must never
-silently see the wrong data.
+An unknown scenario id renders a page naming the ids that exist rather than leaving a blank tab:
+an agent must never silently see the wrong data.
 
 The query is **not** preserved by in-app navigation — go_router rewrites the location and drops
 it. Open the scenario URL directly, or reload on it, rather than clicking around and then

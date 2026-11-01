@@ -1,16 +1,19 @@
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
+import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:wishtogether/core/logging/app_log.dart';
 import 'package:wishtogether/core/logging/log_sink.dart';
 import 'package:wishtogether/core/logging/session_context.dart';
 import 'package:wishtogether/core/router.dart';
 import 'package:wishtogether/core/service_locator.dart';
+import 'package:wishtogether/core/theme.dart';
 import 'package:wishtogether/dev/dev_banner.dart';
+import 'package:wishtogether/dev/dev_error_screen.dart';
 import 'package:wishtogether/dev/dev_session.dart';
 import 'package:wishtogether/dev/fixtures/dev_fixture.dart';
+import 'package:wishtogether/dev/fixtures/registry.dart';
 import 'package:wishtogether/main.dart';
 
 /// Builds the app a dev session runs: a seeded in-memory store, the locator
@@ -38,9 +41,40 @@ Future<WishTogetherApp> buildDevApp(DevFixture fixture) async {
   // ignores the parameter whenever the path is not `/`.
   return WishTogetherApp(
     router: createRouter(session),
-    banner: DevBanner(scenarioId: fixture.id),
+    pageFrame: (pages) => DevSessionFrame(scenarioId: fixture.id, pages: pages),
   );
 }
+
+/// The app for the scenario [scenarioId], or the page that names the ids that
+/// do exist.
+///
+/// [fixtureForScenario] throws rather than falling back to `default`, which is
+/// right for a caller that can read the error: an agent must never be shown
+/// another scenario's data without knowing. A browser entrypoint cannot let
+/// that throw stand, though — it lands before `runApp`, so the tab is blank and
+/// the only trace is a console error nobody may be listening to.
+Future<Widget> buildDevAppForScenario(String scenarioId) async {
+  final DevFixture fixture;
+  try {
+    fixture = fixtureForScenario(scenarioId);
+  } on StateError {
+    return buildUnknownScenarioApp(scenarioId);
+  }
+  return buildDevApp(fixture);
+}
+
+/// The page shown for a scenario id the registry does not have.
+Widget buildUnknownScenarioApp(String requestedScenario) => MaterialApp(
+  title: 'WishTogether dev session',
+  debugShowCheckedModeBanner: false,
+  theme: lightTheme,
+  darkTheme: darkTheme,
+  themeMode: ThemeMode.system,
+  home: DevErrorScreen(
+    requestedScenario: requestedScenario,
+    availableScenarios: devScenarios.keys.toList(),
+  ),
+);
 
 /// The log a dev session reports through.
 ///
@@ -61,6 +95,25 @@ AppLog buildDevLog() => AppLog(
 /// fixture, mount. Committed scenarios go through `dev_main.dart` instead,
 /// which adds the URL and define resolution.
 Future<void> runDevSession(DevFixture fixture) async {
+  _prepareBrowser();
+  runApp(await buildDevApp(fixture));
+}
+
+/// Boots the scenario [scenarioId] names, from the page URL.
+///
+/// An unknown id is something an agent types, so it gets a page that says so
+/// and lists the ids that work instead of the blank tab a failure before
+/// `runApp` leaves behind.
+Future<void> runDevSessionFor(String scenarioId) async {
+  _prepareBrowser();
+  runApp(await buildDevAppForScenario(scenarioId));
+}
+
+/// Everything a dev session needs from the browser before it mounts.
+///
+/// Both the scenario and the error page run this: a wrong id must still be a
+/// page that can be read, not a process that died before painting.
+void _prepareBrowser() {
   WidgetsFlutterBinding.ensureInitialized();
   // Flutter web builds its accessibility DOM on demand. Without semantics on,
   // the page holds a placeholder and a text-only agent has nothing to address
@@ -68,8 +121,6 @@ Future<void> runDevSession(DevFixture fixture) async {
   _retainSemantics();
   // Real paths, so the browser pathname is the initial route.
   usePathUrlStrategy();
-
-  runApp(await buildDevApp(fixture));
 }
 
 /// The semantics handle, kept for the life of the process.

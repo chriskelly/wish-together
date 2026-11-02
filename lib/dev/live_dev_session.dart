@@ -3,16 +3,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:wishtogether/core/firestore_target.dart';
-import 'package:wishtogether/core/router.dart';
-import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/dev/dev_banner.dart';
 import 'package:wishtogether/dev/dev_config.dart';
-import 'package:wishtogether/dev/dev_error_screen.dart';
+import 'package:wishtogether/dev/dev_failure_screen.dart';
 import 'package:wishtogether/dev/run_dev_session.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
 import 'package:wishtogether/features/auth/domain/auth_session.dart';
 import 'package:wishtogether/firebase_options.dart';
-import 'package:wishtogether/main.dart';
 
 /// Starts Firebase for a live session.
 typedef DevFirebaseInitializer = Future<void> Function();
@@ -59,17 +56,10 @@ Future<Widget> buildLiveDevApp(
   // The shell gets a real session — the real uid stream, the real providers and
   // a real sign-out — with the one capability a dev session must not offer
   // removed: deleting the account. See [liveDevSession].
-  final installedSession = liveDevSession(launch, createSession: createSession);
-  setupServiceLocator(
+  return composeDevApp(
     firestore: firestore,
-    appLog: buildDevLog(),
-    authSession: installedSession,
-  );
-  final session = getIt<AuthSession>();
-
-  return WishTogetherApp(
-    router: createRouter(session),
-    pageFrame: (pages) => DevSessionFrame.live(
+    authSession: liveDevSession(launch, createSession: createSession),
+    frame: (pages) => DevSessionFrame.live(
       launch.databaseId,
       ignoredScenario: launch.ignoredScenario,
       pages: pages,
@@ -116,9 +106,28 @@ AuthSession? liveDevSession(
   return (createSession ?? LiveDevAuthService.new)();
 }
 
+/// The page painted while the token is exchanged.
+///
+/// Firebase init and a network round trip both happen before the app tree
+/// exists. Painting a notice first is what keeps that window from being the
+/// blank tab this harness exists to avoid; the final tree is unchanged.
+Widget buildSigningInDevApp(LiveDevLaunch launch) => buildDevPageApp(
+  DevFailureScreen(
+    label: devNotStartedLabel,
+    headline: 'Live dev mode is signing in',
+    details: <String>[
+      'Exchanging WT_DEV_TOKEN for a session on the "${launch.databaseId}" '
+          'database.',
+      'This page is replaced as soon as the session is ready, or by the reason '
+          'it failed.',
+    ],
+  ),
+);
+
 /// Boots a live session in the browser.
 Future<void> runLiveDevSession(LiveDevLaunch launch) async {
   prepareDevBrowser();
+  runApp(buildSigningInDevApp(launch));
   runApp(await buildLiveDevApp(launch));
 }
 

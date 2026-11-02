@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
@@ -8,13 +9,13 @@ import 'package:wishtogether/core/logging/log_sink.dart';
 import 'package:wishtogether/core/logging/session_context.dart';
 import 'package:wishtogether/core/router.dart';
 import 'package:wishtogether/core/service_locator.dart';
-import 'package:wishtogether/core/theme.dart';
 import 'package:wishtogether/dev/dev_banner.dart';
 import 'package:wishtogether/dev/dev_config.dart';
-import 'package:wishtogether/dev/dev_error_screen.dart';
+import 'package:wishtogether/dev/dev_failure_screen.dart';
 import 'package:wishtogether/dev/dev_session.dart';
 import 'package:wishtogether/dev/fixtures/dev_fixture.dart';
 import 'package:wishtogether/dev/fixtures/registry.dart';
+import 'package:wishtogether/features/auth/domain/auth_session.dart';
 import 'package:wishtogether/main.dart';
 
 /// Builds the app a dev session runs: a seeded in-memory store, the locator
@@ -31,18 +32,35 @@ Future<WishTogetherApp> buildDevApp(DevFixture fixture) async {
   final firestore = FakeFirebaseFirestore();
   await seedDevFirestore(firestore, fixture);
 
-  final session = DevAuthSession(fixture.viewerUid);
+  // No initialLocation: on web the browser path is the route, and go_router
+  // ignores the parameter whenever the path is not `/`.
+  return composeDevApp(
+    firestore: firestore,
+    authSession: DevAuthSession(fixture.viewerUid),
+    frame: (pages) => DevSessionFrame.scenario(fixture.id, pages: pages),
+  );
+}
+
+/// Builds the shell both dev backends run: the locator over [firestore], the
+/// router over the session that locator resolves, and [frame] around the pages.
+///
+/// The router always takes the session from the locator rather than from the
+/// parameter. That is what makes the two backends differ only in what they
+/// register — a live launch passes null and gets the production service — and
+/// what lets a test replace the session without replacing the router.
+WishTogetherApp composeDevApp({
+  required FirebaseFirestore firestore,
+  required AuthSession? authSession,
+  required Widget Function(Widget pages) frame,
+}) {
   setupServiceLocator(
     firestore: firestore,
     appLog: buildDevLog(),
-    authSession: session,
+    authSession: authSession,
   );
-
-  // No initialLocation: on web the browser path is the route, and go_router
-  // ignores the parameter whenever the path is not `/`.
   return WishTogetherApp(
-    router: createRouter(session),
-    pageFrame: (pages) => DevSessionFrame.scenario(fixture.id, pages: pages),
+    router: createRouter(getIt<AuthSession>()),
+    pageFrame: frame,
   );
 }
 
@@ -63,39 +81,6 @@ Future<Widget> buildDevAppForScenario(String scenarioId) async {
   }
   return buildDevApp(fixture);
 }
-
-/// The page shown for a scenario id the registry does not have.
-Widget buildUnknownScenarioApp(String requestedScenario) => buildDevPageApp(
-  DevErrorScreen(
-    requestedScenario: requestedScenario,
-    availableScenarios: devScenarios.keys.toList(),
-  ),
-);
-
-/// The page shown when the build cannot run what it was asked for.
-///
-/// A refused launch is still a page: the reason and the fix are the whole
-/// point of refusing, and a blank tab tells a reader nothing.
-Widget buildRefusedDevApp(RefusedDevLaunch refusal) => buildDevPageApp(
-  DevFailureScreen(
-    label: devNotStartedLabel,
-    headline: refusal.headline,
-    details: refusal.details,
-  ),
-);
-
-/// One dev page, inside the app's own theme.
-///
-/// Every failure page is the production theme over a dev strip, so the theme is
-/// applied in one place rather than repeated per page.
-Widget buildDevPageApp(Widget home) => MaterialApp(
-  title: 'WishTogether dev session',
-  debugShowCheckedModeBanner: false,
-  theme: lightTheme,
-  darkTheme: darkTheme,
-  themeMode: ThemeMode.system,
-  home: home,
-);
 
 /// The log a dev session reports through.
 ///
@@ -141,9 +126,10 @@ Future<void> runRefusedDevSession(RefusedDevLaunch refusal) async {
 
 /// Everything a dev session needs from the browser before it mounts.
 ///
-/// Both the scenario and the error page run this: a wrong id must still be a
-/// page that can be read, not a process that died before painting. The live
-/// backend calls it too, before it touches Firebase.
+/// Every dev page calls this first, whichever path asked for it: a page that
+/// cannot be read, or whose widgets a driver cannot address, is not a page. It
+/// runs before Firebase as well as after, because the failure it prevents is a
+/// tab that never paints rather than a request that fails.
 void prepareDevBrowser() {
   WidgetsFlutterBinding.ensureInitialized();
   // Flutter web builds its accessibility DOM on demand. Without semantics on,

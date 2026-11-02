@@ -46,6 +46,8 @@ export const DEFAULT_WEB_PORT = 59922;
 
 export const ENTRYPOINT = 'lib/dev/dev_main.dart';
 export const UID_MAX_LENGTH = 128;
+/// The flags that take a value, so `--help` is never asked for one.
+const VALUE_FLAGS = new Set(['--uid', '--database', '--web-port']);
 const WEB_PORT_MIN = 1024;
 const WEB_PORT_MAX = 65535;
 
@@ -133,18 +135,21 @@ export function parseArgs(argv) {
 
   for (let index = 0; index < argv.length; index += 1) {
     const [name, inline] = splitFlag(argv[index]);
-    // Both `--uid value` and `--uid=value` are accepted; the latter is what a
-    // shell completion and the npm script both produce.
-    const value = () => (inline ?? requireValue(argv, (index += 1), name));
+    let value = inline;
+    if (VALUE_FLAGS.has(name) && value === null) {
+      // Both `--uid value` and `--uid=value` are accepted; the latter is what a
+      // shell completion and the npm script both produce.
+      value = requireValue(argv, (index += 1), name);
+    }
     switch (name) {
       case '--uid':
-        options.uid = value();
+        options.uid = value;
         break;
       case '--database':
-        options.databaseId = value();
+        options.databaseId = value;
         break;
       case '--web-port':
-        options.webPort = value();
+        options.webPort = value;
         break;
       case '--help':
         options.help = true;

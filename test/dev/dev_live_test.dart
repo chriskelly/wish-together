@@ -9,9 +9,9 @@ import 'package:mocktail/mocktail.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/dev/dev_banner.dart';
 import 'package:wishtogether/dev/dev_config.dart';
+import 'package:wishtogether/dev/dev_failure_screen.dart';
 import 'package:wishtogether/dev/dev_session.dart';
 import 'package:wishtogether/dev/live_dev_session.dart';
-import 'package:wishtogether/dev/run_dev_session.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
 import 'package:wishtogether/features/auth/domain/auth_session.dart';
 
@@ -258,6 +258,19 @@ void main() {
       expect(getIt<AuthSession>(), same(service));
       expect(getIt<AuthSession>().supportsAccountDeletion, isFalse);
     });
+  });
+
+  testWidgets('a live launch paints before the token is exchanged', (
+    tester,
+  ) async {
+    // ACT: what runLiveDevSession mounts first, synchronously.
+    await tester.pumpWidget(buildSigningInDevApp(liveLaunch()));
+
+    // ASSERT: the window between runApp and a signed-in tree is a page, not a
+    // blank tab.
+    expect(find.text('Live dev mode is signing in'), findsOneWidget);
+    expect(find.textContaining('staging'), findsOneWidget);
+    expect(find.text(devNotStartedLabel), findsOneWidget);
   });
 
   test('the sign-in failure text names the code, the command and the port', () {

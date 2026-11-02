@@ -1,5 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:wishtogether/core/theme.dart';
 import 'package:wishtogether/dev/dev_banner.dart';
+import 'package:wishtogether/dev/dev_config.dart';
+import 'package:wishtogether/dev/fixtures/registry.dart';
+
+/// The one place a failure's text becomes an accessibility label.
+///
+/// The page and any test that asserts on it read this same function. Joining the
+/// lines twice would let a test pass on text it composed itself while the page
+/// rendered nothing.
+String failureSemanticsLabel(String headline, List<String> details) =>
+    '$headline. ${details.join(' ')}';
 
 /// The page a dev session shows when it cannot start, or when a scenario id
 /// does not exist.
@@ -15,7 +26,6 @@ class DevFailureScreen extends StatelessWidget {
     required this.label,
     required this.headline,
     required this.details,
-    this.tone = DevBannerTone.refused,
   });
 
   /// What the strip says, so the page is still visibly a dev page.
@@ -27,12 +37,8 @@ class DevFailureScreen extends StatelessWidget {
   /// What to change, in the order a reader should act on it.
   final List<String> details;
 
-  /// What the strip is claiming. A failure loaded no data, so the default is
-  /// the refused tone.
-  final DevBannerTone tone;
-
   /// The one node a driver reads: the same words a reader sees.
-  String get semanticsLabel => '$headline. ${details.join(' ')}';
+  String get semanticsLabel => failureSemanticsLabel(headline, details);
 
   @override
   Widget build(BuildContext context) {
@@ -40,8 +46,9 @@ class DevFailureScreen extends StatelessWidget {
     return Scaffold(
       body: Column(
         children: [
-          // The strip keeps the bundle marker on every page, failure included.
-          DevBanner(label: label, tone: tone),
+          // A failure page loaded no data, so its strip never claims any. The
+          // strip also keeps the bundle marker on every page, this one included.
+          DevBanner(label: label, tone: DevBannerTone.refused),
           Expanded(
             child: Center(
               child: SingleChildScrollView(
@@ -75,32 +82,39 @@ class DevFailureScreen extends StatelessWidget {
   }
 }
 
-/// The page a dev session shows when the URL names a scenario that does not
-/// exist.
-class DevErrorScreen extends StatelessWidget {
-  const DevErrorScreen({
-    super.key,
-    required this.requestedScenario,
-    required this.availableScenarios,
-  });
+/// One dev page, inside the app's own theme.
+///
+/// Every dev page — a session, a failure, a refusal — is the production theme
+/// over a dev strip, so the theme is applied here rather than per page.
+Widget buildDevPageApp(Widget home) => MaterialApp(
+  title: 'WishTogether dev session',
+  debugShowCheckedModeBanner: false,
+  theme: lightTheme,
+  darkTheme: darkTheme,
+  themeMode: ThemeMode.system,
+  home: home,
+);
 
-  /// The id the URL asked for, which the registry does not have.
-  final String requestedScenario;
+/// The page shown for a scenario id the registry does not have.
+Widget buildUnknownScenarioApp(String requestedScenario) => buildDevPageApp(
+  DevFailureScreen(
+    label: devScenarioLabel(requestedScenario),
+    headline: 'Unknown scenario "$requestedScenario"',
+    details: <String>[
+      'Available scenarios: ${devScenarios.keys.join(', ')}',
+      'Open one with ?scenario=<id> in the address bar.',
+    ],
+  ),
+);
 
-  /// The ids this build can show, in registry order.
-  final List<String> availableScenarios;
-
-  @override
-  Widget build(BuildContext context) {
-    return DevFailureScreen(
-      label: devScenarioLabel(requestedScenario),
-      headline: 'Unknown scenario "$requestedScenario"',
-      // Nothing loaded: the id does not exist, so the strip is not amber.
-      tone: DevBannerTone.refused,
-      details: <String>[
-        'Available scenarios: ${availableScenarios.join(', ')}',
-        'Open one with ?scenario=<id> in the address bar.',
-      ],
-    );
-  }
-}
+/// The page shown when the build cannot run what it was asked for.
+///
+/// A refused launch is still a page: the reason and the fix are the whole point
+/// of refusing, and a blank tab tells a reader nothing.
+Widget buildRefusedDevApp(RefusedDevLaunch refusal) => buildDevPageApp(
+  DevFailureScreen(
+    label: devNotStartedLabel,
+    headline: refusal.headline,
+    details: refusal.details,
+  ),
+);

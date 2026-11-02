@@ -1,10 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wishtogether/dev/dev_config.dart';
+import 'package:wishtogether/dev/dev_failure_screen.dart';
 
-/// The readable text of a refusal: what a reader sees and what a driver reads
-/// out of the page's one semantics node.
+/// The text a refusal becomes, through the same function the page uses.
+///
+/// Composing it here instead would let these tests assert words the page never
+/// renders.
 String refusalText(RefusedDevLaunch launch) =>
-    '${launch.headline} ${launch.details.join(' ')}';
+    failureSemanticsLabel(launch.headline, launch.details);
 
 /// Asserts a launch is live and returns it, so a failure names what came back.
 LiveDevLaunch liveLaunchOf(DevLaunch launch) {
@@ -368,7 +371,8 @@ void main() {
   });
 
   test('the live backend is named live', () {
-    // T5 documents this value; changing it silently breaks every command.
+    // The value the documented commands and the guard both name; changing it
+    // silently breaks every one of them.
     expect(liveDevBackend, 'live');
   });
 
@@ -376,29 +380,5 @@ void main() {
     // The guard treats an empty value as "no token", so an unset define must
     // arrive as the empty string rather than as a null or a placeholder.
     expect(devTokenDefine, isEmpty);
-  });
-
-  group('scenarioIdFor', () {
-    test('reads the scenario from the page URL', () {
-      // ARRANGE
-      final uri = Uri.parse('/wishlist/dev-l1?scenario=large-wishlist');
-
-      // ACT
-      final id = scenarioIdFor(uri, defineScenario: 'family');
-
-      // ASSERT: the URL is what an agent typed, so it wins.
-      expect(id, 'large-wishlist');
-    });
-
-    test('falls back to the compiled default when the URL names none', () {
-      // ARRANGE
-      final uri = Uri.parse('/wishlist/dev-l1');
-
-      // ACT
-      final id = scenarioIdFor(uri, defineScenario: 'family');
-
-      // ASSERT
-      expect(id, 'family');
-    });
   });
 }

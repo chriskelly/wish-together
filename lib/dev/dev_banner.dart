@@ -53,8 +53,9 @@ enum DevBannerTone {
 /// strip itself is wrapped — and a driver that addresses widgets by role and
 /// label would then have no way to say what is on screen.
 class DevSessionFrame extends StatelessWidget {
-  const DevSessionFrame({
-    super.key,
+  /// Private: the two factories are the only ways in, so a label and the tone
+  /// that qualifies it cannot be supplied out of step with each other.
+  const DevSessionFrame._({
     required this.label,
     required this.pages,
     this.tone = DevBannerTone.scenario,
@@ -64,7 +65,7 @@ class DevSessionFrame extends StatelessWidget {
   factory DevSessionFrame.scenario(
     String scenarioId, {
     required Widget pages,
-  }) => DevSessionFrame(label: devScenarioLabel(scenarioId), pages: pages);
+  }) => DevSessionFrame._(label: devScenarioLabel(scenarioId), pages: pages);
 
   /// A live session against [databaseId].
   ///
@@ -74,7 +75,7 @@ class DevSessionFrame extends StatelessWidget {
     String databaseId, {
     required Widget pages,
     String? ignoredScenario,
-  }) => DevSessionFrame(
+  }) => DevSessionFrame._(
     label: devLiveLabel(databaseId, ignoredScenario: ignoredScenario),
     pages: pages,
     tone: DevBannerTone.live,

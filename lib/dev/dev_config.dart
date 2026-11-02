@@ -75,16 +75,6 @@ String resolveScenarioId({
   return defaultScenarioId;
 }
 
-/// The scenario named by [uri]'s query, falling back to the compiled default.
-///
-/// The page URL is the only runtime input a dev session has; everything else
-/// comes from the path go_router already routes on.
-String scenarioIdFor(Uri uri, {String defineScenario = devScenarioDefine}) =>
-    resolveScenarioId(
-      urlScenario: uri.queryParameters[devScenarioParam],
-      defineScenario: defineScenario,
-    );
-
 /// What a dev entrypoint should do.
 ///
 /// Resolving this is the entrypoint's only decision, and every outcome is a

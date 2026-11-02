@@ -13,14 +13,15 @@ const List<String> productionForbiddenPackages = <String>[
   'package:fake_cloud_firestore/',
 ];
 
-/// Files under `lib/dev/` allowed to touch a real Firebase, and why.
+/// Files under `lib/dev/` allowed to touch a real Firebase.
 ///
 /// Fake mode has no project, no credentials and no network. Live mode exists to
-/// have all three, so exactly one file composes it. Each entry is checked to
-/// exist below, so renaming that file cannot silently widen the exception.
-const Map<String, String> firebaseExceptions = <String, String>{
-  'lib/dev/live_dev_session.dart':
-      'the live backend: initializeApp and the custom-token sign-in',
+/// have all three, so exactly one file composes it:
+/// `lib/dev/live_dev_session.dart` runs initializeApp and the custom-token
+/// sign-in. Each entry is checked to exist below, so renaming that file cannot
+/// silently widen the exception.
+const Set<String> firebaseExceptions = <String>{
+  'lib/dev/live_dev_session.dart',
 };
 
 /// Firebase singletons a fake-mode session must never reach.
@@ -70,7 +71,7 @@ void main() {
     // ASSERT: fake mode has no project, no credentials and no network, so the
     // only file allowed to reach a real Firebase is the live composition.
     expect(
-      offenders.where((path) => !firebaseExceptions.containsKey(path)),
+      offenders.where((path) => !firebaseExceptions.contains(path)),
       isEmpty,
       reason:
           'only firebaseExceptions may touch a real Firebase; fake mode must '
@@ -83,7 +84,7 @@ void main() {
           'the scan must actually find the live backend; an empty scan would '
           'prove nothing',
     );
-    for (final path in firebaseExceptions.keys) {
+    for (final path in firebaseExceptions) {
       expect(
         File(path).existsSync(),
         isTrue,

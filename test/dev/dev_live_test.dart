@@ -175,9 +175,25 @@ void main() {
 
   test('the mint script pins the port the browser API key allows', () {
     // The app tells a reader which port to use and the script prints the
-    // command; if the two numbers drift, the printed command stops working.
+    // command. Read the *declaration*, not the file text: the literal also
+    // appears in the script's comments, so a text search would keep passing
+    // after the constant itself was changed.
     final script = File('scripts/dev-token.mjs').readAsStringSync();
+    final declared = RegExp(
+      r'^export const DEFAULT_WEB_PORT = (\d+);$',
+      multiLine: true,
+    ).firstMatch(script);
 
-    expect(script, contains('$devLiveWebPort'));
+    // ASSERT
+    expect(
+      declared,
+      isNotNull,
+      reason: 'scripts/dev-token.mjs must declare DEFAULT_WEB_PORT',
+    );
+    expect(int.parse(declared!.group(1)!), devLiveWebPort);
+    // The number is an operational fact, not a preference: it is the only
+    // localhost referrer the project's browser API key allows. Changing it means
+    // changing the key first.
+    expect(devLiveWebPort, 59922);
   });
 }

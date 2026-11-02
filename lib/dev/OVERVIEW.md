@@ -99,7 +99,9 @@ GOOGLE_APPLICATION_CREDENTIALS=... npm run seed:demo -- --yes --clean-only --dat
 ```
 
 **It cannot reach production.** The launch is resolved before Firebase is touched, and each
-refusal is its own page:
+refusal is its own page. They are decided in one fixed order — the database (empty, then
+production, then a malformed id) before the token — so the first line a reader sees is the one
+that matters most:
 
 | Refusal page | Cause |
 | ------------ | ----- |
@@ -157,7 +159,9 @@ that production would accept the same write. Live mode is the check for the firs
 - Fake mode never calls `Firebase.initializeApp` and never touches a real Firebase singleton, so
   there is no project, no credential and no network. `live_dev_session.dart` is the one file
   allowed to do so, and the boundary test names exactly that file (and fails if it is renamed
-  without updating the list).
+  without updating the list). Because the entrypoint imports that file, a dev build does link the
+  Firebase Auth and Firestore web plugins — registration only; the fake branch never initialises
+  them, so nothing is contacted.
 - In fake mode the shell resolves `AuthSession` only. `AuthService` is registered but throws when
   resolved, so the sign-in, verification and deletion screens are unbuildable there; the home page
   hides its sign-out control and the profile page hides the danger zone rather than offering

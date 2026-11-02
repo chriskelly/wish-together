@@ -167,7 +167,12 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
               String subtitle = _wishlistTileSubtitle(userSnapshot, isOwner);
               return ListTile(
                 title: Text(wishlist.name),
-                subtitle: Text(subtitle),
+                // Its own semantics node, so the row's accessible name is
+                // exactly the wishlist name. Without it the tile merges title
+                // and subtitle into one label ("<name>\nOwned by <person>"),
+                // and a selector written against the name breaks whenever the
+                // owner changes.
+                subtitle: Semantics(container: true, child: Text(subtitle)),
                 onTap: () => context.pushNamed(
                   WishlistDetailsPage.routeName,
                   pathParameters: {'id': wishlist.id!},

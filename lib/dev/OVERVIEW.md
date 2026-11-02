@@ -68,8 +68,8 @@ page behind each one:
 
 | Page | Operation |
 | ---- | --------- |
-| router, profile | `users/{uid}` read, create, update |
-| home | `users` by document id; `wishlists` where `ownerId == uid`; `groups` where `members` contains uid |
+| router, profile | `users/{uid}` read by id, create when missing, `updateData` for one field |
+| home | `users` by id (stream); `wishlists` where `ownerId == uid`; `groups` where `members` contains uid |
 | wishlist details | `wishlists/{id}` stream; `wishlists/{id}/items` stream, add, update, delete |
 | item claim and unclaim | item `update` carrying a `Timestamp`; `updateData` clearing `claimedBy` and `claimedAt` together |
 | group details | `users` by `documentId whereIn`; `wishlists` where `sharedWithGroups` contains the group; `groups` `updateData` with `arrayUnion` / `arrayRemove` |
@@ -79,11 +79,18 @@ A write reaches a stream that is already open, which is what makes a create or a
 without a reload. A reload re-seeds, so a broken experiment costs a reload rather than a
 rebuild.
 
+Two behaviours match Firestore rather than diverging from it, and are worth knowing because
+they shape what a page shows: a document read of a path that does not exist emits a snapshot
+with `exists == false`, and `fromFirestore` throws on the null data, so a page's "not found"
+state arrives through its error path instead of as a null model; an `update` on a missing
+document fails `not-found`.
+
 ## Divergences: what a fake-mode success does not prove
 
-Read this before reporting "works" from a dev session. Each item is either pinned by a test in
-`test/dev/fake_parity_test.dart`, authored against `fake_cloud_firestore` 4.1.0+1 so a dependency
-upgrade that changes the gap fails loudly, or listed here because one process cannot model it.
+Read this before reporting "works" from a dev session. The fake-dependent items are pinned by a
+test in `test/dev/fake_parity_test.dart`, authored against `fake_cloud_firestore` 4.1.0+1, so a
+dependency upgrade that changes the gap fails loudly. The others cannot be exercised in one
+process, or are app behaviour the harness reproduces faithfully.
 
 1. **Rules are not enforced.** No document is denied; any write the app composes succeeds. A
    write the real `firestore.rules` would reject is indistinguishable from a working one here.
@@ -105,10 +112,11 @@ upgrade that changes the gap fails loudly, or listed here because one process ca
    empty list when the collection is empty. `UserRepository.streamUsersFromIds` does not chunk,
    so a group with 31 or more members fails the members read on both backends — a limit of the
    app that a sparse fixture can hide.
-7. **A missing document is an error, not a null model.** A document read of a path that does
-   not exist emits a snapshot with `exists == false`, and the repositories' `fromFirestore`
-   throws on the null data, so a page's "not found" state arrives through its error path. An
-   `update` on a missing document fails `not-found`, as it does in production.
+7. **Deleting a wishlist does not cascade.** The home page deletes the wishlist document only
+   (`home_page.dart:321`); `deleteWithItems`, which pages through the items first, is reached
+   only from account deletion. A dev session therefore shows the wishlist gone while its item
+   documents remain, exactly as production does today. The app-side gap is tracked in #102; the
+   fake neither hides nor fixes it.
 8. **Platform plugins are inert.** Share, external-URL launch and sign-in sheets either no-op
    or depend on the browser. Everything up to the plugin call can be verified; the call itself
    cannot.

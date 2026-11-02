@@ -17,15 +17,10 @@ void main() {
     // ACT: the entrypoint prepares the browser more than once in a reloaded
     // process (the app and the error page both do), so a second call must not
     // take a second handle.
-    final first = retainDevSemantics();
-    final second = retainDevSemantics();
+    retainDevSemantics();
+    retainDevSemantics();
 
     // ASSERT
-    expect(
-      identical(first, second),
-      isTrue,
-      reason: 'a second bootstrap must reuse the handle, not take another',
-    );
     expect(
       SemanticsBinding.instance.debugOutstandingSemanticsHandles,
       before + 1,

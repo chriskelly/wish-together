@@ -212,6 +212,49 @@ void main() {
     });
   });
 
+  group('the profile path', () {
+    test('creates a missing profile document and reads it back', () async {
+      // ARRANGE: no `users/{uid}` document, which is what the router's
+      // `getOrCreateUser` finds on a first sign-in.
+      final firestore = await seededStore(<String, Map<String, dynamic>>{});
+      final repository = UserRepository(firestore: firestore);
+
+      // ACT
+      final created = await repository.getOrCreateUser(
+        viewerUid,
+        displayName: 'Ana Dev',
+      );
+
+      // ASSERT: the document exists and the profile page can read it by id.
+      expect(created.displayName, 'Ana Dev');
+      expect((await repository.get(viewerUid)).displayName, 'Ana Dev');
+    });
+
+    test('saving a display name leaves the other fields alone', () async {
+      // ARRANGE: a profile that already carries the contact details the sign-in
+      // flow stored.
+      final firestore = await seededStore(<String, Map<String, dynamic>>{
+        'users/$viewerUid': <String, dynamic>{
+          'displayName': null,
+          'email': 'ana@example.com',
+          'phoneNumber': '+15550100',
+        },
+      });
+      final repository = UserRepository(firestore: firestore);
+
+      // ACT: the one field `SaveUserProfileUseCase` writes.
+      await repository.updateData(viewerUid, <String, dynamic>{
+        'displayName': 'Ana Dev',
+      });
+
+      // ASSERT: a partial update, not a whole-document write.
+      final saved = await repository.get(viewerUid);
+      expect(saved.displayName, 'Ana Dev');
+      expect(saved.email, 'ana@example.com');
+      expect(saved.phoneNumber, '+15550100');
+    });
+  });
+
   group('writes a page issues', () {
     test('joining a group appends the member once', () async {
       // ARRANGE

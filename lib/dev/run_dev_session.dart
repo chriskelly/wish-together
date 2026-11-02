@@ -10,6 +10,7 @@ import 'package:wishtogether/core/router.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/core/theme.dart';
 import 'package:wishtogether/dev/dev_banner.dart';
+import 'package:wishtogether/dev/dev_config.dart';
 import 'package:wishtogether/dev/dev_error_screen.dart';
 import 'package:wishtogether/dev/dev_session.dart';
 import 'package:wishtogether/dev/fixtures/dev_fixture.dart';
@@ -41,7 +42,7 @@ Future<WishTogetherApp> buildDevApp(DevFixture fixture) async {
   // ignores the parameter whenever the path is not `/`.
   return WishTogetherApp(
     router: createRouter(session),
-    pageFrame: (pages) => DevSessionFrame(scenarioId: fixture.id, pages: pages),
+    pageFrame: (pages) => DevSessionFrame.scenario(fixture.id, pages: pages),
   );
 }
 
@@ -64,16 +65,36 @@ Future<Widget> buildDevAppForScenario(String scenarioId) async {
 }
 
 /// The page shown for a scenario id the registry does not have.
-Widget buildUnknownScenarioApp(String requestedScenario) => MaterialApp(
+Widget buildUnknownScenarioApp(String requestedScenario) => buildDevPageApp(
+  DevErrorScreen(
+    requestedScenario: requestedScenario,
+    availableScenarios: devScenarios.keys.toList(),
+  ),
+);
+
+/// The page shown when the build cannot run what it was asked for.
+///
+/// A refused launch is still a page: the reason and the fix are the whole
+/// point of refusing, and a blank tab tells a reader nothing.
+Widget buildRefusedDevApp(RefusedDevLaunch refusal) => buildDevPageApp(
+  DevFailureScreen(
+    label: devNotStartedLabel,
+    headline: refusal.headline,
+    details: refusal.details,
+  ),
+);
+
+/// One dev page, inside the app's own theme.
+///
+/// Every failure page is the production theme over a dev strip, so the theme is
+/// applied in one place rather than repeated per page.
+Widget buildDevPageApp(Widget home) => MaterialApp(
   title: 'WishTogether dev session',
   debugShowCheckedModeBanner: false,
   theme: lightTheme,
   darkTheme: darkTheme,
   themeMode: ThemeMode.system,
-  home: DevErrorScreen(
-    requestedScenario: requestedScenario,
-    availableScenarios: devScenarios.keys.toList(),
-  ),
+  home: home,
 );
 
 /// The log a dev session reports through.
@@ -95,7 +116,7 @@ AppLog buildDevLog() => AppLog(
 /// fixture, mount. Committed scenarios go through `dev_main.dart` instead,
 /// which adds the URL and define resolution.
 Future<void> runDevSession(DevFixture fixture) async {
-  _prepareBrowser();
+  prepareDevBrowser();
   runApp(await buildDevApp(fixture));
 }
 
@@ -105,15 +126,25 @@ Future<void> runDevSession(DevFixture fixture) async {
 /// and lists the ids that work instead of the blank tab a failure before
 /// `runApp` leaves behind.
 Future<void> runDevSessionFor(String scenarioId) async {
-  _prepareBrowser();
+  prepareDevBrowser();
   runApp(await buildDevAppForScenario(scenarioId));
+}
+
+/// Boots the page for a launch that cannot run.
+///
+/// Same browser preparation as a working session: a refusal must be a page that
+/// can be read and addressed, not a process that died before painting.
+Future<void> runRefusedDevSession(RefusedDevLaunch refusal) async {
+  prepareDevBrowser();
+  runApp(buildRefusedDevApp(refusal));
 }
 
 /// Everything a dev session needs from the browser before it mounts.
 ///
 /// Both the scenario and the error page run this: a wrong id must still be a
-/// page that can be read, not a process that died before painting.
-void _prepareBrowser() {
+/// page that can be read, not a process that died before painting. The live
+/// backend calls it too, before it touches Firebase.
+void prepareDevBrowser() {
   WidgetsFlutterBinding.ensureInitialized();
   // Flutter web builds its accessibility DOM on demand. Without semantics on,
   // the page holds a placeholder and a text-only agent has nothing to address

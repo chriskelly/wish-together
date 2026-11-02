@@ -173,6 +173,32 @@ void main() {
         });
       });
 
+      group('user has only a whitespace display name', () {
+        setUp(() {
+          when(
+            () => mockUserRepository.getOrCreateUser(
+              any(),
+              email: any(named: 'email'),
+              phoneNumber: any(named: 'phoneNumber'),
+            ),
+          ).thenAnswer((_) async => User(id: 'test-uid', displayName: '   '));
+        });
+
+        test('should redirect to profile page from a protected page', () async {
+          const initialRoute = HomePage.route;
+
+          final result = await handleRedirect(
+            initialRoute,
+            mockSession,
+            userRepo: mockUserRepository,
+          );
+
+          final expectedRedirect =
+              '${ProfilePage.route}?$redirectToParam=${Uri.encodeComponent(initialRoute)}';
+          expect(result, expectedRedirect);
+        });
+      });
+
       group('user has a display name', () {
         setUp(() {
           when(

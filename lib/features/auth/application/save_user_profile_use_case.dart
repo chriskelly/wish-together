@@ -15,18 +15,24 @@ class SaveUserProfileUseCase {
       throw Exception('User is not authenticated');
     }
 
+    // A name is its trimmed value. A blank one is not a name, and storing it
+    // would leave the router treating this user as not onboarded.
+    final name = displayName.trim();
+    if (name.isEmpty) {
+      throw ArgumentError.value(displayName, 'displayName', 'is blank');
+    }
+
     // Get current user to check if they're new
     final currentUser = await userRepository.get(userId);
-    final isNewUser =
-        currentUser.displayName == null || currentUser.displayName!.isEmpty;
+    final isNewUser = !currentUser.hasDisplayName;
 
     // Update display name
-    await userRepository.updateData(userId, {'displayName': displayName});
+    await userRepository.updateData(userId, {'displayName': name});
 
     // Create default wishlist for new users
     if (isNewUser) {
       await wishlistRepository.add(
-        Wishlist(name: "$displayName's Wishlist", ownerId: userId),
+        Wishlist(name: "$name's Wishlist", ownerId: userId),
       );
     }
   }

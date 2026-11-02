@@ -273,6 +273,25 @@ void main() {
       },
     );
 
+    testWidgets('treats a whitespace-only stored name as onboarding', (
+      tester,
+    ) async {
+      // Arrange
+      when(() => loadUserProfile.execute())
+          .thenAnswer((_) async => User(id: 'user-2', displayName: '   '));
+
+      // Act
+      await pumpProfilePage(tester);
+      await tester.pumpAndSettle();
+
+      // Assert
+      expect(
+        find.text('Welcome! Please enter your name to continue.'),
+        findsOneWidget,
+      );
+      expect(find.byType(BackButton), findsNothing);
+    });
+
     testWidgets('keeps the retry available when the retry also fails', (
       tester,
     ) async {
@@ -393,7 +412,8 @@ void main() {
 
     test('keeps an invitation path intact', () {
       const groupId = '123';
-      final invitation = '${JoinGroupPage.route}?group=$groupId';
+      final invitation =
+          '${JoinGroupPage.route}?${JoinGroupPage.groupIdParam}=$groupId';
 
       expect(profileExitTarget(invitation), invitation);
     });

@@ -35,9 +35,9 @@ String profilePageTitle({
 
 /// Whether the profile page offers a way out that does not save.
 ///
-/// An empty display name *is* the onboarding state — the router refuses to let
-/// such a user past `/profile` — so an arrow for them would only bounce
-/// straight back.
+/// A display name with no content once trimmed *is* the onboarding state — the
+/// router refuses to let such a user past `/profile` — so an arrow for them
+/// would only bounce straight back.
 ///
 /// Only a loaded profile is trusted to answer: a still-loading or failed read
 /// knows no name at all, and an arrow there would let a new user past
@@ -94,9 +94,8 @@ class _ProfilePageState extends State<ProfilePage> {
   User? _currentUser;
   ProfileLoadState _loadState = ProfileLoadState.loading;
 
-  // Check if the user is new based on whether a display name is set.
-  bool get _isNewUser =>
-      _currentUser?.displayName == null || _currentUser!.displayName!.isEmpty;
+  // A user without a display name is still being onboarded.
+  bool get _isNewUser => !(_currentUser?.hasDisplayName ?? false);
 
   @override
   void initState() {
@@ -272,7 +271,7 @@ class _ProfilePageState extends State<ProfilePage> {
       border: OutlineInputBorder(),
     ),
     validator: (value) {
-      if (value == null || value.trim().isEmpty) {
+      if (!User.isNonBlankName(value)) {
         return 'Please enter your name';
       }
       return null;
@@ -290,9 +289,8 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _saveProfile() async {
     if (_formKey.currentState!.validate()) {
-      final displayName = _displayNameController.text.trim();
       try {
-        await _saveUserProfileUseCase.execute(displayName);
+        await _saveUserProfileUseCase.execute(_displayNameController.text);
         _showConfirmationSnackbarAndExit();
       } catch (e) {
         _showErrorSnackBar(e);

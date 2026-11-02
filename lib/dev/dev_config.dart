@@ -173,8 +173,10 @@ DevLaunch resolveDevLaunch({
 
 /// The live launch, or the refusal that keeps it off production.
 ///
-/// The database is checked before the token on purpose: the database is the
-/// production boundary, and a reader should fix that first.
+/// The checks run in one fixed order — empty database, production database,
+/// malformed id, token — and the first failure is the one a reader sees. The
+/// database comes before the token because it is the production boundary: a
+/// reader should settle that before anything else.
 DevLaunch _resolveLiveLaunch({
   required String databaseDefine,
   required String tokenDefine,
@@ -195,6 +197,20 @@ DevLaunch _resolveLiveLaunch({
     );
   }
 
+  // Named before the id is parsed, so production is refused as production
+  // rather than by whatever the parser happens to accept.
+  if (rawDatabase == defaultFirestoreDatabaseId) {
+    return const RefusedDevLaunch(
+      headline: 'Live dev mode refuses the production database',
+      details: <String>[
+        'WT_FIRESTORE_DATABASE="(default)" is the production database.',
+        'Name the staging database instead: '
+            '--dart-define=WT_FIRESTORE_DATABASE=staging',
+        'npm run dev:token prints the whole command.',
+      ],
+    );
+  }
+
   final String databaseId;
   try {
     databaseId = resolveFirestoreDatabaseId(rawDatabase);
@@ -205,18 +221,6 @@ DevLaunch _resolveLiveLaunch({
         'A Firestore database id is lowercase, starts with a letter and is 4 to '
             '63 characters, for example "staging".',
         'npm run dev:token prints the whole command with a valid id.',
-      ],
-    );
-  }
-
-  if (databaseId == defaultFirestoreDatabaseId) {
-    return const RefusedDevLaunch(
-      headline: 'Live dev mode refuses the production database',
-      details: <String>[
-        'WT_FIRESTORE_DATABASE="(default)" is the production database.',
-        'Name the staging database instead: '
-            '--dart-define=WT_FIRESTORE_DATABASE=staging',
-        'npm run dev:token prints the whole command.',
       ],
     );
   }

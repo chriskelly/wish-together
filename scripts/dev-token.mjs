@@ -16,8 +16,12 @@
 //   GOOGLE_APPLICATION_CREDENTIALS=~/path/to/service-account.json \
 //     npm run dev:token -- --uid <uid> [--database staging] [--web-port 59922]
 //
-// The uid needs no Auth account: the first sign-in creates one. Seed the data it
-// should see with the same uid:
+// The uid needs no Auth account: the first sign-in creates one. Use a synthetic
+// one: a live session hides account deletion unless the build sets
+// --dart-define=WT_DEV_ALLOW_ACCOUNT_DELETION=true, and deletion removes a real
+// Auth user from a project whose Auth is shared with production.
+//
+// Seed the data it should see with the same uid:
 //
 //   GOOGLE_APPLICATION_CREDENTIALS=... npm run seed:demo -- --yes \
 //     --database staging --viewer-uid <uid>
@@ -246,6 +250,9 @@ export async function main(argv = process.argv.slice(2)) {
   console.log('');
   console.log(
     'A new token needs a restart: --dart-define is compile-time, so stop the app and run the line again.',
+  );
+  console.log(
+    'Account deletion stays hidden in the app; add --dart-define=WT_DEV_ALLOW_ACCOUNT_DELETION=true to offer it for a synthetic uid.',
   );
   return 0;
 }

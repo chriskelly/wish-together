@@ -28,6 +28,15 @@ const String devBackendDefine = String.fromEnvironment('WT_DEV_BACKEND');
 /// development credential for a named database and never a production one.
 const String devTokenDefine = String.fromEnvironment('WT_DEV_TOKEN');
 
+/// Whether a live session offers in-app account deletion.
+///
+/// Deletion re-authenticates against a real provider and then deletes a real
+/// Auth user, and staging shares production Auth, so a live session hides the
+/// danger zone unless this build asks for it explicitly.
+const String devAllowAccountDeletionDefine = String.fromEnvironment(
+  'WT_DEV_ALLOW_ACCOUNT_DELETION',
+);
+
 /// The port a live session must be served on.
 ///
 /// The project's browser API key restricts HTTP referrers, and the only
@@ -100,6 +109,7 @@ final class LiveDevLaunch extends DevLaunch {
     required this.databaseId,
     required this.token,
     this.ignoredScenario,
+    this.allowAccountDeletion = false,
   });
 
   /// The named Firestore database. Never `(default)`: that is production.
@@ -114,6 +124,13 @@ final class LiveDevLaunch extends DevLaunch {
   /// banner say it was ignored, instead of staging data being read as a
   /// fixture.
   final String? ignoredScenario;
+
+  /// Whether the profile page offers account deletion.
+  ///
+  /// False unless the build set `WT_DEV_ALLOW_ACCOUNT_DELETION=true`: the
+  /// control deletes a real Auth user after a real re-authentication, and the
+  /// Auth project is shared with production.
+  final bool allowAccountDeletion;
 }
 
 /// A launch that cannot run, and why.
@@ -139,6 +156,7 @@ DevLaunch resolveDevLaunch({
   String backendDefine = devBackendDefine,
   String databaseDefine = firestoreDatabaseIdOverride,
   String tokenDefine = devTokenDefine,
+  String allowAccountDeletionDefine = devAllowAccountDeletionDefine,
   String? urlScenario,
   String defineScenario = devScenarioDefine,
 }) {
@@ -156,6 +174,7 @@ DevLaunch resolveDevLaunch({
       return _resolveLiveLaunch(
         databaseDefine: databaseDefine,
         tokenDefine: tokenDefine,
+        allowAccountDeletionDefine: allowAccountDeletionDefine,
         urlScenario: urlScenario,
       );
     default:
@@ -174,12 +193,13 @@ DevLaunch resolveDevLaunch({
 /// The live launch, or the refusal that keeps it off production.
 ///
 /// The checks run in one fixed order — empty database, production database,
-/// malformed id, token — and the first failure is the one a reader sees. The
-/// database comes before the token because it is the production boundary: a
-/// reader should settle that before anything else.
+/// malformed id, token, account-deletion flag — and the first failure is the one
+/// a reader sees. The database comes before the token because it is the
+/// production boundary: a reader should settle that before anything else.
 DevLaunch _resolveLiveLaunch({
   required String databaseDefine,
   required String tokenDefine,
+  required String allowAccountDeletionDefine,
   required String? urlScenario,
 }) {
   final rawDatabase = databaseDefine.trim();
@@ -239,10 +259,33 @@ DevLaunch _resolveLiveLaunch({
     );
   }
 
+  final rawDeletion = allowAccountDeletionDefine.trim();
+  final bool allowAccountDeletion;
+  switch (rawDeletion) {
+    case '':
+    case 'false':
+      allowAccountDeletion = false;
+    case 'true':
+      allowAccountDeletion = true;
+    default:
+      return RefusedDevLaunch(
+        headline:
+            'WT_DEV_ALLOW_ACCOUNT_DELETION="$rawDeletion" is not a flag value',
+        details: const <String>[
+          'Accepted values: "true" offers account deletion in a live session; '
+              '"false" or unset hides it.',
+          'Deletion re-authenticates and then deletes a real Auth user, and '
+              'the Auth project is shared with production, so it stays off '
+              'unless a build asks for it.',
+        ],
+      );
+  }
+
   final requested = urlScenario?.trim() ?? '';
   return LiveDevLaunch(
     databaseId: databaseId,
     token: token,
     ignoredScenario: requested.isEmpty ? null : requested,
+    allowAccountDeletion: allowAccountDeletion,
   );
 }

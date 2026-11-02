@@ -1,20 +1,48 @@
 import 'dart:io';
 
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show ValueKey;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/dev/dev_banner.dart';
 import 'package:wishtogether/dev/dev_config.dart';
 import 'package:wishtogether/dev/dev_session.dart';
 import 'package:wishtogether/dev/live_dev_session.dart';
 import 'package:wishtogether/dev/run_dev_session.dart';
+import 'package:wishtogether/features/auth/data/auth_service.dart';
+import 'package:wishtogether/features/auth/domain/auth_session.dart';
+
+class _MockFirebaseAuth extends Mock implements FirebaseAuth {}
+
+class _MockGoogleSignIn extends Mock implements GoogleSignIn {}
+
+/// A live service that needs no Firebase project.
+///
+/// `AuthService` reads `FirebaseAuth.instance` and subscribes to the Google
+/// sign-in stream in its constructor, so both arrive as mocks here.
+LiveDevAuthService liveService() {
+  final auth = _MockFirebaseAuth();
+  when(() => auth.currentUser).thenReturn(null);
+  when(() => auth.authStateChanges())
+      .thenAnswer((_) => const Stream<User?>.empty());
+  final google = _MockGoogleSignIn();
+  when(() => google.onCurrentUserChanged)
+      .thenAnswer((_) => const Stream<GoogleSignInAccount?>.empty());
+  return LiveDevAuthService(auth: auth, googleSignIn: google);
+}
 
 /// A live launch the tests can hand around without a Firebase project.
-LiveDevLaunch liveLaunch({String? ignoredScenario}) => LiveDevLaunch(
+LiveDevLaunch liveLaunch({
+  String? ignoredScenario,
+  bool allowAccountDeletion = false,
+}) => LiveDevLaunch(
   databaseId: 'staging',
   token: 'header.payload.signature',
   ignoredScenario: ignoredScenario,
+  allowAccountDeletion: allowAccountDeletion,
 );
 
 void main() {
@@ -132,7 +160,7 @@ void main() {
       initializeFirebase: () async {},
       signIn: (token) async {},
       createFirestore: (databaseId) => FakeFirebaseFirestore(),
-      authSession: const DevAuthSession('dev-live-1'),
+      createSession: () => const DevAuthSession('dev-live-1'),
     );
 
     // ACT
@@ -156,6 +184,80 @@ void main() {
     expect(tester.takeException(), isNull);
 
     handle.dispose();
+  });
+
+  group('the account-deletion capability', () {
+    test('the live service is an AuthService that hides the danger zone', () {
+      // ACT
+      final service = liveService();
+
+      // ASSERT: it must still be an AuthService, or the locator would refuse it
+      // and the sign-in screens and Logout would stop building.
+      expect(service, isA<AuthService>());
+      expect(service.supportsAccountDeletion, isFalse);
+      // Sign-out is genuinely safe in live mode, so it stays.
+      expect(service.supportsSignOut, isTrue);
+    });
+
+    test('a launch without the opt-in installs that service', () {
+      // ARRANGE
+      final service = liveService();
+
+      // ACT
+      final installed = liveDevSession(
+        liveLaunch(),
+        createSession: () => service,
+      );
+
+      // ASSERT: the default never reaches the real service.
+      expect(installed, same(service));
+    });
+
+    test('the opt-in lets the locator build the real service instead', () {
+      // ARRANGE
+      var factoryCalled = false;
+
+      // ACT
+      final installed = liveDevSession(
+        liveLaunch(allowAccountDeletion: true),
+        createSession: () {
+          factoryCalled = true;
+          return liveService();
+        },
+      );
+
+      // ASSERT: null is what makes the locator construct AuthService, whose
+      // supportsAccountDeletion is true (test/features/auth/data/
+      // auth_service_test.dart pins that).
+      expect(installed, isNull);
+      expect(
+        factoryCalled,
+        isFalse,
+        reason: 'the hidden session must not be built at all when opted in',
+      );
+    });
+
+    testWidgets('the installed session resolves as the AuthService', (
+      tester,
+    ) async {
+      // ARRANGE: the default live composition, with the one seam replaced.
+      final service = liveService();
+
+      // ACT
+      await buildLiveDevApp(
+        liveLaunch(),
+        initializeFirebase: () async {},
+        signIn: (token) async {},
+        createFirestore: (databaseId) => FakeFirebaseFirestore(),
+        createSession: () => service,
+      );
+
+      // ASSERT: LoginPage and DeleteAccountUseCase resolve AuthService, so it
+      // must answer with this very session — not throw.
+      expect(getIt<AuthService>(), same(service));
+      expect(getIt<AuthSession>(), same(service));
+      expect(getIt<AuthSession>().supportsAccountDeletion, isFalse);
+    });
   });
 
   test('the sign-in failure text names the code, the command and the port', () {

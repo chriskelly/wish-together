@@ -310,6 +310,52 @@ void main() {
     });
   });
 
+  group('resolveDevLaunch — the account-deletion opt-in', () {
+    DevLaunch withFlag(String raw) => resolveDevLaunch(
+      backendDefine: liveDevBackend,
+      databaseDefine: 'staging',
+      tokenDefine: 'a-token',
+      allowAccountDeletionDefine: raw,
+    );
+
+    test('is off when the build says nothing', () {
+      // ACT
+      final launch = liveLaunchOf(withFlag(''));
+
+      // ASSERT: deleting a real Auth user must be asked for, never defaulted.
+      expect(launch.allowAccountDeletion, isFalse);
+    });
+
+    test('is off when explicitly false', () {
+      // ACT
+      final launch = liveLaunchOf(withFlag('false'));
+
+      // ASSERT
+      expect(launch.allowAccountDeletion, isFalse);
+    });
+
+    test('is on for true', () {
+      // ACT
+      final launch = liveLaunchOf(withFlag('true'));
+
+      // ASSERT
+      expect(launch.allowAccountDeletion, isTrue);
+    });
+
+    test('a value that is neither is refused, naming the accepted ones', () {
+      // ARRANGE
+      const malformed = 'yes';
+
+      // ACT
+      final text = refusalText(refusalOf(withFlag(malformed)));
+
+      // ASSERT: a typo must not silently mean "off".
+      expect(text, contains(malformed));
+      expect(text, contains('"true"'));
+      expect(text, contains('Accepted values'));
+    });
+  });
+
   test('the bundle marker keeps the literal the CI guard greps', () {
     // A dev build carries this string; a production build must never contain
     // it. Changing it silently would leave the guard searching for a marker

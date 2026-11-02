@@ -9,6 +9,7 @@ import 'package:wishtogether/dev/dev_banner.dart';
 import 'package:wishtogether/dev/dev_config.dart';
 import 'package:wishtogether/dev/dev_error_screen.dart';
 import 'package:wishtogether/dev/run_dev_session.dart';
+import 'package:wishtogether/features/auth/data/auth_service.dart';
 import 'package:wishtogether/features/auth/domain/auth_session.dart';
 import 'package:wishtogether/firebase_options.dart';
 import 'package:wishtogether/main.dart';
@@ -27,6 +28,8 @@ typedef DevFirestoreFactory = FirebaseFirestore Function(String databaseId);
 ///
 /// Nothing here chooses the database: [resolveDevLaunch] already refused every
 /// value that could mean production, so this only has to use what it was given.
+/// It also decides only one capability: [liveDevSession] installs a session that
+/// hides account deletion unless the build asked for it.
 ///
 /// The collaborators are injectable so the failure paths can be tested without
 /// a Firebase project. Production never imports this file.
@@ -35,7 +38,7 @@ Future<Widget> buildLiveDevApp(
   DevFirebaseInitializer initializeFirebase = initializeLiveDevFirebase,
   DevCustomTokenSignIn signIn = signInWithLiveDevToken,
   DevFirestoreFactory createFirestore = createLiveDevFirestore,
-  AuthSession? authSession,
+  AuthSession Function()? createSession,
 }) async {
   try {
     await initializeFirebase();
@@ -53,18 +56,14 @@ Future<Widget> buildLiveDevApp(
   // activating a provider it has no registration for would only add a failure.
   final firestore = createFirestore(launch.databaseId);
 
-  // The locator builds the production AuthService when [authSession] is null,
-  // and that service reads the session established above. A live session is the
-  // real thing, so the shell gets the real uid stream, the real providers and
-  // the real sign-out and delete-account controls — which is what makes it a
-  // check of production behaviour rather than of a stand-in.
-  //
-  // [authSession] exists only so a test can pump this composition without a
-  // Firebase project; a real launch leaves it null.
+  // The shell gets a real session — the real uid stream, the real providers and
+  // a real sign-out — with the one capability a dev session must not offer
+  // removed: deleting the account. See [liveDevSession].
+  final installedSession = liveDevSession(launch, createSession: createSession);
   setupServiceLocator(
     firestore: firestore,
     appLog: buildDevLog(),
-    authSession: authSession,
+    authSession: installedSession,
   );
   final session = getIt<AuthSession>();
 
@@ -76,6 +75,45 @@ Future<Widget> buildLiveDevApp(
       pages: pages,
     ),
   );
+}
+
+/// The live session with the danger zone removed.
+///
+/// It is a real [AuthService], so the locator registers it as one: `AuthService`
+/// still resolves (the sign-in and verification screens build, and sign-out
+/// works) and only the profile page's account-deletion section disappears.
+///
+/// Deletion is the one thing a dev session must not offer: the cascade
+/// re-authenticates against the real provider and then deletes a real Auth user,
+/// and the Auth project is shared with production.
+class LiveDevAuthService extends AuthService {
+  LiveDevAuthService({
+    super.auth,
+    super.isWeb,
+    super.appleCredentialFetcher,
+    super.googleSignIn,
+  });
+
+  @override
+  bool get supportsAccountDeletion => false;
+}
+
+/// The session a live launch installs.
+///
+/// Null means "let the locator build the production `AuthService`", which is the
+/// only shape that offers in-app account deletion, so it is used only when the
+/// build set `WT_DEV_ALLOW_ACCOUNT_DELETION=true`.
+///
+/// [createSession] is the single seam for tests: they pass a session that needs
+/// no Firebase, both to pump the composition and to exercise this branch.
+AuthSession? liveDevSession(
+  LiveDevLaunch launch, {
+  AuthSession Function()? createSession,
+}) {
+  if (launch.allowAccountDeletion) {
+    return null;
+  }
+  return (createSession ?? LiveDevAuthService.new)();
 }
 
 /// Boots a live session in the browser.

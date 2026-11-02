@@ -211,9 +211,16 @@ class _RedirectToGroupState extends State<_RedirectToGroup> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      context.goNamed(
-        GroupDetailsPage.routeName,
-        pathParameters: {'id': widget.groupId},
+      // A plain `go` pushes a browser history entry, so Back would return to
+      // the invite, which would forward again: a Back button that does
+      // nothing. Neglecting the report marks the entry replaced, so `/join`
+      // never becomes a place the user can return to.
+      Router.neglect(
+        context,
+        () => context.goNamed(
+          GroupDetailsPage.routeName,
+          pathParameters: {'id': widget.groupId},
+        ),
       );
     });
   }

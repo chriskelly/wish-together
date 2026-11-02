@@ -54,13 +54,15 @@ members identified by Firebase Auth uid; wishlists are shared *into* a group.
   not-yet-onboarded user still lands on the join page. Legacy `/#/join?…` links are not
   supported and land on `/`.
 - Accepting an invite for a group the viewer already belongs to goes straight to that
-  group's details page, replacing the location so `/join` is not on the back stack. There
-  is no "already a member" page; the group fetch, not the home list, decides membership.
+  group's details page. The navigation is reported as a replacement, so on web the invite
+  entry is replaced rather than stacked and Back does not return to `/join`. There is no
+  "already a member" page; the group fetch, not the home list, decides membership.
 - The join route is keyed by its path, not its query string, so a second invite link in the
   same session updates the page in place. The page re-reads the group when `groupId`
   changes, so the name and the membership decision always describe the link just followed.
-  Reopening the *same* link does not re-read: the invalid-invitation screen is terminal for
-  that link, and distinguishing a failed read from a missing group is a separate change.
+  A rebuild that keeps the same group id does not re-read; leaving the page and returning,
+  or reloading, reads again. Distinguishing a failed read from a missing group, and
+  offering a retry, is a separate change.
 
 ## Data flow
 
@@ -86,11 +88,12 @@ from `AuthSession`; no uid is passed in from the UI.
   no Leave Group button, and the floating button opens the share dialog.
 - `test/features/group/presentation/join_group_page_test.dart` drives the real `/join` route
   through a `GoRouter` and pins the invite outcomes: an existing member lands on
-  `/group/<id>` with no tap, no interstitial and no `/join` left on the back stack; a
-  non-member sees the invitation; a failed group fetch shows "This invitation is no longer
-  valid." and stays on `/join`; the loading state holds while the fetch is pending; a second
-  invite link re-reads the new group; a rebuild reads the group only once; and Join Group
-  still joins and lands on the group. The page also renders the invitation when no session
-  is present, which is defensive: the router normally sends a signed-out visitor to login
-  first.
+  `/group/<id>` with no tap, no interstitial and no `/join` left in the router's matches,
+  and the engine is told to replace the browser entry (recorded from the navigation
+  channel); a non-member sees the invitation; a failed group fetch shows "This invitation is
+  no longer valid." and stays on `/join`; the loading state holds while the fetch is
+  pending; a second invite link re-reads the new group; a rebuild reads the group only once;
+  and Join Group still joins and lands on the group. The page also renders the invitation
+  when no session is present, which is defensive: the router normally sends a signed-out
+  visitor to login first.
 - These two are the only widget tests that cover the group pages.

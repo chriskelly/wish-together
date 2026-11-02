@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
@@ -112,6 +113,40 @@ void main() {
     expect(find.byType(JoinGroupPage), findsNothing);
     expect(changedPaths(), [groupPath]);
     expect(matchedLocations(router), isNot(contains(JoinGroupPage.route)));
+  });
+
+  testWidgets('replaces the browser history entry when redirecting an '
+      'existing member', (tester) async {
+    when(() => groupRepository.get(groupId)).thenAnswer((_) async => group);
+
+    final messenger = tester.binding.defaultBinaryMessenger;
+    final reports = <Map<Object?, Object?>>[];
+    messenger.setMockMethodCallHandler(SystemChannels.navigation, (call) async {
+      if (call.method == 'routeInformationUpdated') {
+        reports.add(call.arguments as Map<Object?, Object?>);
+      }
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.navigation, null),
+    );
+
+    await pumpInvite(tester);
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+
+    final groupReports = reports
+        .where((report) => (report['uri']! as String).endsWith(groupPath))
+        .toList();
+    expect(groupReports, isNotEmpty);
+    expect(
+      groupReports.last['replace'],
+      isTrue,
+      reason:
+          'the engine must replace the invite entry, or Back returns to '
+          '/join and forwards again',
+    );
   });
 
   testWidgets('reads the group once when the page rebuilds', (tester) async {

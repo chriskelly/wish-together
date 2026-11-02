@@ -161,8 +161,7 @@ Future<String?> handleRedirect(
     email: session.currentUserEmail,
     phoneNumber: session.currentUserPhoneNumber,
   );
-  final hasDisplayName =
-      user.displayName != null && user.displayName!.isNotEmpty;
+  final hasDisplayName = user.hasDisplayName;
 
   if (uri.path == LoginPage.route) {
     return _redirectFromLogin(uri, hasDisplayName);
@@ -336,7 +335,7 @@ GoRoute joinGroupPageRoute() => GoRoute(
   name: JoinGroupPage.routeName,
   path: JoinGroupPage.route,
   builder: (BuildContext context, GoRouterState state) {
-    final groupId = state.uri.queryParameters['group'];
+    final groupId = state.uri.queryParameters[JoinGroupPage.groupIdParam];
     if (groupId == null) {
       return const Scaffold(
         body: Center(child: Text('Invalid invitation link.')),

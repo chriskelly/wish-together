@@ -93,20 +93,24 @@ profile).
   `getOrCreateUser(uid, {email, displayName, phoneNumber})` returns the existing document
   or creates one. `streamUsersFromIds(ids)` feeds the group members list.
 - `User` — `id`, `displayName`, `email`, `phoneNumber`; `copyWith` / `toMap` / `fromMap`.
+  `hasDisplayName` (the user name has content once trimmed) is what "onboarded" means, and
+  `isNonBlankName(value)` is the one blank check the form validator and `hasDisplayName` share.
 - `LoadUserProfileUseCase` — returns the signed-in user's document, or `null` if signed out.
-- `SaveUserProfileUseCase` — sets `displayName` and, for a first-time user, creates their
-  default `"<displayName>'s Wishlist"`.
+- `SaveUserProfileUseCase` — trims the name, rejects a blank one with `ArgumentError` before
+  any read or write, stores the trimmed value, and for a first-time user creates their default
+  `"<displayName>'s Wishlist"`.
 
 ## Invariants
 
 - The `users/{uid}` document id **is** the Firebase Auth uid.
-- Onboarding is router-driven: a user with an empty `displayName` cannot reach home until
-  they save a name on `ProfilePage`.
+- Onboarding is router-driven: a user with no display name — null, empty, or whitespace-only —
+  cannot reach home until they save a name on `ProfilePage`.
 - **`ProfilePage` offers a non-saving exit to an existing user, and none to a new one.** The
   AppBar's back arrow is gated by `shouldShowProfileBackButton`, which applies the same rule the
-  router uses for onboarding — an empty `displayName` — and is offered only for a **loaded**
-  profile (`ProfileLoadState.loaded`), so the arrow is never offered where the redirect would
-  only send the user back, and never on the strength of a read that has not succeeded.
+  router uses for onboarding — no display name, null/empty/whitespace-only alike — and is offered
+  only for a **loaded** profile (`ProfileLoadState.loaded`), so the arrow is never offered where
+  the redirect would only send the user back, and never on the strength of a read that has not
+  succeeded.
   It navigates with `context.go(profileExitTarget(redirectTo))` — the rule Save also uses, so
   the two exits cannot disagree — never `pop`, because `/profile` is a top-level route and both
   Home → Profile and a web deep link arrive with a one-deep stack. `profileExitTarget` falls
@@ -158,8 +162,11 @@ profile).
   screen with a relaunch (a page reload on web) as its only exit. Sign out lives on this page
   today; if it ever gains a second call site, that teardown belongs with whatever owns the session,
   not with one page.
-- The default wishlist is created only on the first save (when the prior `displayName`
-  was empty), so it is not duplicated on later profile edits.
+- The default wishlist is created only on the first save (when the prior name had no content
+  once trimmed), so it is not duplicated on later profile edits. A document that already holds a
+  whitespace-only name — only reachable from outside the app, since Save trims and the router
+  creates the document with no name — therefore counts as a first save and gets a default wishlist
+  of its own.
 - `google_sign_in_stub.dart` is a compile-time stub that `login_page.dart` falls back to on
   non-web platforms so its `web_only.renderButton()` reference still compiles there; the real
   web button comes from `google_sign_in_web`. `AuthService` always imports the real

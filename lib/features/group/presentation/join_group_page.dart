@@ -11,6 +11,7 @@ import 'package:wishtogether/features/group/presentation/group_details_page.dart
 class JoinGroupPage extends StatefulWidget {
   static const String routeName = 'joinGroup';
   static const String route = '/join';
+  static const String groupIdParam = 'group';
   final String groupId;
 
   const JoinGroupPage({super.key, required this.groupId});

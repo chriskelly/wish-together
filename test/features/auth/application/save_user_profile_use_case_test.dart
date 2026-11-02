@@ -121,11 +121,88 @@ void main() {
       when(() => mockAuthSession.currentUserId).thenReturn(null);
 
       // Act & Assert
-      expect(
-        () => saveUserProfileUseCase.execute('John Doe'),
+      await expectLater(
+        saveUserProfileUseCase.execute('John Doe'),
         throwsA(isA<Exception>()),
       );
       verifyNever(() => mockUserRepository.updateData(any(), any()));
+    });
+
+    test(
+      'should trim the name it stores and names the wishlist with',
+      () async {
+        // Arrange
+        const userId = 'user123';
+        const name = 'Grace Hopper';
+        final mockDocRef = MockDocumentReference();
+
+        when(() => mockAuthSession.currentUserId).thenReturn(userId);
+        when(() => mockUserRepository.get(userId))
+            .thenAnswer((_) async => User(id: userId));
+        when(() => mockUserRepository.updateData(any(), any()))
+            .thenAnswer((_) async => {});
+        when(() => mockWishlistRepository.add(any()))
+            .thenAnswer((_) async => mockDocRef);
+
+        // Act
+        await saveUserProfileUseCase.execute('  $name  ');
+
+        // Assert
+        verify(
+          () => mockUserRepository.updateData(userId, {'displayName': name}),
+        ).called(1);
+        final captured = verify(() => mockWishlistRepository.add(captureAny()))
+            .captured;
+        expect((captured.single as Wishlist).name, "$name's Wishlist");
+      },
+    );
+
+    test('should reject a whitespace-only name without writing', () async {
+      // Arrange
+      const userId = 'user123';
+      when(() => mockAuthSession.currentUserId).thenReturn(userId);
+
+      // Act & Assert
+      await expectLater(
+        saveUserProfileUseCase.execute('   '),
+        throwsArgumentError,
+      );
+      verifyNever(() => mockUserRepository.get(any()));
+      verifyNever(() => mockUserRepository.updateData(any(), any()));
+      verifyNever(() => mockWishlistRepository.add(any()));
+    });
+
+    test('should treat a whitespace-only stored name as a new user', () async {
+      // Arrange
+      const userId = 'user123';
+      const displayName = 'John Doe';
+      final existingUser = User(id: userId, displayName: '   ');
+      final mockDocRef = MockDocumentReference();
+
+      when(() => mockAuthSession.currentUserId).thenReturn(userId);
+      when(() => mockUserRepository.get(userId))
+          .thenAnswer((_) async => existingUser);
+      when(() => mockUserRepository.updateData(any(), any()))
+          .thenAnswer((_) async => {});
+      when(() => mockWishlistRepository.add(any()))
+          .thenAnswer((_) async => mockDocRef);
+
+      // Act
+      await saveUserProfileUseCase.execute(displayName);
+
+      // Assert
+      verify(() => mockWishlistRepository.add(any())).called(1);
+    });
+
+    test('should check authentication before rejecting a blank name', () async {
+      // Arrange
+      when(() => mockAuthSession.currentUserId).thenReturn(null);
+
+      // Act & Assert
+      await expectLater(
+        saveUserProfileUseCase.execute('   '),
+        throwsA(isA<Exception>()),
+      );
     });
 
     test('should propagate exceptions from UserRepository', () async {
@@ -139,7 +216,11 @@ void main() {
           .thenThrow(exception);
 
       // Act & Assert
-      expect(() => saveUserProfileUseCase.execute('John Doe'), throwsException);
+      await expectLater(
+        saveUserProfileUseCase.execute('John Doe'),
+        throwsException,
+      );
+      verifyNever(() => mockWishlistRepository.add(any()));
     });
   });
 }

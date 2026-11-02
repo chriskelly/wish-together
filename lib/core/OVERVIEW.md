@@ -87,8 +87,9 @@ as `/join?group=123`), which is how an iOS Universal Link starts the router.
   because a nested path (`wishlists/<id>/items`) contains a document id.
 - A logged-out user is redirected to `/login`, preserving the original destination in the
   `redirect_to` query parameter. `/login` and `/verify` never redirect while logged out.
-- A logged-in user with no `displayName` is redirected to `/profile` (also preserving
-  `redirect_to`), so onboarding completes before any other page renders.
+- A logged-in user whose `User.hasDisplayName` is false — no display name, or one with no
+  content once trimmed — is redirected to `/profile` (also preserving `redirect_to`), so
+  onboarding completes before any other page renders.
 - A logged-in user on `/login` is sent to `redirect_to` or `/`.
 - Every redirect for a logged-in user calls `UserRepository.getOrCreateUser`, so the
   `users/{uid}` document is created lazily on first navigation.

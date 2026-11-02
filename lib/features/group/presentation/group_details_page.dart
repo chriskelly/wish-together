@@ -14,6 +14,7 @@ import 'package:wishtogether/features/auth/presentation/home_page.dart';
 import 'package:wishtogether/features/group/data/group_repository.dart';
 import 'package:wishtogether/features/group/domain/group.dart';
 import 'package:wishtogether/features/group/presentation/group_form_page.dart';
+import 'package:wishtogether/features/group/presentation/join_group_page.dart';
 import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
@@ -33,7 +34,10 @@ class GroupDetailsPage extends StatefulWidget {
   static String getInvitationLink(String groupId, {String? origin}) {
     final base = origin ?? (kIsWeb ? Uri.base.origin : appOrigin);
     return Uri.parse(base)
-        .replace(path: '/join', queryParameters: {'group': groupId})
+        .replace(
+          path: JoinGroupPage.route,
+          queryParameters: {JoinGroupPage.groupIdParam: groupId},
+        )
         .toString();
   }
 

@@ -136,6 +136,11 @@ login page, which builds here (the real `AuthService` is registered) but cannot 
 localhost, because no OAuth origin is allowlisted for it. Getting back into a live session means a
 new token and a restart.
 
+**Sign-out really signs out.** The home page's Logout control ends the session and returns to the
+login page, which builds here (the real `AuthService` is registered) but cannot sign back in from
+localhost, because no OAuth origin is allowlisted for it. Getting back into a live session means a
+new token and a restart.
+
 App Check is not activated by this path, the update gate is not part of it (so a production
 `min_supported_build` cannot block a live session), and Sentry is not initialised.
 

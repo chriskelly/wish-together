@@ -82,8 +82,8 @@ rebuild.
 ## Divergences: what a fake-mode success does not prove
 
 Read this before reporting "works" from a dev session. Each item is either pinned by a test in
-`test/dev/fake_parity_test.dart`, so a dependency upgrade that changes it fails loudly, or
-listed here because one process cannot model it.
+`test/dev/fake_parity_test.dart`, authored against `fake_cloud_firestore` 4.1.0+1 so a dependency
+upgrade that changes the gap fails loudly, or listed here because one process cannot model it.
 
 1. **Rules are not enforced.** No document is denied; any write the app composes succeeds. A
    write the real `firestore.rules` would reject is indistinguishable from a working one here.

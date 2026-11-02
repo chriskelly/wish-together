@@ -5,6 +5,7 @@
   "description": "Local development scripts for WishTogether. Not part of the app build.",
   "scripts": {
     "seed:demo": "node seed-demo.mjs",
+    "dev:token": "node dev-token.mjs",
     "rules:release": "node rules-release.mjs",
     "test": "node --test"
   },

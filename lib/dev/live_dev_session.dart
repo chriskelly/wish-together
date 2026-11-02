@@ -53,15 +53,14 @@ Future<Widget> buildLiveDevApp(
   // activating a provider it has no registration for would only add a failure.
   final firestore = createFirestore(launch.databaseId);
 
-  // No `authSession`: the locator builds the production AuthService, which reads
-  // the session established above. A live session is the real thing, so the
-  // shell gets the real uid stream, the real providers, and the real sign-out
-  // and delete-account controls — which is what makes it a check of production
-  // behaviour rather than of a stand-in.
+  // The locator builds the production AuthService when [authSession] is null,
+  // and that service reads the session established above. A live session is the
+  // real thing, so the shell gets the real uid stream, the real providers and
+  // the real sign-out and delete-account controls — which is what makes it a
+  // check of production behaviour rather than of a stand-in.
   //
-  // [authSession] exists so a test can pump this composition without a Firebase
-  // project. A real live session leaves it null, which is the only shape that
-  // puts the production service behind the shell.
+  // [authSession] exists only so a test can pump this composition without a
+  // Firebase project; a real launch leaves it null.
   setupServiceLocator(
     firestore: firestore,
     appLog: buildDevLog(),

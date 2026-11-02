@@ -1,6 +1,31 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wishtogether/dev/dev_config.dart';
 
+/// The readable text of a refusal: what a reader sees and what a driver reads
+/// out of the page's one semantics node.
+String refusalText(RefusedDevLaunch launch) =>
+    '${launch.headline} ${launch.details.join(' ')}';
+
+/// Asserts a launch is live and returns it, so a failure names what came back.
+LiveDevLaunch liveLaunchOf(DevLaunch launch) {
+  expect(
+    launch,
+    isA<LiveDevLaunch>(),
+    reason: 'expected a live launch, got ${launch.runtimeType}',
+  );
+  return launch as LiveDevLaunch;
+}
+
+/// Asserts a launch was refused and returns it.
+RefusedDevLaunch refusalOf(DevLaunch launch) {
+  expect(
+    launch,
+    isA<RefusedDevLaunch>(),
+    reason: 'expected a refusal, got ${launch.runtimeType}',
+  );
+  return launch as RefusedDevLaunch;
+}
+
 void main() {
   group('resolveScenarioId', () {
     const fromDefine = 'family';
@@ -48,45 +73,240 @@ void main() {
     });
   });
 
-  group('requireFakeBackend', () {
-    test('accepts the fake backend and the default', () {
-      // ACT & ASSERT
-      expect(() => requireFakeBackend(''), returnsNormally);
-      expect(() => requireFakeBackend(fakeDevBackend), returnsNormally);
-    });
-
-    test('refuses live mode until it is implemented', () {
-      // ARRANGE
-      const requested = 'live';
-
-      // ACT & ASSERT
-      expect(
-        () => requireFakeBackend(requested),
-        throwsA(
-          isA<StateError>().having(
-            (error) => error.message,
-            'message',
-            allOf(contains(requested), contains(fakeDevBackend)),
-          ),
-        ),
+  group('resolveDevLaunch — which backend runs', () {
+    test('an unset backend is the fake one', () {
+      // ACT
+      final launch = resolveDevLaunch(
+        backendDefine: '',
+        urlScenario: null,
+        defineScenario: '',
       );
+
+      // ASSERT: fake is the default, so design iteration needs no credentials.
+      expect(launch, isA<FakeDevLaunch>());
+      expect((launch as FakeDevLaunch).scenarioId, defaultScenarioId);
     });
 
-    test('refuses an unknown backend by name', () {
+    test('the fake backend is the fake one', () {
+      // ACT
+      final launch = resolveDevLaunch(
+        backendDefine: fakeDevBackend,
+        urlScenario: null,
+        defineScenario: '',
+      );
+
+      // ASSERT
+      expect(launch, isA<FakeDevLaunch>());
+    });
+
+    test('the URL scenario reaches the fake launch', () {
+      // ARRANGE
+      const requested = 'large-wishlist';
+
+      // ACT
+      final launch = resolveDevLaunch(
+        backendDefine: fakeDevBackend,
+        urlScenario: requested,
+        defineScenario: 'family',
+      );
+
+      // ASSERT: the URL still wins over the compiled default.
+      expect((launch as FakeDevLaunch).scenarioId, requested);
+    });
+
+    test('the live backend is accepted', () {
+      // ACT
+      final launch = resolveDevLaunch(
+        backendDefine: liveDevBackend,
+        databaseDefine: 'staging',
+        tokenDefine: 'a-token',
+      );
+
+      // ASSERT
+      expect(launch, isA<LiveDevLaunch>());
+    });
+
+    test('an unknown backend is refused, naming it and both valid ones', () {
       // ARRANGE
       const requested = 'carrier-pigeon';
 
-      // ACT & ASSERT
-      expect(
-        () => requireFakeBackend(requested),
-        throwsA(
-          isA<StateError>().having(
-            (error) => error.message,
-            'message',
-            contains(requested),
-          ),
+      // ACT
+      final launch = resolveDevLaunch(backendDefine: requested);
+
+      // ASSERT: an agent must not be left guessing which values work.
+      final refusal = refusalOf(launch);
+      final text = refusalText(refusal);
+      expect(text, contains(requested));
+      expect(text, contains(fakeDevBackend));
+      expect(text, contains(liveDevBackend));
+    });
+  });
+
+  group('resolveDevLaunch — live refuses to touch production', () {
+    test('a missing database define is refused with the mint command', () {
+      // ACT
+      final launch = resolveDevLaunch(
+        backendDefine: liveDevBackend,
+        databaseDefine: '',
+        tokenDefine: 'a-token',
+      );
+
+      // ASSERT: empty means the production database, so it must not start.
+      final text = refusalText(refusalOf(launch));
+      expect(text, contains('WT_FIRESTORE_DATABASE'));
+      expect(text, contains('npm run dev:token'));
+    });
+
+    test('a blank database define is refused, not trimmed into production', () {
+      // ACT
+      final launch = resolveDevLaunch(
+        backendDefine: liveDevBackend,
+        databaseDefine: '   ',
+        tokenDefine: 'a-token',
+      );
+
+      // ASSERT
+      expect(refusalText(refusalOf(launch)), contains('WT_FIRESTORE_DATABASE'));
+    });
+
+    test('the default database is refused as production', () {
+      // ACT
+      final launch = resolveDevLaunch(
+        backendDefine: liveDevBackend,
+        databaseDefine: '(default)',
+        tokenDefine: 'a-token',
+      );
+
+      // ASSERT
+      final text = refusalText(refusalOf(launch));
+      expect(text, contains('(default)'));
+      expect(text, contains('production'));
+    });
+
+    test('a malformed database id is refused and named', () {
+      // ARRANGE
+      const malformed = 'Staging';
+
+      // ACT
+      final launch = resolveDevLaunch(
+        backendDefine: liveDevBackend,
+        databaseDefine: malformed,
+        tokenDefine: 'a-token',
+      );
+
+      // ASSERT
+      expect(refusalText(refusalOf(launch)), contains(malformed));
+    });
+
+    test('a too-short database id is refused too', () {
+      // ACT
+      final launch = resolveDevLaunch(
+        backendDefine: liveDevBackend,
+        databaseDefine: 'abc',
+        tokenDefine: 'a-token',
+      );
+
+      // ASSERT
+      expect(refusalText(refusalOf(launch)), contains('abc'));
+    });
+
+    test('the database is checked before the token', () {
+      // ACT: nothing is set at all.
+      final launch = resolveDevLaunch(
+        backendDefine: liveDevBackend,
+        databaseDefine: '',
+        tokenDefine: '',
+      );
+
+      // ASSERT: the safety-critical input is the one named first, so a reader
+      // fixes the guard that matters rather than the token.
+      final text = refusalText(refusalOf(launch));
+      expect(text, contains('WT_FIRESTORE_DATABASE'));
+      expect(text, isNot(contains('WT_DEV_TOKEN')));
+    });
+  });
+
+  group('resolveDevLaunch — the live token', () {
+    test('a missing token is refused with the mint command', () {
+      // ACT
+      final launch = resolveDevLaunch(
+        backendDefine: liveDevBackend,
+        databaseDefine: 'staging',
+        tokenDefine: '',
+      );
+
+      // ASSERT
+      final text = refusalText(refusalOf(launch));
+      expect(text, contains('WT_DEV_TOKEN'));
+      expect(text, contains('npm run dev:token'));
+    });
+
+    test('a blank token is refused, not sent to Firebase', () {
+      // ACT
+      final launch = resolveDevLaunch(
+        backendDefine: liveDevBackend,
+        databaseDefine: 'staging',
+        tokenDefine: '  ',
+      );
+
+      // ASSERT
+      expect(refusalText(refusalOf(launch)), contains('WT_DEV_TOKEN'));
+    });
+
+    test('a valid launch carries the database and the trimmed token', () {
+      // ARRANGE
+      const database = 'staging';
+      const token = '  header.payload.signature  ';
+
+      // ACT
+      final launch = liveLaunchOf(
+        resolveDevLaunch(
+          backendDefine: liveDevBackend,
+          databaseDefine: ' $database ',
+          tokenDefine: token,
         ),
       );
+
+      // ASSERT
+      expect(launch.databaseId, database);
+      expect(launch.token, token.trim());
+    });
+
+    test('a URL scenario is recorded as ignored, never applied', () {
+      // ARRANGE: the same URL an agent uses for fake mode.
+      const requested = 'large-wishlist';
+
+      // ACT
+      final launch = liveLaunchOf(
+        resolveDevLaunch(
+          backendDefine: liveDevBackend,
+          databaseDefine: 'staging',
+          tokenDefine: 'a-token',
+          urlScenario: requested,
+          defineScenario: 'family',
+        ),
+      );
+
+      // ASSERT: live data has no scenario, and the banner has to say so rather
+      // than let staging data be read as a fixture.
+      expect(launch.ignoredScenario, requested);
+    });
+
+    test('no URL scenario means nothing to report as ignored', () {
+      // ACT
+      final launch = liveLaunchOf(
+        resolveDevLaunch(
+          backendDefine: liveDevBackend,
+          databaseDefine: 'staging',
+          tokenDefine: 'a-token',
+          urlScenario: null,
+          defineScenario: 'family',
+        ),
+      );
+
+      // ASSERT: the compiled scenario default is a fake-mode input, so it is
+      // not something a live session has to announce.
+      expect(launch.ignoredScenario, isNull);
     });
   });
 
@@ -99,6 +319,17 @@ void main() {
 
   test('the scenario query parameter is named scenario', () {
     expect(devScenarioParam, 'scenario');
+  });
+
+  test('the live backend is named live', () {
+    // T5 documents this value; changing it silently breaks every command.
+    expect(liveDevBackend, 'live');
+  });
+
+  test('a build without the define reports no token', () {
+    // The guard treats an empty value as "no token", so an unset define must
+    // arrive as the empty string rather than as a null or a placeholder.
+    expect(devTokenDefine, isEmpty);
   });
 
   group('scenarioIdFor', () {

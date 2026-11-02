@@ -13,6 +13,16 @@ const List<String> productionForbiddenPackages = <String>[
   'package:fake_cloud_firestore/',
 ];
 
+/// Files under `lib/dev/` allowed to touch a real Firebase, and why.
+///
+/// Fake mode has no project, no credentials and no network. Live mode exists to
+/// have all three, so exactly one file composes it. Each entry is checked to
+/// exist below, so renaming that file cannot silently widen the exception.
+const Map<String, String> firebaseExceptions = <String, String>{
+  'lib/dev/live_dev_session.dart':
+      'the live backend: initializeApp and the custom-token sign-in',
+};
+
 /// Firebase singletons a fake-mode session must never reach.
 ///
 /// `cloud_firestore` itself is allowed: a fixture stores its claim as the
@@ -43,7 +53,7 @@ void main() {
     );
   });
 
-  test('the dev shell never initialises Firebase', () {
+  test('only the live backend initialises Firebase', () {
     // ARRANGE
     final offenders = <String>[];
 
@@ -57,9 +67,29 @@ void main() {
       }
     }
 
-    // ASSERT: fake mode has no project, no credentials and no network. A live
-    // backend would have to add its own deliberate exception here.
-    expect(offenders, isEmpty);
+    // ASSERT: fake mode has no project, no credentials and no network, so the
+    // only file allowed to reach a real Firebase is the live composition.
+    expect(
+      offenders.where((path) => !firebaseExceptions.containsKey(path)),
+      isEmpty,
+      reason:
+          'only firebaseExceptions may touch a real Firebase; fake mode must '
+          'not',
+    );
+    expect(
+      offenders,
+      isNotEmpty,
+      reason:
+          'the scan must actually find the live backend; an empty scan would '
+          'prove nothing',
+    );
+    for (final path in firebaseExceptions.keys) {
+      expect(
+        File(path).existsSync(),
+        isTrue,
+        reason: '$path no longer exists: update firebaseExceptions',
+      );
+    }
   });
 }
 

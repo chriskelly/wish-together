@@ -1,5 +1,10 @@
 import 'package:wishtogether/dev/fixtures/default_scenario.dart';
 import 'package:wishtogether/dev/fixtures/dev_fixture.dart';
+import 'package:wishtogether/dev/fixtures/empty_scenario.dart';
+import 'package:wishtogether/dev/fixtures/family_scenario.dart';
+import 'package:wishtogether/dev/fixtures/large_wishlist_scenario.dart';
+import 'package:wishtogether/dev/fixtures/overflow_scenario.dart';
+import 'package:wishtogether/dev/fixtures/shared_scenario.dart';
 
 /// The scenarios this build can show, keyed by the id the URL names.
 ///
@@ -7,6 +12,11 @@ import 'package:wishtogether/dev/fixtures/dev_fixture.dart';
 /// is the key, so the URL, the banner and the registry cannot disagree.
 final Map<String, DevFixture> devScenarios = <String, DevFixture>{
   defaultFixture.id: defaultFixture,
+  familyFixture.id: familyFixture,
+  largeWishlistFixture.id: largeWishlistFixture,
+  emptyFixture.id: emptyFixture,
+  overflowFixture.id: overflowFixture,
+  sharedFixture.id: sharedFixture,
 };
 
 /// The fixture for [id], or a failure that names what is available.

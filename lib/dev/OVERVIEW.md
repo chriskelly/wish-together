@@ -124,6 +124,11 @@ port added to that key, which is an operator change, not something this harness 
 **Use a synthetic uid.** Account deletion really runs: it deletes the uid's staging documents and
 the Auth user. Auth is shared with production, so that account must never be a real one.
 
+**Sign-out really signs out.** The home page's Logout control ends the session and returns to the
+login page, which builds here (the real `AuthService` is registered) but cannot sign back in from
+localhost, because no OAuth origin is allowlisted for it. Getting back into a live session means a
+new token and a restart.
+
 App Check is not activated by this path, the update gate is not part of it (so a production
 `min_supported_build` cannot block a live session), and Sentry is not initialised.
 

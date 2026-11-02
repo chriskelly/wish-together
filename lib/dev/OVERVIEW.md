@@ -100,18 +100,19 @@ GOOGLE_APPLICATION_CREDENTIALS=... npm run seed:demo -- --yes --clean-only --dat
 ```
 
 **It cannot reach production.** The launch is resolved before Firebase is touched, and each
-refusal is its own page. They are decided in one fixed order — the database (empty, then
-production, then a malformed id) before the token — so the first line a reader sees is the one
-that matters most:
+refusal is its own page. They are decided in one fixed order: the backend first, then the database
+(empty, then production, then a malformed id), then the token, then the account-deletion flag. The
+first failure in that order is the page a reader gets, so a bad backend is reported as a bad backend
+even when the database is wrong too.
 
 | Refusal page | Cause |
 | ------------ | ----- |
+| `WT_DEV_BACKEND="<value>" is not a backend this build can run` | anything other than `fake` or `live`; checked first |
 | `Live dev mode needs a named database` | `WT_FIRESTORE_DATABASE` is unset or blank, which means the production database |
 | `Live dev mode refuses the production database` | `WT_FIRESTORE_DATABASE="(default)"` |
 | `WT_FIRESTORE_DATABASE="<value>" is not a database id` | malformed id (lowercase, 4–63 characters, starts with a letter) |
 | `Live dev mode needs a token` | `WT_DEV_TOKEN` is unset or blank |
-| `WT_DEV_ALLOW_ACCOUNT_DELETION="<value>" is not a flag value` | neither `true` nor `false`/unset |
-| `WT_DEV_BACKEND="<value>" is not a backend this build can run` | anything other than `fake` or `live` |
+| `WT_DEV_ALLOW_ACCOUNT_DELETION="<value>" is not a flag value` | anything other than `true`, `false` or unset; the value is trimmed first, so `" true "` enables deletion |
 | `Live dev mode could not sign in` | the token expired or was rejected, or the page's origin is not one the project API key allows; names `npm run dev:token` and the port |
 | `Live dev mode could not start` | `initializeApp`, or the session built on it, failed |
 

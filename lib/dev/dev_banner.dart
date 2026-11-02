@@ -19,21 +19,27 @@ String devLiveLabel(String databaseId, {String? ignoredScenario}) {
   return '$base · scenario "$ignored" ignored';
 }
 
+/// The banner text for a launch that is still starting.
+const String devStartingLabel = 'Dev session · starting';
+
 /// The banner text for a launch that did not start.
 const String devNotStartedLabel = 'Dev session · not started';
 
 /// What the strip is claiming about the data on screen.
 ///
 /// The colour is part of the claim, not decoration: amber means an in-memory
-/// fixture, red means real data from a named database, grey means no data was
-/// ever loaded. A screenshot carries the colour even when the text is too small
-/// to read.
+/// fixture, red means real data from a named database, blue means the session is
+/// still starting, grey means it never started. A screenshot carries the colour
+/// even when the text is too small to read.
 enum DevBannerTone {
   /// An in-memory fixture, chosen by a scenario id.
   scenario(color: Color(0xFFFFE082), icon: Icons.science_outlined),
 
   /// Real data from a named database.
   live(color: Color(0xFFFFCDD2), icon: Icons.warning_amber_rounded),
+
+  /// Loaded nothing yet, and nothing is wrong: a launch in progress.
+  starting(color: Color(0xFFE3F2FD), icon: Icons.hourglass_top),
 
   /// Nothing loaded: the launch was refused or the sign-in failed.
   refused(color: Color(0xFFE0E0E0), icon: Icons.error_outline);

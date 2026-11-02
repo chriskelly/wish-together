@@ -4,41 +4,47 @@ import 'package:wishtogether/dev/dev_banner.dart';
 import 'package:wishtogether/dev/dev_config.dart';
 import 'package:wishtogether/dev/fixtures/registry.dart';
 
-/// The one place a failure's text becomes an accessibility label.
+/// The one place a notice's text becomes an accessibility label.
 ///
 /// The page and any test that asserts on it read this same function. Joining the
 /// lines twice would let a test pass on text it composed itself while the page
 /// rendered nothing.
-String failureSemanticsLabel(String headline, List<String> details) =>
+String noticeSemanticsLabel(String headline, List<String> details) =>
     '$headline. ${details.join(' ')}';
 
-/// The page a dev session shows when it cannot start, or when a scenario id
-/// does not exist.
+/// The page a dev session shows when it has something to say instead of data:
+/// a refusal, an unknown scenario id, a failed sign-in, or a launch still
+/// starting.
 ///
 /// A launch failure happens before `runApp`, so without a page like this a bad
 /// input is a blank white browser tab whose only trace is a console error,
 /// which is exactly the thing an agent with no console listener cannot see.
 /// [headline] and [details] are on the page and in one accessibility node, so
 /// the corrected command is one edit away.
-class DevFailureScreen extends StatelessWidget {
-  const DevFailureScreen({
+class DevNoticeScreen extends StatelessWidget {
+  const DevNoticeScreen({
     super.key,
     required this.label,
     required this.headline,
     required this.details,
+    this.tone = DevBannerTone.refused,
   });
 
   /// What the strip says, so the page is still visibly a dev page.
   final String label;
 
-  /// One line naming what is wrong.
+  /// The one line this page is about.
   final String headline;
 
-  /// What to change, in the order a reader should act on it.
+  /// The supporting lines, most important first.
   final List<String> details;
 
+  /// What the strip claims. Most notices report that nothing loaded, which is
+  /// the default; the "signing in" page is the exception and says so.
+  final DevBannerTone tone;
+
   /// The one node a driver reads: the same words a reader sees.
-  String get semanticsLabel => failureSemanticsLabel(headline, details);
+  String get semanticsLabel => noticeSemanticsLabel(headline, details);
 
   @override
   Widget build(BuildContext context) {
@@ -46,9 +52,9 @@ class DevFailureScreen extends StatelessWidget {
     return Scaffold(
       body: Column(
         children: [
-          // A failure page loaded no data, so its strip never claims any. The
-          // strip also keeps the bundle marker on every page, this one included.
-          DevBanner(label: label, tone: DevBannerTone.refused),
+          // The strip says what this page is claiming, and keeps the bundle
+          // marker on every page, this one included.
+          DevBanner(label: label, tone: tone),
           Expanded(
             child: Center(
               child: SingleChildScrollView(
@@ -97,7 +103,7 @@ Widget buildDevPageApp(Widget home) => MaterialApp(
 
 /// The page shown for a scenario id the registry does not have.
 Widget buildUnknownScenarioApp(String requestedScenario) => buildDevPageApp(
-  DevFailureScreen(
+  DevNoticeScreen(
     label: devScenarioLabel(requestedScenario),
     headline: 'Unknown scenario "$requestedScenario"',
     details: <String>[
@@ -112,7 +118,7 @@ Widget buildUnknownScenarioApp(String requestedScenario) => buildDevPageApp(
 /// A refused launch is still a page: the reason and the fix are the whole point
 /// of refusing, and a blank tab tells a reader nothing.
 Widget buildRefusedDevApp(RefusedDevLaunch refusal) => buildDevPageApp(
-  DevFailureScreen(
+  DevNoticeScreen(
     label: devNotStartedLabel,
     headline: refusal.headline,
     details: refusal.details,

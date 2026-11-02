@@ -1,32 +1,19 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wishtogether/dev/dev_config.dart';
-import 'package:wishtogether/dev/dev_failure_screen.dart';
+import 'package:wishtogether/dev/dev_notice_screen.dart';
 
 /// The text a refusal becomes, through the same function the page uses.
 ///
 /// Composing it here instead would let these tests assert words the page never
 /// renders.
 String refusalText(RefusedDevLaunch launch) =>
-    failureSemanticsLabel(launch.headline, launch.details);
+    noticeSemanticsLabel(launch.headline, launch.details);
 
-/// Asserts a launch is live and returns it, so a failure names what came back.
-LiveDevLaunch liveLaunchOf(DevLaunch launch) {
-  expect(
-    launch,
-    isA<LiveDevLaunch>(),
-    reason: 'expected a live launch, got ${launch.runtimeType}',
-  );
-  return launch as LiveDevLaunch;
-}
-
-/// Asserts a launch was refused and returns it.
-RefusedDevLaunch refusalOf(DevLaunch launch) {
-  expect(
-    launch,
-    isA<RefusedDevLaunch>(),
-    reason: 'expected a refusal, got ${launch.runtimeType}',
-  );
-  return launch as RefusedDevLaunch;
+/// Asserts a launch has type [T] and returns it, so a failure names what came
+/// back instead of only what was wanted.
+T launchOf<T extends DevLaunch>(DevLaunch launch) {
+  expect(launch, isA<T>(), reason: 'expected $T, got ${launch.runtimeType}');
+  return launch as T;
 }
 
 void main() {
@@ -137,7 +124,7 @@ void main() {
       final launch = resolveDevLaunch(backendDefine: requested);
 
       // ASSERT: an agent must not be left guessing which values work.
-      final refusal = refusalOf(launch);
+      final refusal = launchOf<RefusedDevLaunch>(launch);
       final text = refusalText(refusal);
       expect(text, contains(requested));
       expect(text, contains(fakeDevBackend));
@@ -155,7 +142,7 @@ void main() {
       );
 
       // ASSERT: empty means the production database, so it must not start.
-      final text = refusalText(refusalOf(launch));
+      final text = refusalText(launchOf<RefusedDevLaunch>(launch));
       expect(text, contains('WT_FIRESTORE_DATABASE'));
       expect(text, contains('npm run dev:token'));
     });
@@ -169,7 +156,10 @@ void main() {
       );
 
       // ASSERT
-      expect(refusalText(refusalOf(launch)), contains('WT_FIRESTORE_DATABASE'));
+      expect(
+        refusalText(launchOf<RefusedDevLaunch>(launch)),
+        contains('WT_FIRESTORE_DATABASE'),
+      );
     });
 
     test('the default database is refused as production', () {
@@ -181,7 +171,7 @@ void main() {
       );
 
       // ASSERT
-      final text = refusalText(refusalOf(launch));
+      final text = refusalText(launchOf<RefusedDevLaunch>(launch));
       expect(text, contains('(default)'));
       expect(text, contains('production'));
     });
@@ -198,7 +188,10 @@ void main() {
       );
 
       // ASSERT
-      expect(refusalText(refusalOf(launch)), contains(malformed));
+      expect(
+        refusalText(launchOf<RefusedDevLaunch>(launch)),
+        contains(malformed),
+      );
     });
 
     test('a too-short database id is refused too', () {
@@ -210,7 +203,7 @@ void main() {
       );
 
       // ASSERT
-      expect(refusalText(refusalOf(launch)), contains('abc'));
+      expect(refusalText(launchOf<RefusedDevLaunch>(launch)), contains('abc'));
     });
 
     test('the database is checked before the token', () {
@@ -223,7 +216,7 @@ void main() {
 
       // ASSERT: the safety-critical input is the one named first, so a reader
       // fixes the guard that matters rather than the token.
-      final text = refusalText(refusalOf(launch));
+      final text = refusalText(launchOf<RefusedDevLaunch>(launch));
       expect(text, contains('WT_FIRESTORE_DATABASE'));
       expect(text, isNot(contains('WT_DEV_TOKEN')));
     });
@@ -239,7 +232,7 @@ void main() {
       );
 
       // ASSERT
-      final text = refusalText(refusalOf(launch));
+      final text = refusalText(launchOf<RefusedDevLaunch>(launch));
       expect(text, contains('WT_DEV_TOKEN'));
       expect(text, contains('npm run dev:token'));
     });
@@ -253,7 +246,10 @@ void main() {
       );
 
       // ASSERT
-      expect(refusalText(refusalOf(launch)), contains('WT_DEV_TOKEN'));
+      expect(
+        refusalText(launchOf<RefusedDevLaunch>(launch)),
+        contains('WT_DEV_TOKEN'),
+      );
     });
 
     test('a valid launch carries the database and the trimmed token', () {
@@ -262,7 +258,7 @@ void main() {
       const token = '  header.payload.signature  ';
 
       // ACT
-      final launch = liveLaunchOf(
+      final launch = launchOf<LiveDevLaunch>(
         resolveDevLaunch(
           backendDefine: liveDevBackend,
           databaseDefine: ' $database ',
@@ -280,7 +276,7 @@ void main() {
       const requested = 'large-wishlist';
 
       // ACT
-      final launch = liveLaunchOf(
+      final launch = launchOf<LiveDevLaunch>(
         resolveDevLaunch(
           backendDefine: liveDevBackend,
           databaseDefine: 'staging',
@@ -297,7 +293,7 @@ void main() {
 
     test('no URL scenario means nothing to report as ignored', () {
       // ACT
-      final launch = liveLaunchOf(
+      final launch = launchOf<LiveDevLaunch>(
         resolveDevLaunch(
           backendDefine: liveDevBackend,
           databaseDefine: 'staging',
@@ -323,7 +319,7 @@ void main() {
 
     test('is off when the build says nothing', () {
       // ACT
-      final launch = liveLaunchOf(withFlag(''));
+      final launch = launchOf<LiveDevLaunch>(withFlag(''));
 
       // ASSERT: deleting a real Auth user must be asked for, never defaulted.
       expect(launch.allowAccountDeletion, isFalse);
@@ -331,7 +327,7 @@ void main() {
 
     test('is off when explicitly false', () {
       // ACT
-      final launch = liveLaunchOf(withFlag('false'));
+      final launch = launchOf<LiveDevLaunch>(withFlag('false'));
 
       // ASSERT
       expect(launch.allowAccountDeletion, isFalse);
@@ -339,7 +335,7 @@ void main() {
 
     test('is on for true', () {
       // ACT
-      final launch = liveLaunchOf(withFlag('true'));
+      final launch = launchOf<LiveDevLaunch>(withFlag('true'));
 
       // ASSERT
       expect(launch.allowAccountDeletion, isTrue);
@@ -350,7 +346,7 @@ void main() {
       const malformed = 'yes';
 
       // ACT
-      final text = refusalText(refusalOf(withFlag(malformed)));
+      final text = refusalText(launchOf<RefusedDevLaunch>(withFlag(malformed)));
 
       // ASSERT: a typo must not silently mean "off".
       expect(text, contains(malformed));
@@ -370,15 +366,31 @@ void main() {
     expect(devScenarioParam, 'scenario');
   });
 
+  test('a live build with no database define refuses', () {
+    // ARRANGE: nothing but the backend, as a real `flutter run` would arrive
+    // with no WT_FIRESTORE_DATABASE. The default argument is the compile-time
+    // define, so this pins the wiring, not only the guard.
+    // ACT
+    final launch = resolveDevLaunch(backendDefine: liveDevBackend);
+
+    // ASSERT: an empty define means production, so it must never start.
+    expect(launch, isA<RefusedDevLaunch>());
+  });
+
+  test('a live build with no token define refuses', () {
+    // ACT
+    final launch = resolveDevLaunch(
+      backendDefine: liveDevBackend,
+      databaseDefine: 'staging',
+    );
+
+    // ASSERT
+    expect(launch, isA<RefusedDevLaunch>());
+  });
+
   test('the live backend is named live', () {
     // The value the documented commands and the guard both name; changing it
     // silently breaks every one of them.
     expect(liveDevBackend, 'live');
-  });
-
-  test('a build without the define reports no token', () {
-    // The guard treats an empty value as "no token", so an unset define must
-    // arrive as the empty string rather than as a null or a placeholder.
-    expect(devTokenDefine, isEmpty);
   });
 }

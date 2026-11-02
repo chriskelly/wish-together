@@ -28,6 +28,15 @@ const String devBackendDefine = String.fromEnvironment('WT_DEV_BACKEND');
 /// development credential for a named database and never a production one.
 const String devTokenDefine = String.fromEnvironment('WT_DEV_TOKEN');
 
+/// The command that mints a token for this build's database.
+///
+/// One builder because this string is the whole fix a refused launch offers; a
+/// second copy is a page that goes stale when the flag or the path changes.
+String devTokenCommand({String? databaseId}) {
+  final target = databaseId == null ? '' : ' --database $databaseId';
+  return 'cd scripts && npm run dev:token -- --uid <uid>$target';
+}
+
 /// Whether a live session offers in-app account deletion.
 ///
 /// Deletion re-authenticates against a real provider and then deletes a real
@@ -194,13 +203,12 @@ DevLaunch _resolveLiveLaunch({
 }) {
   final rawDatabase = databaseDefine.trim();
   if (rawDatabase.isEmpty) {
-    return const RefusedDevLaunch(
+    return RefusedDevLaunch(
       headline: 'Live dev mode needs a named database',
       details: <String>[
         'WT_DEV_BACKEND=live refuses to start without WT_FIRESTORE_DATABASE, '
             'because an empty value means the production database.',
-        'Mint a token and get the exact command: '
-            'cd scripts && npm run dev:token -- --uid <uid>',
+        'Mint a token and get the exact command: ${devTokenCommand()}',
         'That command sets WT_FIRESTORE_DATABASE to a named database such as '
             '"staging".',
       ],
@@ -241,8 +249,8 @@ DevLaunch _resolveLiveLaunch({
       headline: 'Live dev mode needs a token',
       details: <String>[
         'WT_DEV_TOKEN is empty.',
-        'cd scripts && npm run dev:token -- --uid <uid> --database $databaseId '
-            'prints a fresh token and the whole flutter run line.',
+        '${devTokenCommand(databaseId: databaseId)} prints a fresh token and '
+            'the whole flutter run line.',
         'Tokens last about an hour, and a new one needs a restart: '
             '--dart-define is compile-time.',
       ],

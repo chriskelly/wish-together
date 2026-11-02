@@ -11,7 +11,7 @@ import 'package:wishtogether/core/router.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/dev/dev_banner.dart';
 import 'package:wishtogether/dev/dev_config.dart';
-import 'package:wishtogether/dev/dev_failure_screen.dart';
+import 'package:wishtogether/dev/dev_notice_screen.dart';
 import 'package:wishtogether/dev/dev_session.dart';
 import 'package:wishtogether/dev/fixtures/dev_fixture.dart';
 import 'package:wishtogether/dev/fixtures/registry.dart';

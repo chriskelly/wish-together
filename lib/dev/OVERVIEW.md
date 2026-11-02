@@ -26,8 +26,8 @@ handling, or any affordance reachable from `lib/main.dart`.
 | `dev_config.dart` | Define names, the bundle marker literal, and the pure resolution rules (`resolveDevLaunch`, `resolveScenarioId`). |
 | `dev_session.dart` | `DevAuthSession implements AuthSession`: the fake session's identity, no Firebase. |
 | `live_dev_session.dart` | The live backend: `Firebase.initializeApp`, custom-token sign-in, real Firestore on a named database, and the pages for a sign-in that cannot happen. |
-| `dev_banner.dart` | `DevSessionFrame`: the strip above every page plus the one accessibility node naming what is on screen. Three tones: fixture, live data, not started. |
-| `dev_failure_screen.dart` | `DevFailureScreen` (headline + details + one semantics node), the shared page theme, and the pages for an unknown scenario and a refused launch. |
+| `dev_banner.dart` | `DevSessionFrame`: the strip above every page plus the one accessibility node naming what is on screen. Tones: `scenario`, `live`, `starting`, `refused`. |
+| `dev_notice_screen.dart` | `DevNoticeScreen` (headline + details + one semantics node), the shared page theme, and the pages for an unknown scenario, a refused launch and a launch still starting. |
 | `run_dev_session.dart` | The fake composition (`buildDevApp(fixture)`, `buildDevAppForScenario(id)`), `composeDevApp` — the shell both backends run — the `runDevSession*` entrypoint helpers, and the browser preparation. |
 | `fixtures/dev_fixture.dart` | `DevFixture` and the seeding loop. |
 | `fixtures/registry.dart` | Scenario id → fixture, with a loud failure for an unknown id. |
@@ -113,10 +113,14 @@ that matters most:
 | `WT_DEV_ALLOW_ACCOUNT_DELETION="<value>" is not a flag value` | neither `true` nor `false`/unset |
 | `WT_DEV_BACKEND="<value>" is not a backend this build can run` | anything other than `fake` or `live` |
 | `Live dev mode could not sign in` | the token expired or was rejected, or the page's origin is not one the project API key allows; names `npm run dev:token` and the port |
-| `Live dev mode could not start Firebase` | `initializeApp` failed |
+| `Live dev mode could not start` | `initializeApp`, or the session built on it, failed |
 
 A token lasts about an hour. `--dart-define` is compile-time, so a fresh token means stopping the
 app and running the line again — a hot restart keeps the old one.
+
+While the token is exchanged the page is a notice (`Live dev mode is signing in`, on the `starting`
+strip), so the window before the session exists is never a blank tab. It is replaced by the app, or
+by the reason the sign-in failed.
 
 **The port is not free choice.** The project's browser API key restricts HTTP referrers, and the
 only localhost entry it allows is `http://localhost:59922/*`, so live sign-in works on
@@ -130,11 +134,6 @@ with one capability removed, so the profile page has no danger zone: the cascade
 against the real provider and then deletes a real Auth user, and this Auth project is shared with
 production. To exercise that flow on purpose, add `--dart-define=WT_DEV_ALLOW_ACCOUNT_DELETION=true`
 — and only ever with a synthetic uid, because the account it deletes is the one it signed in as.
-
-**Sign-out really signs out.** The home page's Logout control ends the session and returns to the
-login page, which builds here (the real `AuthService` is registered) but cannot sign back in from
-localhost, because no OAuth origin is allowlisted for it. Getting back into a live session means a
-new token and a restart.
 
 **Sign-out really signs out.** The home page's Logout control ends the session and returns to the
 login page, which builds here (the real `AuthService` is registered) but cannot sign back in from

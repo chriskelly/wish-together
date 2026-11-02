@@ -7,18 +7,19 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import {
-  DEFAULT_DATABASE_ID,
+  DEFAULT_TARGET_DATABASE,
   DEFAULT_WEB_PORT,
   ENTRYPOINT,
+  PROJECT_ID,
   devRunCommand,
   parseArgs,
   validateDatabaseId,
   validateUid,
   validateWebPort,
+  webPortWarning,
 } from '../dev-token.mjs';
 
 const SCRIPT = fileURLToPath(new URL('../dev-token.mjs', import.meta.url));
-const PROJECT_ID = 'wish-together-project';
 
 /// Runs the CLI with a clean environment, so a developer's own credentials can
 /// never change what a test sees.
@@ -77,10 +78,7 @@ test('a uid with whitespace is refused rather than trimmed', () => {
 });
 
 test('a uid longer than Firebase accepts is refused', () => {
-  const result = run(['--uid', 'u'.repeat(129)]);
-
-  assert.equal(result.status, 2);
-  assert.match(result.stderr, /128/);
+  assert.throws(() => validateUid('u'.repeat(129)), /128/);
 });
 
 test('the production database is refused, naming what to use instead', () => {
@@ -88,22 +86,19 @@ test('the production database is refused, naming what to use instead', () => {
 
   assert.equal(result.status, 2);
   assert.match(result.stderr, /production/);
-  assert.match(result.stderr, new RegExp(DEFAULT_DATABASE_ID));
-});
-
-test('a malformed database id is refused', () => {
-  const result = run(['--uid', 'dev-live-1', '--database', 'bad/id']);
-
-  assert.equal(result.status, 2);
-  assert.match(result.stderr, /Invalid --database/);
+  assert.match(result.stderr, new RegExp(DEFAULT_TARGET_DATABASE));
 });
 
 test('a port outside the valid range is refused', () => {
-  for (const port of ['0', 'abc', '70000']) {
-    const result = run(['--uid', 'dev-live-1', '--web-port', port]);
+  const result = run(['--uid', 'dev-live-1', '--web-port', '70000']);
 
-    assert.equal(result.status, 2, port);
-    assert.match(result.stderr, /Invalid --web-port/);
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /Invalid --web-port/);
+});
+
+test('a port below the range is refused by the same rule', () => {
+  for (const port of ['0', 'abc']) {
+    assert.throws(() => validateWebPort(port), /Invalid --web-port/);
   }
 });
 
@@ -161,7 +156,7 @@ test('the printed command carries every define the app reads', () => {
 test('parseArgs defaults to the staging database and the pinned port', () => {
   assert.deepEqual(parseArgs(['--uid', 'dev-live-1']), {
     uid: 'dev-live-1',
-    databaseId: DEFAULT_DATABASE_ID,
+    databaseId: DEFAULT_TARGET_DATABASE,
     webPort: DEFAULT_WEB_PORT,
     help: false,
   });
@@ -175,6 +170,23 @@ test('validateDatabaseId accepts a named database and refuses production', () =>
   assert.equal(validateDatabaseId('staging'), 'staging');
   assert.throws(() => validateDatabaseId('(default)'), /production/);
   assert.throws(() => validateDatabaseId('abc'), /Invalid --database/);
+  assert.throws(() => validateDatabaseId('bad/id'), /Invalid --database/);
+});
+
+test('the pinned port needs no warning', () => {
+  assert.equal(webPortWarning(DEFAULT_WEB_PORT), null);
+});
+
+test('another port warns that the key must allow it first', () => {
+  // ARRANGE
+  const other = DEFAULT_WEB_PORT + 1;
+
+  // ACT
+  const warning = webPortWarning(other);
+
+  // ASSERT
+  assert.match(warning, new RegExp(other));
+  assert.match(warning, new RegExp(DEFAULT_WEB_PORT));
 });
 
 test('validateWebPort returns a number', () => {

@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:wishtogether/core/firestore_target.dart';
 import 'package:wishtogether/dev/dev_banner.dart';
 import 'package:wishtogether/dev/dev_config.dart';
-import 'package:wishtogether/dev/dev_failure_screen.dart';
+import 'package:wishtogether/dev/dev_notice_screen.dart';
 import 'package:wishtogether/dev/run_dev_session.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
 import 'package:wishtogether/features/auth/domain/auth_session.dart';
@@ -24,9 +24,10 @@ typedef DevFirestoreFactory = FirebaseFirestore Function(String databaseId);
 /// pointed at [LiveDevLaunch.databaseId].
 ///
 /// Nothing here chooses the database: [resolveDevLaunch] already refused every
-/// value that could mean production, so this only has to use what it was given.
-/// It also decides only one capability: [liveDevSession] installs a session that
-/// hides account deletion unless the build asked for it.
+/// value that could mean production, and [createLiveDevFirestore] refuses them
+/// again at the point of use, because a hand-built launch reaches this function
+/// without passing the resolver. It decides one capability: [liveDevSession]
+/// installs a session that hides account deletion unless the build asked for it.
 ///
 /// The collaborators are injectable so the failure paths can be tested without
 /// a Firebase project. Production never imports this file.
@@ -51,20 +52,26 @@ Future<Widget> buildLiveDevApp(
 
   // App Check is deliberately not activated: this is a local debug tool, and
   // activating a provider it has no registration for would only add a failure.
-  final firestore = createFirestore(launch.databaseId);
+  // The tail is guarded for the same reason as the steps above: a throw here
+  // would leave the "signing in" page on screen with no reason given.
+  try {
+    final firestore = createFirestore(launch.databaseId);
 
-  // The shell gets a real session — the real uid stream, the real providers and
-  // a real sign-out — with the one capability a dev session must not offer
-  // removed: deleting the account. See [liveDevSession].
-  return composeDevApp(
-    firestore: firestore,
-    authSession: liveDevSession(launch, createSession: createSession),
-    frame: (pages) => DevSessionFrame.live(
-      launch.databaseId,
-      ignoredScenario: launch.ignoredScenario,
-      pages: pages,
-    ),
-  );
+    // The shell gets a real session — the real uid stream, the real providers
+    // and a real sign-out — with the one capability a dev session must not
+    // offer removed: deleting the account. See [liveDevSession].
+    return composeDevApp(
+      firestore: firestore,
+      authSession: liveDevSession(launch, createSession: createSession),
+      frame: (pages) => DevSessionFrame.live(
+        launch.databaseId,
+        ignoredScenario: launch.ignoredScenario,
+        pages: pages,
+      ),
+    );
+  } catch (error) {
+    return buildLiveStartFailureApp(error);
+  }
 }
 
 /// The live session with the danger zone removed.
@@ -112,8 +119,9 @@ AuthSession? liveDevSession(
 /// exists. Painting a notice first is what keeps that window from being the
 /// blank tab this harness exists to avoid; the final tree is unchanged.
 Widget buildSigningInDevApp(LiveDevLaunch launch) => buildDevPageApp(
-  DevFailureScreen(
-    label: devNotStartedLabel,
+  DevNoticeScreen(
+    label: devStartingLabel,
+    tone: DevBannerTone.starting,
     headline: 'Live dev mode is signing in',
     details: <String>[
       'Exchanging WT_DEV_TOKEN for a session on the "${launch.databaseId}" '
@@ -124,22 +132,41 @@ Widget buildSigningInDevApp(LiveDevLaunch launch) => buildDevPageApp(
   ),
 );
 
-/// Boots a live session in the browser.
-Future<void> runLiveDevSession(LiveDevLaunch launch) async {
-  prepareDevBrowser();
-  runApp(buildSigningInDevApp(launch));
-  runApp(await buildLiveDevApp(launch));
+/// Mounts the notice, then the session it builds.
+///
+/// The order is the whole point: Flutter paints the first frame on a real timer
+/// and [build] suspends on a plugin call and a network round trip, so the notice
+/// is on screen before the tree blocks. Mounting the built app first — or
+/// awaiting before mounting — is the blank tab this exists to prevent.
+Future<void> mountLiveDevSession({
+  required LiveDevLaunch launch,
+  required void Function(Widget app) mount,
+  required Future<Widget> Function(LiveDevLaunch launch) build,
+}) async {
+  mount(buildSigningInDevApp(launch));
+  mount(await build(launch));
 }
 
-/// The page shown when Firebase itself could not start.
+/// Boots a live session in the browser.
+Future<void> runLiveDevSession(LiveDevLaunch launch) {
+  prepareDevBrowser();
+  return mountLiveDevSession(
+    launch: launch,
+    mount: runApp,
+    build: buildLiveDevApp,
+  );
+}
+
+/// The page shown when Firebase, or the session built on it, could not start.
 Widget buildLiveStartFailureApp(Object error) => buildDevPageApp(
-  DevFailureScreen(
+  DevNoticeScreen(
     label: devNotStartedLabel,
-    headline: 'Live dev mode could not start Firebase',
+    headline: 'Live dev mode could not start',
     details: <String>[
-      'Firebase.initializeApp failed with ${error.runtimeType}.',
+      'Starting the session failed with ${error.runtimeType}.',
       'Check that this build carries the web Firebase options for '
-          'wish-together-project.',
+          'wish-together-project, and that WT_FIRESTORE_DATABASE names a '
+          'database this account can reach.',
     ],
   ),
 );
@@ -153,7 +180,7 @@ Widget buildLiveStartFailureApp(Object error) => buildDevPageApp(
 /// port is named too.
 Widget buildLiveSignInFailureApp(LiveDevLaunch launch, Object error) =>
     buildDevPageApp(
-      DevFailureScreen(
+      DevNoticeScreen(
         label: devNotStartedLabel,
         headline: 'Live dev mode could not sign in',
         details: liveSignInFailureDetails(
@@ -179,8 +206,7 @@ List<String> liveSignInFailureDetails({
     'Firebase sign-in failed with $errorType.',
   'A token is rejected once it has expired (they last about an hour), and also '
       'when this page is not an origin the project API key allows.',
-  'Mint a new one and restart: cd scripts && npm run dev:token -- '
-      '--uid <uid> --database $databaseId',
+  'Mint a new one and restart: ${devTokenCommand(databaseId: databaseId)}',
   'If a fresh token fails the same way, check the port: live mode signs in on '
       '--web-port=$devLiveWebPort. '
       '.agents/skills/preview-auth/scripts/preview-auth.sh list shows the '
@@ -200,9 +226,21 @@ Future<void> signInWithLiveDevToken(String token) async {
   await FirebaseAuth.instance.signInWithCustomToken(token);
 }
 
-/// The Firestore instance for [databaseId].
+/// The Firestore instance for [databaseId], or a refusal.
 ///
-/// The id is already known to be a named database; `createFirestoreInstance`
-/// resolves it again so there is one place that maps an id to an instance.
-FirebaseFirestore createLiveDevFirestore(String databaseId) =>
-    createFirestoreInstance(override: databaseId);
+/// `createFirestoreInstance` maps an id to an instance, and it treats an empty
+/// id and `(default)` as the *default* database — production. Live mode's
+/// safety therefore cannot rest on the resolver alone: a caller that builds a
+/// [LiveDevLaunch] by hand would otherwise reach production here. The throw is
+/// caught by [buildLiveDevApp] and becomes a page.
+FirebaseFirestore createLiveDevFirestore(String databaseId) {
+  final id = resolveFirestoreDatabaseId(databaseId);
+  if (id == defaultFirestoreDatabaseId) {
+    throw ArgumentError.value(
+      databaseId,
+      'databaseId',
+      'A live dev session needs a named database; (default) is production',
+    );
+  }
+  return createFirestoreInstance(override: id);
+}

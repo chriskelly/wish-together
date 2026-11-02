@@ -2,14 +2,14 @@ import 'dart:io';
 
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart' show ValueKey;
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/dev/dev_banner.dart';
 import 'package:wishtogether/dev/dev_config.dart';
-import 'package:wishtogether/dev/dev_failure_screen.dart';
+import 'package:wishtogether/dev/dev_notice_screen.dart';
 import 'package:wishtogether/dev/dev_session.dart';
 import 'package:wishtogether/dev/live_dev_session.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
@@ -144,7 +144,25 @@ void main() {
     await tester.pumpWidget(app);
 
     // ASSERT
-    expect(find.text('Live dev mode could not start Firebase'), findsOneWidget);
+    expect(find.text('Live dev mode could not start'), findsOneWidget);
+    expect(find.textContaining('StateError'), findsOneWidget);
+  });
+
+  testWidgets('a session that cannot be built is a page too', (tester) async {
+    // ARRANGE: the failure comes after the sign-in, from the composition.
+    final app = await buildLiveDevApp(
+      liveLaunch(),
+      initializeFirebase: () async {},
+      signIn: (token) async {},
+      createFirestore: (databaseId) => throw StateError('no database'),
+    );
+
+    // ACT
+    await tester.pumpWidget(app);
+
+    // ASSERT: the last step is guarded like the first, so the "signing in"
+    // page cannot be left on screen without a reason.
+    expect(find.text('Live dev mode could not start'), findsOneWidget);
     expect(find.textContaining('StateError'), findsOneWidget);
   });
 
@@ -260,9 +278,26 @@ void main() {
     });
   });
 
-  testWidgets('a live launch paints before the token is exchanged', (
-    tester,
-  ) async {
+  test('the notice is mounted before the session is built', () async {
+    // ARRANGE
+    final mounted = <Widget>[];
+    const session = SizedBox.shrink(key: ValueKey<String>('session'));
+
+    // ACT
+    await mountLiveDevSession(
+      launch: liveLaunch(),
+      mount: mounted.add,
+      build: (launch) async => session,
+    );
+
+    // ASSERT: two mounts, notice first. Awaiting the build before mounting
+    // would leave one, and the window would be the blank tab.
+    expect(mounted, hasLength(2));
+    expect(mounted.first, isNot(same(session)));
+    expect(mounted.last, same(session));
+  });
+
+  testWidgets('the notice itself says the session is starting', (tester) async {
     // ACT: what runLiveDevSession mounts first, synchronously.
     await tester.pumpWidget(buildSigningInDevApp(liveLaunch()));
 
@@ -270,7 +305,20 @@ void main() {
     // blank tab.
     expect(find.text('Live dev mode is signing in'), findsOneWidget);
     expect(find.textContaining('staging'), findsOneWidget);
-    expect(find.text(devNotStartedLabel), findsOneWidget);
+    expect(find.text(devStartingLabel), findsOneWidget);
+  });
+
+  test('a live launch cannot open the production database', () {
+    // ACT & ASSERT: the resolver refuses this first, so the check here is for a
+    // launch built by hand — the case where a single resolution site is not a
+    // defence.
+    for (final databaseId in <String>['(default)', '', '   ']) {
+      expect(
+        () => createLiveDevFirestore(databaseId),
+        throwsArgumentError,
+        reason: 'databaseId=$databaseId must not reach production',
+      );
+    }
   });
 
   test('the sign-in failure text names the code, the command and the port', () {

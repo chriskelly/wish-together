@@ -35,7 +35,9 @@ import { isEntryPoint } from './module-entry.mjs';
 import { STAGING_DATABASE, isNamedDatabaseId } from './staging-config.mjs';
 
 export const PROJECT_ID = 'wish-together-project';
-export const DEFAULT_DATABASE_ID = STAGING_DATABASE;
+// Named, not default: `(default)` is the production database. The name says
+// "target" so it cannot be read as the Firestore default database.
+export const DEFAULT_TARGET_DATABASE = STAGING_DATABASE;
 
 // The only localhost port the project's browser API key allows: its HTTP
 // referrer list holds http://localhost:59922/* and nothing else for localhost.
@@ -54,7 +56,7 @@ const WEB_PORT_MAX = 65535;
 export const USAGE = `Usage: npm run dev:token -- --uid <uid> [options]
 
   --uid <uid>        the account the dev session signs in as (required)
-  --database <id>    a named Firestore database (default "${DEFAULT_DATABASE_ID}")
+  --database <id>    a named Firestore database (default "${DEFAULT_TARGET_DATABASE}")
   --web-port <port>  the port the app is served on (default ${DEFAULT_WEB_PORT})
   --help             print this message
 
@@ -108,7 +110,7 @@ export function validateDatabaseId(raw) {
   }
   if (!isNamedDatabaseId(id)) {
     throw new Error(
-      `Invalid --database ${JSON.stringify(id)}: expected a named database id, e.g. "${DEFAULT_DATABASE_ID}".`,
+      `Invalid --database ${JSON.stringify(id)}: expected a named database id, e.g. "${DEFAULT_TARGET_DATABASE}".`,
     );
   }
   return id;
@@ -128,7 +130,7 @@ export function validateWebPort(raw) {
 export function parseArgs(argv) {
   const options = {
     uid: null,
-    databaseId: DEFAULT_DATABASE_ID,
+    databaseId: DEFAULT_TARGET_DATABASE,
     webPort: DEFAULT_WEB_PORT,
     help: false,
   };
@@ -166,6 +168,18 @@ export function parseArgs(argv) {
   options.databaseId = validateDatabaseId(options.databaseId);
   options.webPort = validateWebPort(options.webPort);
   return options;
+}
+
+/// What to say when the requested port is not the one the key allows, or null.
+///
+/// The printed command is only useful if it can sign in, and the API key's
+/// referrer list is what decides that: every other localhost port fails at
+/// sign-in. A reader who asked for one anyway is told why it will fail.
+export function webPortWarning(webPort) {
+  if (webPort === DEFAULT_WEB_PORT) {
+    return null;
+  }
+  return `Warning: the project's browser API key allows only port ${DEFAULT_WEB_PORT} on localhost. Sign-in fails on ${webPort} until that origin is allowlisted.`;
 }
 
 /// The command a reader pastes into a shell.
@@ -225,6 +239,19 @@ export async function main(argv = process.argv.slice(2)) {
     projectId: PROJECT_ID,
   });
 
+  // An existing uid is legal — a custom token signs in as it — but this is the
+  // case where the account-deletion opt-in would delete a real account, so it
+  // is named rather than left to the reader remembering the doc comment.
+  let existing = null;
+  try {
+    existing = await getAuth(app).getUser(options.uid);
+  } catch (error) {
+    if (error.code !== 'auth/user-not-found') {
+      console.error(`Could not look up uid "${options.uid}": ${error.message}`);
+      return 1;
+    }
+  }
+
   let token;
   try {
     token = await getAuth(app).createCustomToken(options.uid);
@@ -236,13 +263,32 @@ export async function main(argv = process.argv.slice(2)) {
   console.log(`Project: ${PROJECT_ID} (Auth is shared with production)`);
   console.log(`UID: ${options.uid}`);
   console.log(`Database: ${options.databaseId}`);
+  if (existing) {
+    const providers =
+      existing.providerData.map((entry) => entry.providerId).join(', ') ||
+      'none';
+    console.warn(
+      `Warning: uid "${options.uid}" already exists in Auth (providers: ${providers}). Account deletion, if you enable it, deletes that account; a synthetic uid is safer.`,
+    );
+  }
   console.log('');
   console.log('Token (valid for about an hour):');
   console.log('');
   console.log(token);
   console.log('');
   console.log(
-    `Run it (one line; the port is the one the project's API key allows):`,
+    'This token is a credential: do not paste it into an issue, a screenshot or a commit.',
+  );
+  console.log('');
+  // Before the command, not after: a reader copies the command-shaped block,
+  // so a port it cannot sign in on has to be named first.
+  const portWarning = webPortWarning(options.webPort);
+  if (portWarning) {
+    console.warn(portWarning);
+    console.log('');
+  }
+  console.log(
+    `Run it (one line; the default port is the one the project's API key allows):`,
   );
   console.log('');
   console.log(

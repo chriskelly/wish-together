@@ -32,6 +32,12 @@ handling, or any affordance reachable from `lib/main.dart`.
 | `fixtures/dev_fixture.dart` | `DevFixture` and the seeding loop. |
 | `fixtures/registry.dart` | Scenario id → fixture, with a loud failure for an unknown id. |
 | `fixtures/default_scenario.dart` | The scenario shown when nothing else is asked for. |
+| `fixtures/scenario_items.dart` | `devItems` (N generated items in one call) and `devItemFields` (one item document). |
+| `fixtures/family_scenario.dart` | The multi-family dataset: ten people, three groups, eleven wishlists. |
+| `fixtures/large_wishlist_scenario.dart` | Fifty items in one wishlist. |
+| `fixtures/empty_scenario.dart` | A signed-in account with no lists and no groups. |
+| `fixtures/overflow_scenario.dart` | Long text in every place a layout can hold it. |
+| `fixtures/shared_scenario.dart` | A group-shared wishlist with other members' claims. |
 
 ## Running it
 
@@ -65,14 +71,135 @@ The scenario query is **not** preserved by in-app navigation — go_router rewri
 drops it. Open the scenario URL directly, or reload on it, rather than clicking around and then
 reloading.
 
-A one-off fixture is its own entrypoint, three lines, kept out of git under
-`lib/dev/scenarios/local/`:
+A one-off fixture is its own entrypoint kept out of git under
+`lib/dev/scenarios/local/`; see [One-off scenarios](#one-off-scenarios) for the
+template and the command.
+
+## Scenarios
+
+Six datasets are registered. Every URL below is the page **plus**
+`?scenario=<id>`: the query is what selects the fixture, and it is read only at
+startup.
+
+| Id | What it shows | Open |
+| -- | ------------- | ---- |
+| `default` | Two wishlists the viewer owns, one shared list owned by somebody else, one group, one claimed item. | `/` |
+| `family` | Ten people, three overlapping groups, eleven wishlists, eighty-six items, claims on owned and on shared lists. The shape of `seed-demo.mjs` with an invented cast and renamed items. | `/` |
+| `large-wishlist` | Fifty items in one list, generated, for scrolling and performance. | `/wishlist/lg-l1` |
+| `empty` | A signed-in account with no wishlists and no groups. | `/` |
+| `overflow` | Long display, group and wishlist names, an unbroken item name, a long link and a long description. | `/wishlist/ovf-l1` |
+| `shared` | A group the viewer belongs to, a wishlist another member shared with it, and claims by that member and by the viewer. | `/group/shr-g1` or `/wishlist/shr-l2` |
+
+The overflow scenario's group page (`/group/ovf-g1`) is worth opening too: its
+member row overflows when the name is unbroken, which is the layout gap the
+scenario exists to expose. It is not part of the automated URL suite for that
+reason; the member row is the code that needs the fix, not the fixture.
+
+The document ids each scenario exposes:
+
+| Scenario | Ids |
+| -------- | --- |
+| `default` | users `dev-u1`–`dev-u3`, group `dev-g1`, wishlists `dev-l1`–`dev-l3`, items `dev-i1`–`dev-i7` |
+| `family` | users `fam-u1`–`fam-u10`, groups `fam-g1`–`fam-g3`, wishlists `fam-l1`–`fam-l11`, items `fam-i01`–`fam-i86` |
+| `large-wishlist` | user `lg-u1`, wishlist `lg-l1`, items `lg-i01`–`lg-i50` |
+| `empty` | user `emp-u1`, and nothing else |
+| `overflow` | users `ovf-u1`–`ovf-u3`, group `ovf-g1`, wishlists `ovf-l1`–`ovf-l2`, items `ovf-i1`–`ovf-i5` |
+| `shared` | users `shr-u1`–`shr-u4`, group `shr-g1`, wishlists `shr-l1`–`shr-l2`, items `shr-i1`–`shr-i6` |
+
+Worth opening directly:
+
+- `/wishlist/fam-l1?scenario=family` is Bea's list, shared with two of the
+  viewer's groups. The viewer is a reader, so its claims are visible.
+- `/wishlist/fam-l11?scenario=family` is the viewer's own list with claims on it,
+  so the spoiler toggle has something to hide and reveal.
+- `/wishlist/shr-l2?scenario=shared` is another member's list; `shr-i5` is claimed
+  by a third member and `shr-i6` by the viewer, so both claimed renderings are on
+  one screen.
+- `/wishlist/ovf-l1?scenario=overflow` holds the long-name, long-link and
+  long-description probes.
+
+A fixture cannot store spoiler mode: it is a per-view toggle on the wishlist
+details page, on by default for the owner and absent for a reader. To see an
+owned list's claims, press **Show claimed status**; to see claims without
+pressing anything, open a list the viewer does not own.
+
+The names and the relationships behind each id are in that scenario's module;
+the tables above are only the handles an agent needs to write a URL.
+
+## Authoring a scenario
+
+A committed scenario is one Dart module plus one registry line.
+
+1. Create `lib/dev/fixtures/<name>_scenario.dart` with a top-level `final
+   DevFixture`. Its `id` is what `?scenario=` names, and the registry uses that
+   id as its key, so the URL, the banner and the registry cannot disagree. The
+   `viewerUid` needs a `users/<uid>` document with a non-empty `displayName`;
+   without one every route redirects to onboarding.
+2. Write the documents as Firestore-shaped maps keyed by full path.
+   `devItemFields` writes one item; `devItems` generates N under a wishlist in
+   one call, with ids you choose. A claim needs both `claimedBy` and a
+   `Timestamp` `claimedAt`: `ItemRepository` casts that field, so an ISO-8601
+   string throws when the item is read back.
+3. Register it in `fixtures/registry.dart` — one import, one map entry.
+4. `flutter test test/dev/dev_fixture_test.dart` sweeps every registered
+   scenario: every document parses through its model, each id names one
+   document, the viewer has a display name, and every owner, member, shared
+   group, parent wishlist and claimer refers to a document the scenario seeds.
+   It also holds the sharing convention: this library shares a list only with
+   groups whose members include its owner, so ordinary screens show ordinary
+   data. `test/dev/scenario_library_test.dart` pins the
+   documented ids and the property the scenario exists to provide (a count, a
+   claim spread, a probe length); add to it when that property changes, not for
+   the literal contents. Add one mount test in
+   `test/dev/scenario_urls_test.dart` for the scenario's **Open** URL: that
+   handle is what an agent copies, so it is the one thing the data tests cannot
+   prove.
+5. Add a row to the Layout table, the scenarios table and the document-ids
+   table above.
+
+Keep the data plausible and self-consistent: a group's owner is one of its
+members, a list is shared only with groups that exist and that the owner belongs
+to, and a claim names a person in the scenario. Use fixed timestamps; a fixture
+must not read the clock, or a screenshot and a test drift apart.
+
+## One-off scenarios
+
+A one-off is a private fixture in its own entrypoint under
+`lib/dev/scenarios/local/`, which is gitignored. It cannot live in the registry:
+Dart needs a compile-time import, and a tracked file that imports a missing one
+breaks a fresh clone. Nothing imports the entrypoint, so the directory being
+absent is a clean tree.
 
 ```dart
 import 'package:wishtogether/dev/fixtures/dev_fixture.dart';
 import 'package:wishtogether/dev/run_dev_session.dart';
 
+final DevFixture myFixture = DevFixture(
+  id: 'mine',
+  viewerUid: 'dev-u1',
+  documents: <String, Map<String, dynamic>>{
+    'users/dev-u1': <String, dynamic>{'displayName': 'Ana Dev'},
+  },
+);
+
 void main() => runDevSession(myFixture);
+```
+
+```sh
+flutter run -t lib/dev/scenarios/local/mine.dart -d chrome
+```
+
+The path is the route, the same as the committed entrypoint, and the banner
+names the fixture's `id`. `flutter analyze` checks the file; `flutter test` never
+compiles it. A change to a one-off costs a restart, not a reload.
+
+To vary a scenario that already exists, import it instead of rebuilding it:
+
+```dart
+import 'package:wishtogether/dev/fixtures/family_scenario.dart';
+import 'package:wishtogether/dev/run_dev_session.dart';
+
+void main() => runDevSession(familyFixture);
 ```
 
 ## Live mode

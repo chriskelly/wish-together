@@ -118,18 +118,20 @@ void _prepareBrowser() {
   // Flutter web builds its accessibility DOM on demand. Without semantics on,
   // the page holds a placeholder and a text-only agent has nothing to address
   // widgets by.
-  _retainSemantics();
+  retainDevSemantics();
   // Real paths, so the browser pathname is the initial route.
   usePathUrlStrategy();
 }
 
 /// The semantics handle, kept for the life of the process.
+SemanticsHandle? _semanticsHandle;
+
+/// Turns the semantics tree on, and keeps it on.
 ///
 /// `ensureSemantics()` returns a handle that the caller has to hold: dropping
 /// it releases the semantics tree again, which would quietly take the
-/// accessibility DOM away mid-session.
-SemanticsHandle? _semanticsHandle;
-
-void _retainSemantics() {
-  _semanticsHandle ??= SemanticsBinding.instance.ensureSemantics();
-}
+/// accessibility DOM away mid-session. The first call stores that handle here
+/// and returns it; a later call returns the same one, so the handle count stays
+/// at one no matter how often the bootstrap runs.
+SemanticsHandle retainDevSemantics() =>
+    _semanticsHandle ??= SemanticsBinding.instance.ensureSemantics();

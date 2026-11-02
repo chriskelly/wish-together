@@ -41,15 +41,30 @@ handling, or any affordance reachable from `lib/main.dart`.
 
 ## Running it
 
+`tool/dev.sh` is the one command per backend. The agent-facing guide — commands, scenario
+URLs, interaction and screenshot recipes, and the limits of the fake — is
+`.agents/skills/dev-session/SKILL.md`.
+
 ```sh
-# the in-memory fixture: no credentials, no network
-flutter run -t lib/dev/dev_main.dart -d chrome
+# the in-memory fixture: no credentials, no network. Prints the URL it serves.
+tool/dev.sh
+tool/dev.sh family /wishlist/fam-l1
 
 # real Auth and real Firestore, on a named database only
+GOOGLE_APPLICATION_CREDENTIALS=... tool/dev.sh live --uid <uid> --database staging
+```
+
+The runner serves fake mode headless on port 47923 (move it with `--port`); `--chrome` opens
+the same URL in Chrome instead. For live mode it mints the token itself and pins port 59922.
+The raw commands, when the runner is unavailable:
+
+```sh
+flutter run -t lib/dev/dev_main.dart -d chrome
+
 flutter run -t lib/dev/dev_main.dart -d chrome --web-port=59922 \
   --dart-define=WT_DEV_BACKEND=live \
   --dart-define=WT_FIRESTORE_DATABASE=staging \
-  --dart-define=WT_DEV_TOKEN=<token from `npm run dev:token`>
+  --dart-define=WT_DEV_TOKEN=<token from `cd scripts && npm run dev:token`>
 ```
 
 | Input | Effect |
@@ -59,7 +74,7 @@ flutter run -t lib/dev/dev_main.dart -d chrome --web-port=59922 \
 | `--dart-define=WT_DEV_SCENARIO=<id>` | the fixture when the URL names none (fake only) |
 | `--dart-define=WT_DEV_BACKEND=` | unset or `fake` for the in-memory backend; `live` for the real one; anything else is a page naming both |
 | `--dart-define=WT_FIRESTORE_DATABASE=<id>` | live only: the named database. Empty means production and is refused, as is `(default)` |
-| `--dart-define=WT_DEV_TOKEN=<token>` | live only: the custom token from `npm run dev:token` |
+| `--dart-define=WT_DEV_TOKEN=<token>` | live only: the custom token from `cd scripts && npm run dev:token` |
 | `--dart-define=WT_DEV_ALLOW_ACCOUNT_DELETION=true` | live only: offers account deletion, which is otherwise hidden |
 | `--web-port=59922` | live only: the port the project's API key allows (see Live mode) |
 

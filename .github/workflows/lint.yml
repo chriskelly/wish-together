@@ -15,6 +15,8 @@ on:
       - 'Gemfile'
       - 'Gemfile.lock'
       - 'scripts/**'
+      - 'tool/**'
+      - 'lib/dev/fixtures/**'
       - 'firebase.staging.json'
   push:
     branches: [master]
@@ -25,6 +27,8 @@ on:
       - 'Gemfile'
       - 'Gemfile.lock'
       - 'scripts/**'
+      - 'tool/**'
+      - 'lib/dev/fixtures/**'
       - 'firebase.staging.json'
 
 permissions:
@@ -41,7 +45,7 @@ env:
 
 jobs:
   lint:
-    name: Workflows, Fastlane & scripts
+    name: Workflows, Fastlane, scripts & dev runner
     runs-on: ubuntu-26.04
     steps:
       - name: Checkout

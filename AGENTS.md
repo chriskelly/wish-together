@@ -46,6 +46,7 @@ per-area `OVERVIEW.md` next to the code you are touching.
 ├── docs/
 │   ├── specs/                 # gitignored — open design specs (local only)
 │   └── plans/                 # gitignored — local implementation plans
+├── tool/dev.sh                # dev-session runner (see Dev session)
 ├── test/                      # mirrors lib/ path-for-path: <file>_test.dart
 ├── rules_tests/               # Firestore rules emulator suite (see Commands)
 └── web/                       # web host: index.html, manifest.json, privacy.html,
@@ -65,6 +66,7 @@ per-area `OVERVIEW.md` next to the code you are touching.
 | Where are the Firestore rules? | `firestore.rules` (root) |
 | How does iOS ship to TestFlight? | `.github/workflows/testflight-release.yml` + `fastlane/Fastfile` (see CI) |
 | How do I test real auth on a preview? | `.agents/skills/preview-auth/` (run locally, never CI; see CI → Staging environment) |
+| How do I see or screenshot a signed-in screen without deploying? | `tool/dev.sh` and `.agents/skills/dev-session/` (see Dev session) |
 | A user gives me a six-character support code, or I need to know where crash reports go | `## Diagnostics (Sentry)` |
 
 ## Commands
@@ -99,7 +101,7 @@ opaque (no alpha) and at the exact pixel size; the App Store rejects an icon wit
 transparency channel.
 
 **Demo data:** `scripts/seed-demo.mjs` writes a fictional, multi-family dataset (10 people,
-3 overlapping groups, 10 wishlists, ~80 items, marked claims) for screenshots and manual
+3 overlapping groups, 11 wishlists, 86 items, marked claims) for screenshots and manual
 testing. It defaults to the named **`staging`** Firestore database; pass
 `--database "(default)"` to write to production. It needs an Admin service-account JSON via
 `GOOGLE_APPLICATION_CREDENTIALS`, refuses to run without `--yes`, refuses a credentials file
@@ -111,6 +113,36 @@ with `--clean-only` when done — while the data exists, any signed-in user can 
 Formatting: `dart format .` is the formatter and is **enforced in CI** as
 `dart format --output=none --set-exit-if-changed .`; the tree is formatted. Format the
 files you touch.
+
+## Dev session
+
+`tool/dev.sh` boots the app **signed in**, on the real widgets, without a deployment. The
+default backend is an in-memory Firestore seeded from a Dart fixture, so it needs no
+credentials and no network. It serves headless on port 47923 and prints the URL to open;
+name a path to start deeper, or pass `--chrome` to open it directly:
+
+```sh
+tool/dev.sh                              # scenario "default" at /
+tool/dev.sh family /wishlist/fam-l1
+GOOGLE_APPLICATION_CREDENTIALS=<service-account.json> \
+  tool/dev.sh live --uid <synthetic-uid> # real Auth + Firestore, staging database
+```
+
+The six scenarios (`default`, `family`, `large-wishlist`, `empty`, `overflow`, `shared`),
+the page each starts on, both fixture-authoring recipes, the interaction and screenshot
+recipes, and the fake-mode limits are in `.agents/skills/dev-session/SKILL.md`;
+`lib/dev/OVERVIEW.md` is the implementation view.
+
+Live mode mints a custom token with the same service account the demo seed uses, refuses
+the production database by name, and is fixed to port 59922 because that is the only
+localhost origin the project's browser API key allows. Its token lasts about an hour, and
+account deletion stays hidden unless the build opts in.
+
+Both backends are a **separate entrypoint**: `lib/main.dart` imports nothing from `lib/dev/`,
+and `ci-web.yml` fails the build if the production bundle carries the dev marker. A fake
+session does not enforce rules or indexes and has one client, so read its limits before
+reporting "works". The runner's URLs, arguments and refusals are pinned by
+`cd scripts && npm test`.
 
 ## Diagnostics (Sentry)
 
@@ -534,7 +566,8 @@ authoritative when it is not). **`preview-auth`** allowlists ONE preview
 host for a one-off, reversible real-auth validation on a preview channel: Auth authorized
 domains and the browser API-key referrers automatically, and the Google OAuth origin as a
 printed manual step (`remove` prints the matching deletion). Run it **locally, never in CI** —
-it mutates production Firebase config.
+it mutates production Firebase config. **`dev-session`** is the recipe for seeing and
+driving a signed-in screen locally — see Dev session.
 
 `.agents/skills/` also carries two git submodules of the Agent Skills published by the
 Flutter and Firebase teams: `flutter-agent-plugins/` (Flutter/Dart, and the skills bundled

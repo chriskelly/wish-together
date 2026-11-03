@@ -24,14 +24,37 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
   final _groupRepository = getIt<GroupRepository>();
   final _session = getIt<AuthSession>();
   final _joinGroupUseCase = getIt<JoinGroupUseCase>();
+  late Future<Group?> _groupFuture;
   bool _isJoining = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _groupFuture = _groupRepository.get(widget.groupId);
+  }
+
+  @override
+  void didUpdateWidget(covariant JoinGroupPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The join route is keyed by its path, not its query string, so following a
+    // second invite link updates this page in place. The new group id has to be
+    // read: the membership decision and the group name come from this document,
+    // while the redirect and the join themselves use `widget.groupId`.
+    //
+    // A rebuild with the same id deliberately does not re-read: the decision
+    // has already been made from this document and re-fetching on every rebuild
+    // would flash the loading state and could navigate twice.
+    if (oldWidget.groupId != widget.groupId) {
+      _groupFuture = _groupRepository.get(widget.groupId);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: _buildAppBar(),
       body: FutureBuilder<Group?>(
-        future: _groupRepository.get(widget.groupId),
+        future: _groupFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return _buildLoadingState();
@@ -43,7 +66,10 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
           final group = snapshot.data!;
           final currentUserId = _session.currentUserId;
           if (currentUserId != null && group.members.contains(currentUserId)) {
-            return _buildAlreadyMemberWidget(group);
+            return _RedirectToGroup(
+              groupId: widget.groupId,
+              child: _buildLoadingState(),
+            );
           }
           return _buildInvitationContent(group);
         },
@@ -63,23 +89,6 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
 
   Widget _buildInvalidInvitation() =>
       const Center(child: Text('This invitation is no longer valid.'));
-
-  Widget _buildAlreadyMemberWidget(Group group) => Center(
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text('You are already a member of ${group.name}.'),
-        const SizedBox(height: 20),
-        ElevatedButton(
-          onPressed: () => context.goNamed(
-            GroupDetailsPage.routeName,
-            pathParameters: {'id': widget.groupId},
-          ),
-          child: const Text('View Group'),
-        ),
-      ],
-    ),
-  );
 
   Widget _buildInvitationContent(Group group) => Center(
     child: Padding(
@@ -173,4 +182,49 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
   void _showErrorSnackbar(Object e) =>
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Error joining group: $e')));
+}
+
+/// Sends a viewer who already belongs to the group straight to its details
+/// page, instead of stopping on an "already a member" page with a button.
+///
+/// Navigation cannot run during a build, so it waits one frame. [child] is the
+/// loading state, which is what the viewer sees until that frame: no
+/// interstitial is ever painted, and the location is replaced, so the invite
+/// link is not on the back stack.
+///
+/// The decision lives here rather than in the router's redirect because this
+/// page has already read the group document; the router redirect would have to
+/// read it again on every `/join` navigation.
+class _RedirectToGroup extends StatefulWidget {
+  final String groupId;
+  final Widget child;
+
+  const _RedirectToGroup({required this.groupId, required this.child});
+
+  @override
+  State<_RedirectToGroup> createState() => _RedirectToGroupState();
+}
+
+class _RedirectToGroupState extends State<_RedirectToGroup> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      // A plain `go` pushes a browser history entry, so Back would return to
+      // the invite, which would forward again: a Back button that does
+      // nothing. Neglecting the report marks the entry replaced, so `/join`
+      // never becomes a place the user can return to.
+      Router.neglect(
+        context,
+        () => context.goNamed(
+          GroupDetailsPage.routeName,
+          pathParameters: {'id': widget.groupId},
+        ),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

@@ -1,0 +1,1 @@
+Opening a group invitation for a group you are already in now takes you straight to the group.

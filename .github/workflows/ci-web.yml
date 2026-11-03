@@ -163,6 +163,32 @@ jobs:
           done
           echo "Bundle embeds the DSN and build $GITHUB_SHA, with a source map to upload."
 
+      # The dev session is a separate entrypoint, so `lib/main.dart` cannot reach
+      # it. This is the artifact-level check that the build actually used that
+      # entrypoint: a bundle carrying the dev marker serves a signed-in
+      # in-memory fixture under the real app's name, and must never deploy. The
+      # step is unconditional so it also covers a fork PR, which skips the
+      # Sentry check above.
+      - name: Verify the production bundle carries no dev session
+        run: |
+          bundle=build/web/main.dart.js
+          if [ ! -f "$bundle" ]; then
+            echo "::error::$bundle is missing"
+            exit 1
+          fi
+          # Read the marker from its single definition, so renaming the constant
+          # cannot leave this guard hunting a string that no longer exists.
+          marker="$(sed -n "s/.*devBundleMarker = '\([^']*\)'.*/\1/p" lib/dev/dev_config.dart)"
+          if [ "$(printf '%s\n' "$marker" | grep -c .)" -ne 1 ]; then
+            echo "::error::could not read exactly one devBundleMarker from lib/dev/dev_config.dart"
+            exit 1
+          fi
+          if grep -qF -- "$marker" "$bundle"; then
+            echo "::error::$bundle embeds $marker; this artifact was built from lib/dev/dev_main.dart, not lib/main.dart."
+            exit 1
+          fi
+          echo "Production bundle carries no dev-session marker."
+
       # A failed upload fails the run: a deployed bundle without its source maps
       # reports minified stack traces, which is worse than not deploying.
       - name: Upload symbols to Sentry

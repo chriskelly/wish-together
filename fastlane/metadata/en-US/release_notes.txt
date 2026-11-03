@@ -1,2 +1,3 @@
-Opening a group invitation for a group you are already in now takes you straight to the group.
 This update includes an important security fix.
+Opening a group invitation for a group you are already in now takes you straight to the group.
+A long member name no longer runs into the Owner or Member label in a group.

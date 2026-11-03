@@ -263,12 +263,21 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
       (context, member) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 8.0),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              member.displayName ?? 'No Name',
-              style: Theme.of(context).textTheme.bodyLarge,
+            // A display name has no length limit. The role label keeps its
+            // natural width and the name yields to it, so an unbroken name
+            // truncates with an ellipsis instead of a silent hard cut; without
+            // the bounded width it would overflow the row and run under the
+            // label.
+            Expanded(
+              child: Text(
+                member.displayName ?? 'No Name',
+                style: Theme.of(context).textTheme.bodyLarge,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
+            const SizedBox(width: 8),
             Text(
               member.id == ownerId ? 'Owner' : 'Member',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(

@@ -300,7 +300,7 @@ page behind each one:
 | Page | Operation |
 | ---- | --------- |
 | router, profile | `users/{uid}` read by id, create when missing, `updateData` for one field |
-| home | `users` by id (stream); `wishlists` where `ownerId == uid`; `groups` where `members` contains uid |
+| home | `users` by id (stream); `wishlists` where `ownerId == uid`; `groups` where `members` contains uid; deleting a wishlist pages its `items` and batch-deletes them before the wishlist document (pinned in `wishlist_repository_test.dart`) |
 | wishlist details | `wishlists/{id}` stream; `wishlists/{id}/items` stream, add, update, delete |
 | item claim and unclaim | item `update` carrying a `Timestamp`; `updateData` clearing `claimedBy` and `claimedAt` together |
 | group details | `users` by `documentId whereIn`; `wishlists` where `sharedWithGroups` contains the group; `groups` `updateData` with `arrayUnion` / `arrayRemove` |
@@ -343,19 +343,14 @@ cannot be exercised in one process, or are app behaviour the harness reproduces 
    empty list when the collection is empty. `UserRepository.streamUsersFromIds` does not chunk,
    so a group with 31 or more members fails the members read on both backends — a limit of the
    app that a sparse fixture can hide.
-7. **Deleting a wishlist does not cascade.** The home page deletes the wishlist document only
-   (`home_page.dart:321`); `deleteWithItems`, which pages through the items first, is reached
-   only from account deletion. A dev session therefore shows the wishlist gone while its item
-   documents remain, exactly as production does today. The app-side gap is tracked in #102; the
-   fake neither hides nor fixes it.
-8. **Platform plugins are inert.** Share, external-URL launch and sign-in sheets either no-op
+7. **Platform plugins are inert.** Share, external-URL launch and sign-in sheets either no-op
    or depend on the browser. Everything up to the plugin call can be verified; the call itself
    cannot.
-9. **Auth transitions are not modelled.** One fixed signed-in identity: no sign-in, no
+8. **Auth transitions are not modelled.** One fixed signed-in identity: no sign-in, no
    sign-out, no account deletion, and no auth screens. `group_details_page.dart` force-unwraps
    `currentUserId`, so a signed-out session would throw rather than degrade.
-10. **Nothing persists.** The store lives in the process; a reload re-seeds it, and there is no
-    offline or cache behaviour to observe (`metadata.hasPendingWrites` is always false).
+9. **Nothing persists.** The store lives in the process; a reload re-seeds it, and there is no
+   offline or cache behaviour to observe (`metadata.hasPendingWrites` is always false).
 
 A fake-mode success is a success of the widgets and the query composition, not a promise that
 production accepts the same write.

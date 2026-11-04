@@ -318,7 +318,9 @@ class _HomePageState extends State<HomePage> {
     if (confirmed != true) return;
 
     try {
-      await _wishlistRepository.delete(wishlistId);
+      // Purges the items first: Firestore keeps a sub-collection when its
+      // parent document is deleted.
+      await _wishlistRepository.deleteWithItems(wishlistId);
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('Wishlist deleted.')));

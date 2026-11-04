@@ -29,6 +29,7 @@ const String groupName = 'Family';
 const String signOutFailedMessage = 'Could not sign out. Please try again.';
 const String userLoadFailedMessage = 'Could not load user profile.';
 const String emptyWishlistsMessage = 'No wishlists yet. Create one!';
+const String wishlistDeletedMessage = 'Wishlist deleted.';
 const String lateWishlistName = 'Late arrival';
 const String lateGroupName = 'Late group';
 
@@ -427,6 +428,64 @@ void main() {
       expect((userReads, wishlistReads, groupReads), (1, 1, 1));
     },
   );
+
+  testWidgets('deletes a wishlist together with its items', (tester) async {
+    // Arrange: the cascade is the operation the confirmed delete must use.
+    when(() => wishlistRepository.deleteWithItems(wishlist.id!))
+        .thenAnswer((_) async {});
+    await loadSignedInHome(tester);
+
+    // Act: confirm the deletion dialog.
+    await tester.tap(find.byTooltip('Delete Wishlist'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+    await tester.pumpAndSettle();
+
+    // Assert: the items are purged with the wishlist, and the document-only
+    // delete is not used.
+    verify(() => wishlistRepository.deleteWithItems(wishlist.id!)).called(1);
+    verifyNever(() => wishlistRepository.delete(wishlist.id!));
+    expect(find.text(wishlistDeletedMessage), findsOneWidget);
+  });
+
+  testWidgets('leaves the wishlist alone when the deletion is cancelled', (
+    tester,
+  ) async {
+    // Arrange
+    await loadSignedInHome(tester);
+
+    // Act: back out of the confirmation dialog.
+    await tester.tap(find.byTooltip('Delete Wishlist'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+
+    // Assert: neither delete path ran, and no snackbar claims otherwise.
+    verifyNever(() => wishlistRepository.deleteWithItems(wishlist.id!));
+    verifyNever(() => wishlistRepository.delete(wishlist.id!));
+    expect(find.text(wishlistDeletedMessage), findsNothing);
+  });
+
+  testWidgets('reports a failed cascade instead of claiming the delete', (
+    tester,
+  ) async {
+    // Arrange: the item purge fails, so no wishlist document is removed and
+    // the user must not be told the wishlist was deleted.
+    final failure = Exception('items offline');
+    when(() => wishlistRepository.deleteWithItems(wishlist.id!))
+        .thenAnswer((_) => Future<void>.error(failure));
+    await loadSignedInHome(tester);
+
+    // Act
+    await tester.tap(find.byTooltip('Delete Wishlist'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+    await tester.pumpAndSettle();
+
+    // Assert
+    expect(find.text('Error: $failure'), findsOneWidget);
+    expect(find.text(wishlistDeletedMessage), findsNothing);
+  });
 
   testWidgets('clears a list error when data arrives', (tester) async {
     // Arrange

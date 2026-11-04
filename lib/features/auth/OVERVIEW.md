@@ -314,7 +314,9 @@ validate it on the **staging** site (or live) with a throwaway account for each 
   and served again once it settles, and a failed sign-out leaves no extra listener behind; a
   failed sign-out that cleared the session starts nothing and shows only the loading state; a
   sign-out cancels its reads before the session is cleared; a list error clears when data arrives;
-  and a failed or empty profile read shows the error screen.
+  a failed or empty profile read shows the error screen; the confirmed wishlist delete calls
+  `deleteWithItems` rather than the document-only `delete`, cancelling calls neither, and a
+  failed cascade shows the error snackbar instead of the success one.
 - `test/features/auth/presentation/verification_page_test.dart` — the code page's support code
   (visible on arrival and after a failed confirmation), the "sign-in expired" message when the
   page outlives the web sign-in, and the pending sign-in being discarded when the page closes.

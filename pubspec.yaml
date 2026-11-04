@@ -37,12 +37,18 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
-  firebase_core: ^4.2.0
+
+  # Firebase: the plugins' iOS packages pin one shared firebase-ios-sdk, so bump
+  # them together. These floors pull 12.19.3, which dropped the roots chaining to
+  # the compromised eMudhra CA (an unrelated EmSign root remains).
+  firebase_core: ^4.15.1
+  firebase_auth: ^6.7.1
+  firebase_app_check: ^0.4.9
+  cloud_firestore: ^6.10.1
+  firebase_remote_config: ^6.7.1
+
   google_fonts: ^6.3.2
   go_router: ^16.3.0
-  firebase_auth: ^6.1.1
-  firebase_app_check: ^0.4.1+1
-  cloud_firestore: ^6.0.3
   share_plus: ^12.0.1
   url_launcher: ^6.3.2
   intl: ^0.20.2
@@ -51,10 +57,6 @@ dependencies:
   get_it: ^9.0.5
   sign_in_with_apple: ^8.2.0
   crypto: ^3.0.7
-  # Pinned to 6.1.0: it is the newest firebase_remote_config whose firebase_core
-  # constraint (^4.2.0) matches the suite this repo has locked. Newer releases
-  # force a Firebase suite upgrade; treat that as its own deliberate change.
-  firebase_remote_config: 6.1.0
   package_info_plus: ^9.0.1
   app_links: ^7.2.2
   sentry_flutter: ^10.2.0
@@ -63,8 +65,9 @@ dependencies:
   # A runtime dependency, not a dev one: the committed development entrypoint
   # (lib/dev/dev_main.dart) imports it, and `flutter analyze` fails a lib/ import
   # of a dev_dependency. It ships in no bundle — nothing under lib/ outside
-  # lib/dev/ imports it.
-  fake_cloud_firestore: ^4.1.0+1
+  # lib/dev/ imports it. The floor is the first release that compiles against
+  # cloud_firestore 6.10.x.
+  fake_cloud_firestore: ^4.4.0
 
 dev_dependencies:
   flutter_test:

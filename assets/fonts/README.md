@@ -1,9 +1,13 @@
 # Bundled fonts
 
 Three families, five faces, Latin subset, SIL Open Font License 1.1 (see
-`OFL.txt`). Bundling them locally removes the runtime request to
-`fonts.gstatic.com` for the app's own strings. A glyph outside the subset falls
-back to the engine's/platform's fallback font, which may be fetched.
+`OFL.txt`). Bundling them locally means the app's own text makes no runtime
+font request. Flutter web's engine still fetches its default Roboto (about
+63 KB) once per page load, even when every style names a bundled family, and a
+glyph outside the subset can trigger its fallback font; neither is app code.
+Aliasing the engine's `Roboto` family to a bundled face was considered and
+rejected: the family name would lie about the face and would depend on an
+engine detail that a Flutter upgrade can change.
 
 | File | Family and weight | Flutter `weight` |
 | ---- | ----------------- | ---------------- |

@@ -143,12 +143,14 @@ button and chip inherits.
 
 The five Latin-subset faces are bundled under `assets/fonts/` (provenance and
 regeneration in its `README.md`), so the app's own strings make no font request
-on a cold start. A glyph outside the subset falls back to the engine's fallback
-font. Archivo is instanced into static 400/700/800 files rather than shipped as
-a variable font, so ordinary `fontWeight` selects the right face.
-`ThemeData.fontFamily` is Archivo for the roles the table does not list; every
-style the table defines names its own family, because the fallback family is
-applied before the token text theme is merged.
+on a cold start. Flutter web's engine still fetches its default Roboto once per
+page load, and a glyph outside the subset falls back to the engine's fallback
+font; both are platform behaviour, not app code. Archivo is instanced into
+static 400/700/800 files rather than shipped as a variable font, so ordinary
+`fontWeight` selects the right face. `ThemeData.fontFamily` is Archivo for the
+roles the table does not list; every style the table defines names its own
+family, because the fallback family is applied before the token text theme is
+merged.
 
 ### How a widget gets its colour
 

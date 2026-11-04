@@ -105,6 +105,18 @@ profile).
 - The `users/{uid}` document id **is** the Firebase Auth uid.
 - Onboarding is router-driven: a user with no display name — null, empty, or whitespace-only —
   cannot reach home until they save a name on `ProfilePage`.
+- **The login title is the hero's, not a paragraph.** `LoginPage` opens with the same full-bleed
+  `BrandHero` Home uses, and authors the title as `'Welcome to\nWishTogether'`. Each line is
+  scaled down to the width instead of wrapping, so "WishTogether" shrinks rather than breaking
+  mid-word on a 320 px phone or at a 2.0 text scale. The hero is pinned, so it cannot shrink: it
+  is dropped whenever the keyboard is up, because on a short landscape viewport it would push the
+  form past the bottom; in portrait that only costs the form its breathing room. The scroll
+  area's minimum height comes from the space left under the hero, not from the screen height.
+  With the hero gone the page has to cover what the hero provided: it takes the top safe-area
+  inset itself and sets the status-bar icon style for the canvas, which is the one reason the
+  page carries an `AnnotatedRegion` when the hero already has one. `login_page_test` pins the
+  320 px / 2.0-scale case (both lines whole, the wider one scaled) and the keyboard case (no
+  overflow, form below the status bar, no hero).
 - **`ProfilePage` offers a non-saving exit to an existing user, and none to a new one.** The
   AppBar's back arrow is gated by `shouldShowProfileBackButton`, which applies the same rule the
   router uses for onboarding — no display name, null/empty/whitespace-only alike — and is offered
@@ -222,8 +234,9 @@ opened another code page. A platform that never reports fails with a `TimeoutExc
   `VerificationPage`; an auto-verified credential signs the user in directly;
   `confirmPhoneCode` builds a `PhoneAuthProvider` credential and signs in with it.
 
-`VerificationPage` is pushed on top of `LoginPage`, so the AppBar's back action returns to the
-number the user typed, still in the field. It used to replace the login page in the stack: on web
+`VerificationPage` is pushed on top of `LoginPage`, so its `PrimaryAppBar` keeps the implied
+back action that returns to the number the user typed, still in the field. It used to replace
+the login page in the stack: on web
 the browser's Back still reached login, but a freshly built one with the number gone, and the app
 itself offered no in-app way out. Because the push is imperative the web address bar keeps
 showing `/login` while the code page is up, and a reload returns to login — the page was never

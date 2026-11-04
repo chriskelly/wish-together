@@ -1,14 +1,18 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'
     show kIsWeb, defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:wishtogether/common/widgets/brand_card.dart';
+import 'package:wishtogether/common/widgets/brand_hero.dart';
 import 'package:wishtogether/common/widgets/support_code_tile.dart';
+import 'package:wishtogether/core/design_tokens.dart';
 import 'package:wishtogether/core/logging/diagnostics.dart';
 import 'package:wishtogether/core/router.dart';
 import 'package:wishtogether/core/service_locator.dart';
@@ -91,74 +95,100 @@ class _LoginPageState extends State<LoginPage>
     // Signed out is exactly when a user cannot reach Profile: a failed OTP
     // leaves them here, and this is the only place they can read the code.
     final supportCode = appLogOrNull?.session.supportCode;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // The hero is pinned, so it cannot shrink. While the keyboard is up the
+    // form needs every pixel that is left: in portrait the hero only costs the
+    // form its breathing room, but on a short landscape viewport it would push
+    // the form past the bottom, so the hero steps aside for both.
+    final keyboardUp = MediaQuery.viewInsetsOf(context).bottom > 0;
     return Scaffold(
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 600),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  children: <Widget>[
-                    // Login section - always visible at the top
-                    // Takes up at least the full viewport height so users must scroll
-                    ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minHeight: MediaQuery.of(context).size.height,
-                      ),
-                      child: Stack(
-                        children: [
-                          Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
+      body: AnnotatedRegion<SystemUiOverlayStyle>(
+        // The hero covers the status bar and annotates its own icons while it
+        // is shown, so this only decides the frames it steps out of: over the
+        // canvas the icons follow the theme.
+        value: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+        child: Column(
+          children: <Widget>[
+            if (!keyboardUp)
+              // Full-bleed, like Home's hero, so the product name stays visible
+              // while the form scrolls under it. Its per-line scale-down is what
+              // stops the title breaking mid-word on a narrow phone.
+              const BrandHero(
+                title: 'Welcome to\nWishTogether',
+                titleStyle: heroLoginTextStyle,
+              ),
+            Expanded(
+              child: SafeArea(
+                // With the hero shown it paints its own block under the status
+                // bar; with it hidden this area owns the top inset again.
+                top: keyboardUp,
+                child: Padding(
+                  padding: const EdgeInsets.all(BrandGeometry.spacingMd),
+                  child: LayoutBuilder(
+                    builder: (context, viewport) => SingleChildScrollView(
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 600),
+                          child: Column(
                             children: <Widget>[
-                              Text(
-                                'Welcome to WishTogether',
-                                style: Theme.of(context).textTheme.displayLarge,
-                                textAlign: TextAlign.center,
+                              // At least the height left under the hero, so the
+                              // form is not squeezed up and the web scroll hint
+                              // sits at the fold rather than below it.
+                              ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  minHeight: viewport.maxHeight,
+                                ),
+                                child: Stack(
+                                  children: [
+                                    Column(
+                                      children: <Widget>[
+                                        _googleSignInButton(),
+                                        if (shouldShowAppleSignInButton(
+                                          isWeb: kIsWeb,
+                                          platform: defaultTargetPlatform,
+                                        ))
+                                          _appleSignInButton(),
+                                        const SizedBox(height: 20),
+                                        _dividerBetweenOAuthAndPhone(),
+                                        const SizedBox(height: 20),
+                                        _phoneNumberInputField(),
+                                        const SizedBox(height: 20),
+                                        _requestVerificationCodeButton(context),
+                                      ],
+                                    ),
+                                    // Downward arrow indicator - only on web,
+                                    // positioned at bottom.
+                                    if (kIsWeb)
+                                      Positioned(
+                                        bottom: 20,
+                                        left: 0,
+                                        right: 0,
+                                        child: Center(
+                                          child: _buildScrollIndicator(context),
+                                        ),
+                                      ),
+                                  ],
+                                ),
                               ),
-                              const SizedBox(height: 40),
-                              _googleSignInButton(),
-                              if (shouldShowAppleSignInButton(
-                                isWeb: kIsWeb,
-                                platform: defaultTargetPlatform,
-                              ))
-                                _appleSignInButton(),
-                              const SizedBox(height: 20),
-                              _dividerBetweenOAuthAndPhone(),
-                              const SizedBox(height: 20),
-                              _phoneNumberInputField(),
-                              const SizedBox(height: 20),
-                              _requestVerificationCodeButton(context),
+                              // App information section - only visible on web,
+                              // below login.
+                              if (kIsWeb) ..._buildAppInfoSection(context),
+                              const SizedBox(height: 24),
+                              _buildPrivacyPolicyLink(context),
+                              if (supportCode != null) ...[
+                                const SizedBox(height: 24),
+                                SupportCodeTile(supportCode: supportCode),
+                              ],
                             ],
                           ),
-                          // Downward arrow indicator - only on web, positioned at bottom
-                          if (kIsWeb)
-                            Positioned(
-                              bottom: 20,
-                              left: 0,
-                              right: 0,
-                              child: Center(
-                                child: _buildScrollIndicator(context),
-                              ),
-                            ),
-                        ],
+                        ),
                       ),
                     ),
-                    // App information section - only visible on web, below login
-                    if (kIsWeb) ..._buildAppInfoSection(context),
-                    const SizedBox(height: 24),
-                    _buildPrivacyPolicyLink(context),
-                    if (supportCode != null) ...[
-                      const SizedBox(height: 24),
-                      SupportCodeTile(supportCode: supportCode),
-                    ],
-                  ],
+                  ),
                 ),
               ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -351,8 +381,7 @@ class _LoginPageState extends State<LoginPage>
     required String title,
     required String description,
   }) {
-    return Card(
-      elevation: 2,
+    return BrandCard(
       child: Padding(
         padding: const EdgeInsets.all(20.0),
         child: Row(

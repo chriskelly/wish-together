@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:wishtogether/common/widgets/brand_hero.dart';
+import 'package:wishtogether/core/design_tokens.dart';
 import 'package:wishtogether/core/logging/app_log.dart';
 import 'package:wishtogether/core/router.dart';
 
@@ -26,6 +28,17 @@ class MockUserRepository extends Mock implements UserRepository {}
 
 const String phoneNumber = '4085551234';
 const String verificationId = 'native-verification-id';
+
+/// The two lines the login hero authors, so a wrappable paragraph cannot
+/// satisfy the assertion.
+const String firstTitleLine = 'Welcome to';
+const String secondTitleLine = 'WishTogether';
+
+/// The narrow phone the title has to survive.
+const double viewportWidth = 320;
+
+/// The top inset a notched phone reports.
+const double statusBarInset = 47;
 
 void main() {
   group('shouldShowAppleSignInButton', () {
@@ -90,6 +103,92 @@ void main() {
       await tester.pump();
 
       expect(find.text(testSession.supportCode), findsOneWidget);
+    });
+  });
+
+  group('LoginPage title', () {
+    setUp(() async {
+      await getIt.reset();
+      getIt.registerSingleton<AuthService>(MockAuthService());
+      getIt.registerSingleton<AppLog>(
+        AppLog(session: testSession, sinks: const []),
+      );
+    });
+
+    tearDown(getIt.reset);
+
+    testWidgets('scales the longer line down instead of breaking it', (
+      tester,
+    ) async {
+      // Arrange: a 320 px phone at the largest system text scale. The title
+      // was one paragraph on a screen this narrow, so it broke mid-word and
+      // left a final "r" alone on a third line.
+      tester.view.physicalSize = const Size(viewportWidth, 640);
+      tester.view.devicePixelRatio = 1.0;
+      tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+      // Act
+      await tester.pumpWidget(const MaterialApp(home: LoginPage()));
+      await tester.pump();
+
+      // Assert: both authored lines survive as whole lines, and the one that
+      // is wider than the block is scaled down rather than wrapped.
+      expect(tester.takeException(), isNull);
+      expect(find.text(firstTitleLine), findsOneWidget);
+      expect(find.text('$firstTitleLine $secondTitleLine'), findsNothing);
+      final longerLine = find.text(secondTitleLine);
+      expect(longerLine, findsOneWidget);
+      final scaled = find.ancestor(
+        of: longerLine,
+        matching: find.byType(FittedBox),
+      );
+      expect(scaled, findsOneWidget);
+      expect(
+        tester.getSize(longerLine).width,
+        greaterThan(tester.getSize(scaled).width),
+        reason: 'the line has to be wider than its box to need scaling',
+      );
+      expect(
+        tester.getSize(scaled).width,
+        // The hero pads its lines by spacingMd on each side.
+        lessThanOrEqualTo(viewportWidth - 2 * BrandGeometry.spacingMd),
+        reason: 'a scaled line never paints past the block',
+      );
+    });
+
+    testWidgets('gives the form the room when the keyboard is up', (
+      tester,
+    ) async {
+      // Arrange: a phone in landscape at 2.0 text scale with the keyboard
+      // open. A pinned hero taller than the space left would overflow it, and
+      // the status bar inset would land on the form if nothing took it over.
+      tester.view.physicalSize = const Size(844, 390);
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.viewInsets = const FakeViewPadding(bottom: 260);
+      tester.view.padding = const FakeViewPadding(top: statusBarInset);
+      tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetViewInsets);
+      addTearDown(tester.view.resetPadding);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+      // Act
+      await tester.pumpWidget(const MaterialApp(home: LoginPage()));
+      await tester.pump();
+
+      // Assert
+      expect(tester.takeException(), isNull);
+      expect(find.byType(BrandHero), findsNothing);
+      expect(find.byType(TextField), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.byType(SingleChildScrollView)).dy,
+        greaterThanOrEqualTo(statusBarInset),
+        reason: 'the form has to start below the status bar',
+      );
     });
   });
 

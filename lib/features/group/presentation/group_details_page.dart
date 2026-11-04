@@ -282,7 +282,7 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
               member.id == ownerId ? 'Owner' : 'Member',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 fontStyle: FontStyle.italic,
-                color: Colors.grey[600],
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ],
@@ -290,12 +290,13 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
       );
 
   Widget _leaveGroupButton(String groupId, String userId) {
+    final error = Theme.of(context).colorScheme.error;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 20.0),
       child: Center(
         child: TextButton.icon(
-          icon: const Icon(Icons.exit_to_app, color: Colors.red),
-          label: const Text('Leave Group', style: TextStyle(color: Colors.red)),
+          icon: Icon(Icons.exit_to_app, color: error),
+          label: Text('Leave Group', style: TextStyle(color: error)),
           onPressed: () => _onLeaveGroupButtonPressed(context, groupId, userId),
         ),
       ),

@@ -34,7 +34,7 @@ class ListItemActions extends StatelessWidget {
           ),
         if (onDelete != null)
           IconButton(
-            icon: Icon(deleteIcon, color: Colors.redAccent),
+            icon: Icon(deleteIcon, color: Theme.of(context).colorScheme.error),
             onPressed: onDelete,
             tooltip: deleteTooltip ?? 'Delete',
           ),

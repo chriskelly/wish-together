@@ -28,6 +28,8 @@ handling, or any affordance reachable from `lib/main.dart`.
 | `live_dev_session.dart` | The live backend: `Firebase.initializeApp`, custom-token sign-in, real Firestore on a named database, and the pages for a sign-in that cannot happen. |
 | `dev_banner.dart` | `DevSessionFrame`: the strip above every page plus the one accessibility node naming what is on screen. Tones: `scenario`, `live`, `starting`, `refused`. |
 | `dev_notice_screen.dart` | `DevNoticeScreen` (headline + details + one semantics node), the shared page theme, and the pages for an unknown scenario, a refused launch and a launch still starting. |
+| `theme_gallery.dart` | `ThemeGallery`: every primitive and the component states no scenario reaches (dialog, snackbar, chip tones, pills, form fields, empty state), following the platform brightness. |
+| `gallery_main.dart` | The gallery's own entrypoint; nothing in `lib/main.dart` imports it. |
 | `run_dev_session.dart` | The fake composition (`buildDevApp(fixture)`, `buildDevAppForScenario(id)`), `composeDevApp` — the shell both backends run — the `runDevSession*` entrypoint helpers, and the browser preparation. |
 | `fixtures/dev_fixture.dart` | `DevFixture` and the seeding loop. |
 | `fixtures/registry.dart` | Scenario id → fixture, with a loud failure for an unknown id. |
@@ -52,6 +54,9 @@ tool/dev.sh family /wishlist/fam-l1
 
 # real Auth and real Firestore, on a named database only
 GOOGLE_APPLICATION_CREDENTIALS=... tool/dev.sh live --uid <uid> --database staging
+
+# the theme gallery: primitives and component states no scenario reaches
+tool/dev.sh --entrypoint lib/dev/gallery_main.dart
 ```
 
 The runner serves fake mode headless on port 47923 (move it with `--port`); `--chrome` opens

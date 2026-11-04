@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:wishtogether/common/widgets/confirmation_dialog.dart';
 import 'package:wishtogether/common/widgets/list_item_actions.dart';
 import 'package:wishtogether/common/widgets/stream_list_builder.dart';
+import 'package:wishtogether/core/design_tokens.dart';
 import 'package:wishtogether/core/logging/diagnostics.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/domain/auth_session.dart';
@@ -169,8 +170,8 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
                   onTap: () => _launchURL(item.url!),
                   child: Text(
                     item.url!,
-                    style: const TextStyle(
-                      color: Colors.blue,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.primary,
                       decoration: TextDecoration.underline,
                     ),
                     maxLines: 1,
@@ -226,24 +227,36 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
     if (_isSpoilerFree) {
       return const Spacer();
     }
+    final scheme = Theme.of(context).colorScheme;
     if (isClaimed) {
       return Text(
         'Claimed on ${DateFormat.yMMMd().format(item.claimedAt!)}',
-        style: TextStyle(color: Colors.grey[600], fontStyle: FontStyle.italic),
+        style: TextStyle(
+          color: scheme.onSurfaceVariant,
+          fontStyle: FontStyle.italic,
+        ),
       );
     }
-    return const Text(
+    return Text(
       'Available',
-      style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+      style: TextStyle(
+        color: scheme.onSurfaceVariant,
+        fontWeight: FontWeight.bold,
+      ),
     );
   }
 
   Widget _buildUserClaimedView(Item item) => Row(
     mainAxisAlignment: MainAxisAlignment.end,
     children: [
-      const Text(
+      // Brass measures about 2.4:1 against the light surface, so a claim state
+      // carries ink until it can be shown as a fill.
+      Text(
         'You claimed this!',
-        style: TextStyle(color: Colors.purple, fontWeight: FontWeight.bold),
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onSurface,
+          fontWeight: FontWeight.bold,
+        ),
       ),
       const SizedBox(width: 8),
       TextButton(
@@ -253,10 +266,20 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
     ],
   );
 
-  Widget _buildClaimedChip() => const Align(
-    alignment: Alignment.centerRight,
-    child: Chip(label: Text('Claimed'), backgroundColor: Colors.grey),
-  );
+  Widget _buildClaimedChip() {
+    final scheme = Theme.of(context).colorScheme;
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Chip(
+        label: const Text('Claimed'),
+        labelStyle: TextStyle(color: scheme.onSurfaceVariant),
+        side: BorderSide(
+          color: scheme.outline,
+          width: BrandGeometry.borderWidth,
+        ),
+      ),
+    );
+  }
 
   Widget _buildClaimButton(Item item) => Align(
     alignment: Alignment.centerRight,

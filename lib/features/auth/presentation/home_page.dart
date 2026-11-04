@@ -2,10 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:wishtogether/common/widgets/brand_card.dart';
+import 'package:wishtogether/common/widgets/brand_hero.dart';
 import 'package:wishtogether/common/widgets/confirmation_dialog.dart';
 import 'package:wishtogether/common/widgets/data_section_builder.dart';
 import 'package:wishtogether/common/widgets/list_content_builder.dart';
 import 'package:wishtogether/common/widgets/list_item_actions.dart';
+import 'package:wishtogether/core/design_tokens.dart';
 import 'package:wishtogether/core/logging/diagnostics.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
@@ -208,37 +211,66 @@ class _HomePageState extends State<HomePage> {
     }
 
     return Scaffold(
-      appBar: _homePageAppBar(user.displayName, context),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 24),
-            _dataSection<Wishlist>(
-              title: 'My Wishlists',
-              onAdd: () => context.push(WishlistFormPage.createRoute),
-              addTooltip: 'Add new wishlist',
-              items: _wishlists,
-              error: _wishlistsError,
-              emptyMessage: 'No wishlists yet. Create one!',
-              entityWidgetBuilder: _wishlistWidgetBuilder(),
+      body: Column(
+        children: [
+          BrandHero(
+            title: 'Welcome,\n${user.displayName ?? 'Friend'}!',
+            titleStyle: heroHomeTextStyle,
+            actions: _homeActions(),
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(BrandGeometry.spacingMd),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: BrandGeometry.spacingLg),
+                  _dataSection<Wishlist>(
+                    title: 'My Wishlists',
+                    onAdd: () => context.push(WishlistFormPage.createRoute),
+                    addTooltip: 'Add new wishlist',
+                    items: _wishlists,
+                    error: _wishlistsError,
+                    emptyMessage: 'No wishlists yet. Create one!',
+                    entityWidgetBuilder: _wishlistWidgetBuilder(),
+                  ),
+                  const SizedBox(height: BrandGeometry.sectionGap),
+                  _dataSection<Group>(
+                    title: 'My Groups',
+                    onAdd: () => context.push(GroupFormPage.createRoute),
+                    addTooltip: 'Add new group',
+                    items: _groups,
+                    error: _groupsError,
+                    emptyMessage: 'No groups yet. Create or join one!',
+                    entityWidgetBuilder: _groupWidgetBuilder(userId: uid),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 24),
-            _dataSection<Group>(
-              title: 'My Groups',
-              onAdd: () => context.push(GroupFormPage.createRoute),
-              addTooltip: 'Add new group',
-              items: _groups,
-              error: _groupsError,
-              emptyMessage: 'No groups yet. Create or join one!',
-              entityWidgetBuilder: _groupWidgetBuilder(userId: uid),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
+
+  /// The profile and sign-out controls, kept in the hero so the greeting and
+  /// its actions stay reachable while the lists scroll.
+  List<Widget> _homeActions() => <Widget>[
+    IconButton(
+      icon: const Icon(Icons.person_outline),
+      tooltip: 'Profile',
+      onPressed: () => context.go(ProfilePage.route),
+    ),
+    // Only offer sign-out when the session has a sign-in flow behind it.
+    // There is no point offering a control that would leave a session with
+    // nowhere to go.
+    if (_session.supportsSignOut)
+      IconButton(
+        icon: const Icon(Icons.logout),
+        tooltip: 'Logout',
+        onPressed: _signOut,
+      ),
+  ];
 
   Widget _dataSection<T>({
     required String title,
@@ -269,31 +301,8 @@ class _HomePageState extends State<HomePage> {
     body: const Center(child: Text('Could not load user profile.')),
   );
 
-  AppBar _homePageAppBar(String? displayName, BuildContext context) => AppBar(
-    title: Text(
-      'Welcome, ${displayName ?? 'Friend'}!',
-      style: Theme.of(context).textTheme.headlineMedium,
-    ),
-    actions: [
-      IconButton(
-        icon: const Icon(Icons.person_outline),
-        tooltip: 'Profile',
-        onPressed: () => context.go(ProfilePage.route),
-      ),
-      // Only offer sign-out when the session has a sign-in flow behind it.
-      // There is no point offering a control that would leave a session with
-      // nowhere to go.
-      if (_session.supportsSignOut)
-        IconButton(
-          icon: const Icon(Icons.logout),
-          tooltip: 'Logout',
-          onPressed: _signOut,
-        ),
-    ],
-  );
-
   EntityWidgetBuilder<Wishlist> _wishlistWidgetBuilder() =>
-      (context, wishlist) => Card(
+      (context, wishlist) => BrandCard(
         child: ListTile(
           title: Text(wishlist.name),
           trailing: ListItemActions(
@@ -334,7 +343,7 @@ class _HomePageState extends State<HomePage> {
   EntityWidgetBuilder<Group> _groupWidgetBuilder({required String userId}) =>
       (context, group) {
         final isOwner = group.ownerId == userId;
-        return Card(
+        return BrandCard(
           child: ListTile(
             title: Text(group.name),
             trailing: isOwner

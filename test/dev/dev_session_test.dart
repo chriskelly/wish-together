@@ -64,7 +64,8 @@ void main() {
     expect(find.text('Birthday list'), findsOneWidget);
     expect(find.text('Christmas list'), findsOneWidget);
     expect(find.text('Dev Family'), findsOneWidget);
-    expect(find.textContaining('Welcome, Ana Dev'), findsOneWidget);
+    expect(find.text('Welcome,'), findsOneWidget);
+    expect(find.textContaining('Ana Dev'), findsOneWidget);
   });
 
   testWidgets('marks the build and names the scenario it is showing', (
@@ -195,7 +196,8 @@ void main() {
 
     // ASSERT: a one-off entrypoint is data only.
     expect(find.text('Garden plans'), findsOneWidget);
-    expect(find.textContaining('Welcome, Zoe Ad Hoc'), findsOneWidget);
+    expect(find.text('Welcome,'), findsOneWidget);
+    expect(find.textContaining('Zoe Ad Hoc'), findsOneWidget);
     expect(find.textContaining('scenario: ad-hoc'), findsOneWidget);
   });
 

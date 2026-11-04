@@ -61,6 +61,7 @@ per-area `OVERVIEW.md` next to the code you are touching.
 | Where does auth live? | `lib/features/auth/` and its `OVERVIEW.md` |
 | Where does gift claiming live? | `lib/features/wishlist/` and its `OVERVIEW.md` |
 | How is the app wired? | `lib/main.dart` → `core/service_locator.dart` → `core/router.dart` |
+| How do I change the look? | `lib/core/OVERVIEW.md` → Design foundation; values in `lib/core/design_tokens.dart` |
 | How is data accessed? | Repositories extending `core/data/firebase_repository.dart` |
 | How do I force a client update? | `lib/features/app_update/OVERVIEW.md` (Remote Config `min_supported_build`) |
 | Where are the Firestore rules? | `firestore.rules` (root) |

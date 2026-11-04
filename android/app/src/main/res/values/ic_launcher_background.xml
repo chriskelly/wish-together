@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Background layer of the adaptive icon. Same cream as the source icon's ground, so the
+         padded foreground meets it without a visible seam. -->
+    <color name="ic_launcher_background">#FFFCF0</color>
+</resources>

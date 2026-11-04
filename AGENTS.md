@@ -113,14 +113,16 @@ channel.
   a deliberately warmer, slightly darker cream than the icon's ground, and `theme_color` is the
   cranberry `#B32234`.
 - **Android:** five legacy `mipmap-*/ic_launcher.png` (48 to 192) plus the adaptive icon in
-  `mipmap-anydpi-v26/ic_launcher.xml`. Its foreground is the source centred on the same cream:
-  `sips -z <inner> <inner> web/favicon.png --padToHeightWidth <layer> <layer> --padColor FFFCF0
-  --out <file>`, with `--padToHeightWidth` before `--padColor` or sips ignores the pad. The
-  inner/layer pairs are 88/108, 132/162, 176/216, 264/324 and 352/432 px, one per density
-  bucket, each writing `mipmap-*/ic_launcher_foreground.png`; using the mdpi pair for a larger
-  bucket silently ships an upscaled icon. That keeps the solid artwork about 65 dp across,
-  inside the 66 dp safe circle launchers guarantee, while the outer 18 dp of each 108 dp layer
-  may be cropped. The background layer is `@color/ic_launcher_background` in
+  `mipmap-anydpi-v26/ic_launcher.xml`. Its foreground is the source centred on the same cream,
+  in two passes: `sips -z <inner> <inner> web/favicon.png --out /tmp/fg.png`, then
+  `sips --padToHeightWidth <layer> <layer> --padColor FFFCF0 /tmp/fg.png --out <file>`
+  (`--padToHeightWidth` must come before `--padColor`, and padding in the same `sips` call as
+  the resize gives identical pixels but different PNG bytes). The inner/layer pairs are
+  88/108, 132/162, 176/216, 264/324 and 352/432 px, one per density bucket, each writing
+  `mipmap-*/ic_launcher_foreground.png`; using the mdpi pair for a larger bucket silently ships
+  an upscaled icon. That keeps the solid artwork about 65 dp across, inside the 66 dp safe
+  circle launchers guarantee, while the outer 18 dp of each 108 dp layer may be cropped. The
+  background layer is `@color/ic_launcher_background` in
   `android/app/src/main/res/values/ic_launcher_background.xml`, also `#FFFCF0`.
 - **Verify:** run `sips -g pixelWidth -g pixelHeight -g hasAlpha` over every PNG under `web/`,
   the iOS set and `android/app/src/main/res/mipmap-*`; every file must report `hasAlpha: no` at

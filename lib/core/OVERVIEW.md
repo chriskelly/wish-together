@@ -112,10 +112,11 @@ value is written; `theme.dart` turns those values into `lightTheme` and
 `#F1E8CF`, dark `#2A312B`). `inverseSurface`, `onInverseSurface` and
 `inversePrimary` are pinned too, which is what keeps snackbars on-brand.
 
-The enabled and error outlines of a text field use `inkMuted`, not
-`outlineVariant`: a control boundary must reach 3:1 (WCAG 1.4.11), and
-`outlineVariant` measures about 1.5:1 against `surface`. `outlineVariant` is for
-dividers and the empty-state box; focus stays `primary`.
+The enabled outline of a text field uses `inkMuted`, not `outlineVariant`: a
+control boundary must reach 3:1 (WCAG 1.4.11), and `outlineVariant` measures
+about 1.5:1 against `surface`. An error border keeps `error`, so an invalid
+field cannot read as a valid one, and focus stays `primary`. `outlineVariant`
+is for dividers and the empty-state box.
 
 Two rules follow from the values:
 
@@ -166,8 +167,9 @@ override is only for one call site that must differ from the theme.
 
 ### Primitives
 
-Three widgets exist because a theme cannot express them; a fourth needs a screen
-that genuinely cannot be themed.
+Three widgets under `lib/common/widgets/` — `brand_card.dart`,
+`brand_hero.dart` and `status_pill.dart` — exist because a theme cannot express
+them; a fourth needs a screen that genuinely cannot be themed.
 
 - `BrandCard(child, margin)` — a shadow container wrapping a `Card` with
   elevation 0, the surface colour, a 6dp radius and the 2px `outline`. The inner

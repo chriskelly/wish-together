@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
@@ -69,12 +70,26 @@ void main() {
       ownerId: ownerId,
       members: memberIds,
     );
-    final members = [
-      for (var i = 0; i < memberIds.length; i++)
-        User(id: memberIds[i], displayName: i == 0 ? 'Owner' : 'Member $i'),
-    ];
 
     late MockAuthService authService;
+    late MockUserRepository userRepository;
+
+    // A display name is user-controlled and has no write-time length limit, so
+    // the member row must truncate it instead of overflowing. 52 characters is
+    // the probe lib/dev/fixtures/overflow_scenario.dart uses for the same row.
+    const longUnbrokenName =
+        'BartholomewMaximilianFeatherstonehaughWorthingtonIII';
+
+    /// Replaces the member display names while keeping the ids the page
+    /// subscribes to, so a case can read one row it controls.
+    void stubDisplayNames(Map<String, String> namesById) {
+      when(() => userRepository.streamUsersFromIds(memberIds)).thenAnswer(
+        (_) => Stream.value([
+          for (final id in memberIds)
+            User(id: id, displayName: namesById[id] ?? 'Person $id'),
+        ]),
+      );
+    }
 
     setUp(() {
       getIt.reset();
@@ -99,9 +114,8 @@ void main() {
         ),
       ).thenAnswer((_) => Stream.value(const <Wishlist>[]));
 
-      final userRepository = MockUserRepository();
-      when(() => userRepository.streamUsersFromIds(memberIds))
-          .thenAnswer((_) => Stream.value(members));
+      userRepository = MockUserRepository();
+      stubDisplayNames(const {});
 
       getIt.registerSingleton<AuthSession>(authService);
       getIt.registerSingleton<GroupRepository>(groupRepository);
@@ -190,14 +204,16 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    // The header-row overflow is a property of the square test font, so each
-    // phone width has its own fixed message; the wide layout has none.
+    // Each phone width reports its own fixed header-row message; at
+    // wideViewport the header fits, so a layout error there belongs to the
+    // member row.
     const overflowAt320 = 'A RenderFlex overflowed by 112 pixels on the right.';
     const overflowAt390 = 'A RenderFlex overflowed by 42 pixels on the right.';
+    const wideViewport = Size(800, 600);
     const viewports = <({Size size, String? overflow})>[
       (size: Size(320, 568), overflow: overflowAt320),
       (size: Size(390, 844), overflow: overflowAt390),
-      (size: Size(800, 600), overflow: null),
+      (size: wideViewport, overflow: null),
     ];
 
     for (final viewport in viewports) {
@@ -268,6 +284,84 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Share a Wishlist'), findsOneWidget);
+    });
+
+    testWidgets(
+      'truncates a long unbroken member name without overflowing the row',
+      (tester) async {
+        stubDisplayNames({viewerId: longUnbrokenName});
+
+        await pumpPage(tester, wideViewport);
+
+        final nameFinder = find.text(longUnbrokenName);
+        final rowFinder = find
+            .ancestor(of: nameFinder, matching: find.byType(Row))
+            .first;
+        final labelFinder = find.descendant(
+          of: rowFinder,
+          matching: find.text('Member'),
+        );
+        final nameRect = tester.getRect(nameFinder);
+        final labelRect = tester.getRect(labelFinder);
+        final rowRect = tester.getRect(rowFinder);
+
+        expect(
+          tester.renderObject<RenderParagraph>(nameFinder).didExceedMaxLines,
+          isTrue,
+          reason: 'the long name should be truncated, not drawn in full',
+        );
+        expect(
+          tester.widget<Text>(nameFinder).overflow,
+          TextOverflow.ellipsis,
+          reason: 'a clipped name gives no sign that more of it exists',
+        );
+        expect(
+          nameRect.right,
+          lessThan(labelRect.left),
+          reason: 'the name should stop before its own role label, with a gap',
+        );
+        expect(
+          labelRect.right,
+          lessThanOrEqualTo(rowRect.right),
+          reason: 'the role label should stay fully visible in the row',
+        );
+      },
+    );
+
+    testWidgets('does not truncate a member name that fits', (tester) async {
+      const ordinaryName = 'Alexandra';
+      stubDisplayNames({viewerId: ordinaryName});
+
+      await pumpPage(tester, wideViewport);
+
+      expect(
+        tester
+            .renderObject<RenderParagraph>(find.text(ordinaryName))
+            .didExceedMaxLines,
+        isFalse,
+        reason: 'a name that fits should not be truncated',
+      );
+    });
+
+    testWidgets("labels the owner's row and no other", (tester) async {
+      const ownerName = 'Alexandra';
+      stubDisplayNames({ownerId: ownerName});
+
+      await pumpPage(tester, wideViewport);
+
+      final ownerRow = find
+          .ancestor(of: find.text(ownerName), matching: find.byType(Row))
+          .first;
+
+      expect(
+        find.descendant(of: ownerRow, matching: find.text('Owner')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: ownerRow, matching: find.text('Member')),
+        findsNothing,
+      );
+      expect(find.text('Member'), findsNWidgets(memberIds.length - 1));
     });
   });
 }

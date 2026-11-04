@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:wishtogether/core/design_tokens.dart';
+
 /// Defines a function signature for building a widget for an item of type T.
 typedef EntityWidgetBuilder<T> = Widget Function(BuildContext context, T item);
 
@@ -86,15 +88,21 @@ class ListEmptyPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
       height: 100,
       width: double.infinity,
       decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).dividerColor),
-        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+        borderRadius: BrandGeometry.corners,
       ),
       child: Center(
-        child: Text(message, style: Theme.of(context).textTheme.bodyMedium),
+        child: Text(
+          message,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
       ),
     );
   }

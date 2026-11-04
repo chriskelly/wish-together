@@ -53,7 +53,9 @@ class _DeleteAccountSectionState extends State<DeleteAccountSection> {
           onPressed: _isDeleting ? null : _confirmAndDelete,
           icon: const Icon(Icons.delete_forever_outlined),
           label: const Text('Delete account'),
-          style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.error,
+          ),
         ),
         if (_isDeleting) ...const [
           SizedBox(height: 16),

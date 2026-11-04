@@ -266,8 +266,10 @@ void main() {
     // ACT
     await pumpFrames(tester);
 
-    // ASSERT: the fake served all three reads.
-    expect(find.textContaining('Welcome, Ana Dev'), findsOneWidget);
+    // ASSERT: the fake served all three reads. The hero splits the greeting
+    // into explicit lines, so the name is its own line.
+    expect(find.text('Welcome,'), findsOneWidget);
+    expect(find.textContaining('Ana Dev'), findsOneWidget);
     expect(find.text('Birthday list'), findsOneWidget);
   });
 
@@ -284,7 +286,8 @@ void main() {
     // ASSERT: the wishlist section reports the failure instead of rendering an
     // empty list, which is what makes a bad fixture visible.
     expect(find.textContaining('An error occurred'), findsOneWidget);
-    expect(find.textContaining('Welcome, Ana Dev'), findsOneWidget);
+    expect(find.text('Welcome,'), findsOneWidget);
+    expect(find.textContaining('Ana Dev'), findsOneWidget);
   });
 
   group('accessible names', () {

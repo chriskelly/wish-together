@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:wishtogether/common/widgets/list_content_builder.dart';
 import 'package:wishtogether/common/widgets/stream_list_builder.dart';
+import 'package:wishtogether/core/design_tokens.dart';
 
 /// A titled section with an add action and one child.
 ///
@@ -26,21 +27,24 @@ class DataSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(title, style: Theme.of(context).textTheme.titleLarge),
+            // The display face and its tracking come from the type scale.
+            Text(title, style: theme.textTheme.titleLarge),
             IconButton(
               icon: const Icon(Icons.add_circle_outline),
+              color: theme.colorScheme.primary,
               onPressed: onAdd,
               tooltip: addTooltip,
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: BrandGeometry.spacingSm),
         child,
       ],
     );

@@ -11,23 +11,29 @@ Future<bool?> showConfirmationDialog({
   required String title,
   required String content,
   required String confirmText,
-  Color confirmColor = Colors.red,
+  Color? confirmColor,
 }) {
   return showDialog<bool>(
     context: context,
-    builder: (BuildContext context) => AlertDialog(
-      title: Text(title),
-      content: Text(content),
-      actions: <Widget>[
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: Text(confirmText, style: TextStyle(color: confirmColor)),
-        ),
-      ],
-    ),
+    builder: (BuildContext dialogContext) {
+      // A default parameter cannot read the theme, so the destructive colour
+      // resolves here, where the dialog's context exists.
+      final destructive =
+          confirmColor ?? Theme.of(dialogContext).colorScheme.error;
+      return AlertDialog(
+        title: Text(title),
+        content: Text(content),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(confirmText, style: TextStyle(color: destructive)),
+          ),
+        ],
+      );
+    },
   );
 }

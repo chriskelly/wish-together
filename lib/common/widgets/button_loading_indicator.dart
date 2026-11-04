@@ -7,10 +7,16 @@ class ButtonLoadingIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const SizedBox(
+    return SizedBox(
       height: 20,
       width: 20,
-      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+      child: CircularProgressIndicator(
+        strokeWidth: 2,
+        // The indicator is shown exactly while the button is disabled, so the
+        // fill behind it is Material's muted disabled fill. `onPrimary` (cream
+        // in light) disappears there; the primary colour stays legible.
+        color: Theme.of(context).colorScheme.primary,
+      ),
     );
   }
 }

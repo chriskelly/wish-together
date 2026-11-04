@@ -70,7 +70,10 @@ class ListContentBuilder<T> extends StatelessWidget {
           ? const AlwaysScrollableScrollPhysics()
           : const NeverScrollableScrollPhysics(),
       shrinkWrap: !isScrollable, // Must be true for non-scrollable lists
-      padding: listPadding,
+      // A null padding makes the ListView add the MediaQuery safe-area padding
+      // itself. A nested list already sits inside a scroll view that owns that
+      // inset, so it must opt out or the gap is applied twice on iOS.
+      padding: listPadding ?? (isScrollable ? null : EdgeInsets.zero),
       itemCount: entries.length,
       itemBuilder: (context, index) {
         return entityWidgetBuilder(context, entries[index]);

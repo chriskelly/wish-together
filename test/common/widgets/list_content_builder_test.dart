@@ -95,4 +95,51 @@ void main() {
       );
     },
   );
+
+  testWidgets('a nested list does not add the safe-area padding twice', (
+    tester,
+  ) async {
+    const header = 'My Wishlists';
+    const itemHeight = 20.0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(
+            padding: EdgeInsets.only(top: 59, bottom: 34),
+          ),
+          child: Scaffold(
+            body: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  const Text(header),
+                  ListContentBuilder<String>(
+                    items: const [firstItem, secondItem],
+                    isScrollable: false,
+                    entityWidgetBuilder: (_, item) =>
+                        SizedBox(height: itemHeight, child: Text(item)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final headerBottom = tester.getBottomLeft(find.text(header)).dy;
+    final firstTop = tester.getTopLeft(find.text(firstItem)).dy;
+    final lastBottom = tester.getBottomLeft(find.text(secondItem)).dy;
+    final listBottom = tester
+        .getBottomLeft(find.byType(ListContentBuilder<String>))
+        .dy;
+
+    expect(
+      firstTop - headerBottom,
+      lessThan(1.0),
+      reason: 'the outer scroll view already owns the safe area',
+    );
+    expect(listBottom - lastBottom, lessThan(1.0));
+  });
 }

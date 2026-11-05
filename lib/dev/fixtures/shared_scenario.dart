@@ -33,7 +33,7 @@ const String sharedOtherWishlistId = 'shr-l2';
 /// hide and reveal.
 ///
 /// The claim by the viewer is what renders the "You claimed this!" row with its
-/// unclaim action, next to another member's plain claimed chip.
+/// unclaim action, next to another member's neutral "Claimed" pill.
 final DevFixture sharedFixture = DevFixture(
   id: 'shared',
   viewerUid: sharedViewerUid,

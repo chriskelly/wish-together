@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wishtogether/common/widgets/button_loading_indicator.dart';
+import 'package:wishtogether/common/widgets/primary_app_bar.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/wishlist/application/create_item_use_case.dart';
 import 'package:wishtogether/features/wishlist/application/update_item_use_case.dart';
@@ -75,12 +76,8 @@ class _ItemFormPageState extends State<ItemFormPage> {
     );
   }
 
-  AppBar _buildAppBar() => AppBar(
-    title: Text(
-      _isEditing ? 'Edit Item' : 'Add a new Item',
-      style: Theme.of(context).textTheme.headlineSmall,
-    ),
-  );
+  PrimaryAppBar _buildAppBar() =>
+      PrimaryAppBar(title: _isEditing ? 'Edit Item' : 'Add a new Item');
 
   TextFormField _nameTextFormField() => TextFormField(
     controller: _nameController,

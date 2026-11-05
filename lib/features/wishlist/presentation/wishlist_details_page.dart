@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:wishtogether/common/widgets/brand_card.dart';
 import 'package:wishtogether/common/widgets/confirmation_dialog.dart';
 import 'package:wishtogether/common/widgets/list_item_actions.dart';
+import 'package:wishtogether/common/widgets/primary_app_bar.dart';
+import 'package:wishtogether/common/widgets/status_pill.dart';
 import 'package:wishtogether/common/widgets/stream_list_builder.dart';
-import 'package:wishtogether/core/design_tokens.dart';
 import 'package:wishtogether/core/logging/diagnostics.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/domain/auth_session.dart';
@@ -82,16 +84,13 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
     );
   }
 
-  AppBar _buildAppBar(Wishlist wishlist, bool isOwner) => AppBar(
-    title: Text(
-      wishlist.name,
-      style: Theme.of(context).textTheme.headlineSmall,
-    ),
+  PrimaryAppBar _buildAppBar(Wishlist wishlist, bool isOwner) => PrimaryAppBar(
+    title: wishlist.name,
     actions: [
       if (isOwner)
-        Row(children: [_buildSpoilerToggleButton(), _buildEditButton(wishlist)])
-      else
-        const SizedBox.shrink(),
+        Row(
+          children: [_buildSpoilerToggleButton(), _buildEditButton(wishlist)],
+        ),
     ],
   );
 
@@ -123,7 +122,7 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
     Wishlist wishlist,
     bool isOwner,
   ) {
-    return Card(
+    return BrandCard(
       key: ValueKey(item.id),
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Padding(
@@ -200,7 +199,7 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
       if (claimedByCurrentUser) {
         return _buildUserClaimedView(item);
       }
-      return _buildClaimedChip();
+      return _buildClaimedPill();
     }
 
     return _buildClaimButton(item);
@@ -246,40 +245,33 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
     );
   }
 
-  Widget _buildUserClaimedView(Item item) => Row(
-    mainAxisAlignment: MainAxisAlignment.end,
-    children: [
-      // Brass measures about 2.4:1 against the light surface, so a claim state
-      // carries ink until it can be shown as a fill.
-      Text(
-        'You claimed this!',
-        style: TextStyle(
-          color: Theme.of(context).colorScheme.onSurface,
-          fontWeight: FontWeight.bold,
+  // A Wrap, not a Row: when the pill and its action do not fit side by side the
+  // action moves to the next run instead of the row overflowing. The pill keeps
+  // its natural width there, so its label breaks between words rather than
+  // inside one.
+  Widget _buildUserClaimedView(Item item) => Align(
+    alignment: Alignment.centerRight,
+    child: Wrap(
+      alignment: WrapAlignment.end,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 8,
+      children: [
+        const StatusPill(
+          label: 'You claimed this!',
+          tone: StatusPillTone.accent,
         ),
-      ),
-      const SizedBox(width: 8),
-      TextButton(
-        onPressed: () => _unclaimItem(item),
-        child: const Text('Unclaim'),
-      ),
-    ],
+        TextButton(
+          onPressed: () => _unclaimItem(item),
+          child: const Text('Unclaim'),
+        ),
+      ],
+    ),
   );
 
-  Widget _buildClaimedChip() {
-    final scheme = Theme.of(context).colorScheme;
-    return Align(
-      alignment: Alignment.centerRight,
-      child: Chip(
-        label: const Text('Claimed'),
-        labelStyle: TextStyle(color: scheme.onSurfaceVariant),
-        side: BorderSide(
-          color: scheme.outline,
-          width: BrandGeometry.borderWidth,
-        ),
-      ),
-    );
-  }
+  Widget _buildClaimedPill() => const Align(
+    alignment: Alignment.centerRight,
+    child: StatusPill(label: 'Claimed', tone: StatusPillTone.neutral),
+  );
 
   Widget _buildClaimButton(Item item) => Align(
     alignment: Alignment.centerRight,

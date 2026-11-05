@@ -2,10 +2,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:wishtogether/common/widgets/brand_card.dart';
 import 'package:wishtogether/common/widgets/confirmation_dialog.dart';
 import 'package:wishtogether/common/widgets/data_section_builder.dart';
 import 'package:wishtogether/common/widgets/list_content_builder.dart';
 import 'package:wishtogether/common/widgets/list_item_actions.dart';
+import 'package:wishtogether/common/widgets/primary_app_bar.dart';
 import 'package:wishtogether/common/widgets/stream_list_builder.dart';
 import 'package:wishtogether/core/app_urls.dart';
 import 'package:wishtogether/core/service_locator.dart';
@@ -99,12 +101,10 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
     body: const Center(child: Text('Group not found.')),
   );
 
-  AppBar _buildAppBar(Group group, bool isOwner) {
-    return AppBar(
-      title: Text(group.name, style: Theme.of(context).textTheme.headlineSmall),
-      actions: _buildAppBarActions(group, isOwner),
-    );
-  }
+  PrimaryAppBar _buildAppBar(Group group, bool isOwner) => PrimaryAppBar(
+    title: group.name,
+    actions: _buildAppBarActions(group, isOwner),
+  );
 
   List<Widget> _buildAppBarActions(Group group, bool isOwner) {
     if (!isOwner) return [];
@@ -163,7 +163,7 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
   EntityWidgetBuilder<Wishlist> _wishlistWidgetBuilder(String groupId) =>
       (context, wishlist) {
         final isOwner = wishlist.ownerId == _authUserId;
-        return Card(
+        return BrandCard(
           margin: const EdgeInsets.symmetric(vertical: 4.0),
           child: FutureBuilder<User?>(
             future: _userRepository.get(wishlist.ownerId),

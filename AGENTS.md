@@ -68,6 +68,7 @@ per-area `OVERVIEW.md` next to the code you are touching.
 | How does iOS ship to TestFlight? | `.github/workflows/testflight-release.yml` + `fastlane/Fastfile` (see CI) |
 | How do I test real auth on a preview? | `.agents/skills/preview-auth/` (run locally, never CI; see CI → Staging environment) |
 | How do I see or screenshot a signed-in screen without deploying? | `tool/dev.sh` and `.agents/skills/dev-session/` (see Dev session) |
+| How do I update the App Store listing screenshots? | `.agents/skills/appstore-screenshots/` |
 | A user gives me a six-character support code, or I need to know where crash reports go | `## Diagnostics (Sentry)` |
 
 ## Commands
@@ -372,7 +373,9 @@ iOS has its own pipeline, all on `macos-26` runners with the same pinned Flutter
   internal TestFlight build. **Opt out** per PR by adding the `no-deploy` label. It comments
   the build number on the PR.
 - `.github/workflows/app-store-release.yml` — on a `v*` tag or manual dispatch, uploads and
-  submits for App Store review.
+  submits for App Store review. Screenshots are uploaded by hand to the editable version first
+  and the lane passes `skip_screenshots: true`, so it never touches them; see
+  `.agents/skills/appstore-screenshots/`.
 - `.github/workflows/clear-release-notes.yml` — runs when *App Store Release* succeeds and
   empties `release_notes.txt` on `master` (see Release notes below). It is the only workflow
   that commits, and it pushes with `[skip ci]`.
@@ -596,7 +599,9 @@ host for a one-off, reversible real-auth validation on a preview channel: Auth a
 domains and the browser API-key referrers automatically, and the Google OAuth origin as a
 printed manual step (`remove` prints the matching deletion). Run it **locally, never in CI** —
 it mutates production Firebase config. **`dev-session`** is the recipe for seeing and
-driving a signed-in screen locally — see Dev session.
+driving a signed-in screen locally — see Dev session. **`appstore-screenshots`** captures,
+verifies and uploads the six listing screenshots, including the required display size and
+the upload ordering.
 
 `.agents/skills/` also carries two git submodules of the Agent Skills published by the
 Flutter and Firebase teams: `flutter-agent-plugins/` (Flutter/Dart, and the skills bundled

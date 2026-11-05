@@ -75,10 +75,12 @@ jobs:
           if-no-files-found: warn
 
       # The DSN is public by design (it ships inside the bundle), so it lives in a
-      # repository variable, not a secret. A fork PR receives neither that variable
-      # nor the Sentry token, so it builds without diagnostics — and deploys
-      # nothing. Every build this repository does deploy must report, so a missing
-      # variable fails the run instead of shipping a silent bundle.
+      # repository variable, not a secret. A fork PR has no Sentry token; a
+      # Dependabot PR receives the variable but not the secrets. The resolver
+      # deliberately ignores the DSN for both, so neither build carries
+      # diagnostics and neither deploys. Every build this repository does deploy
+      # must report, so a missing variable fails the run instead of shipping a
+      # silent bundle.
       - name: Resolve the Sentry configuration
         id: sentry
         env:
@@ -87,9 +89,13 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
           THIS_REPO: ${{ github.repository }}
+          # The PR author, not github.actor: a maintainer re-running the job
+          # changes the actor, but the PR is still Dependabot's.
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
-          if [ "$EVENT_NAME" = "pull_request" ] && [ "$HEAD_REPO" != "$THIS_REPO" ]; then
-            echo "Sentry: fork pull request, so no DSN, no environment override, no upload."
+          if [ "$EVENT_NAME" = "pull_request" ] &&
+            { [ "$HEAD_REPO" != "$THIS_REPO" ] || [ "$PR_AUTHOR" = "dependabot[bot]" ]; }; then
+            echo "Sentry: fork or Dependabot pull request, so no repository secrets: no DSN, no environment override, no upload."
             echo "upload=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -167,8 +173,8 @@ jobs:
       # it. This is the artifact-level check that the build actually used that
       # entrypoint: a bundle carrying the dev marker serves a signed-in
       # in-memory fixture under the real app's name, and must never deploy. The
-      # step is unconditional so it also covers a fork PR, which skips the
-      # Sentry check above.
+      # step is unconditional so it also covers a fork or Dependabot PR, which
+      # skips the Sentry check above.
       - name: Verify the production bundle carries no dev session
         run: |
           bundle=build/web/main.dart.js
@@ -205,15 +211,16 @@ jobs:
           fi
           dart run sentry_dart_plugin --sentry-define=upload_debug_symbols=false
 
-      # Fork PRs do not receive repository secrets, so they only get the checks above.
+      # Fork and Dependabot PRs do not receive repository secrets, so they only
+      # get the checks above.
       - name: Authenticate to Firebase
-        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        if: github.event_name == 'push' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')
         uses: google-github-actions/auth@v3
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
       - name: Deploy preview channel
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]'
         id: preview
         run: |
           npx --yes firebase-tools@"$FIREBASE_TOOLS_VERSION" \
@@ -229,7 +236,7 @@ jobs:
           echo "url=$url" >> "$GITHUB_OUTPUT"
 
       - name: Verify the AASA on the preview
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]'
         env:
           PREVIEW_URL: ${{ steps.preview.outputs.url }}
         run: |
@@ -331,7 +338,7 @@ jobs:
           fi
 
       - name: Comment the preview URL on the PR
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]'
         uses: actions/github-script@v9
         env:
           PREVIEW_URL: ${{ steps.preview.outputs.url }}

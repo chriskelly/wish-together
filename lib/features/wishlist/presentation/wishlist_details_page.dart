@@ -245,24 +245,27 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
     );
   }
 
-  // The pill is flexible so its label wraps at a word boundary when the OS text
-  // scale leaves the row too little width; without it the row overflows and the
-  // card clips the start of the state label.
-  Widget _buildUserClaimedView(Item item) => Row(
-    mainAxisAlignment: MainAxisAlignment.end,
-    children: [
-      const Flexible(
-        child: StatusPill(
+  // A Wrap, not a Row: when the pill and its action do not fit side by side the
+  // action moves to the next run instead of the row overflowing. The pill keeps
+  // its natural width there, so its label breaks between words rather than
+  // inside one.
+  Widget _buildUserClaimedView(Item item) => Align(
+    alignment: Alignment.centerRight,
+    child: Wrap(
+      alignment: WrapAlignment.end,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 8,
+      children: [
+        const StatusPill(
           label: 'You claimed this!',
           tone: StatusPillTone.accent,
         ),
-      ),
-      const SizedBox(width: 8),
-      TextButton(
-        onPressed: () => _unclaimItem(item),
-        child: const Text('Unclaim'),
-      ),
-    ],
+        TextButton(
+          onPressed: () => _unclaimItem(item),
+          child: const Text('Unclaim'),
+        ),
+      ],
+    ),
   );
 
   Widget _buildClaimedPill() => const Align(

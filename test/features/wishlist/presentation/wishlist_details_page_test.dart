@@ -99,9 +99,9 @@ void main() {
         expect(pill, findsOneWidget);
         expect(toneOf(tester, 'You claimed this!'), StatusPillTone.accent);
 
-        final row = find.ancestor(of: pill, matching: find.byType(Row)).first;
+        final wrap = find.ancestor(of: pill, matching: find.byType(Wrap)).first;
         final unclaim = find.descendant(
-          of: row,
+          of: wrap,
           matching: find.text('Unclaim'),
         );
         expect(unclaim, findsOneWidget);
@@ -183,8 +183,16 @@ void main() {
         tester.getRect(pill).right,
         lessThanOrEqualTo(tester.getRect(card).right),
       );
+
+      // The shape that makes the fit possible: the action moves below the pill
+      // instead of squeezing it, so the label never has to break inside a word.
+      final unclaim = find.widgetWithText(TextButton, 'Unclaim');
+      expect(
+        tester.getRect(unclaim).top,
+        greaterThanOrEqualTo(tester.getRect(pill).bottom),
+        reason: 'Unclaim should drop below the pill, not squeeze its label',
+      );
       expect(find.text('You claimed this!'), findsOneWidget);
-      expect(find.text('Unclaim'), findsOneWidget);
     });
 
     testWidgets('gives the wishlist owner edit and spoiler controls', (

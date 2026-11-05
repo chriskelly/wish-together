@@ -292,6 +292,36 @@ void main() {
       expect(find.byType(BackButton), findsNothing);
     });
 
+    testWidgets('keeps a new user in onboarding when the page can pop', (
+      tester,
+    ) async {
+      // Arrange: nothing pushes `/profile` today, but an implicit leading
+      // arrow would appear the moment something did.
+      when(() => loadUserProfile.execute())
+          .thenAnswer((_) async => User(id: 'user-2'));
+      final navigator = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorKey: navigator,
+          home: const Scaffold(body: SizedBox.shrink()),
+        ),
+      );
+
+      // Act
+      navigator.currentState!.push(
+        MaterialPageRoute<void>(builder: (_) => const ProfilePage()),
+      );
+      await tester.pumpAndSettle();
+
+      // Assert
+      expect(find.byType(ProfilePage), findsOneWidget);
+      expect(
+        find.text('Welcome! Please enter your name to continue.'),
+        findsOneWidget,
+      );
+      expect(find.byType(BackButton), findsNothing);
+    });
+
     testWidgets('keeps the retry available when the retry also fails', (
       tester,
     ) async {

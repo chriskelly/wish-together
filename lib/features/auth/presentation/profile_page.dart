@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:wishtogether/common/widgets/primary_app_bar.dart';
 import 'package:wishtogether/common/widgets/support_code_tile.dart';
 import 'package:wishtogether/core/logging/diagnostics.dart';
 import 'package:wishtogether/core/service_locator.dart';
@@ -169,16 +170,13 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  AppBar _profileAppBar(BuildContext context) => AppBar(
+  PrimaryAppBar _profileAppBar(BuildContext context) => PrimaryAppBar(
+    title: profilePageTitle(loadState: _loadState, isNewUser: _isNewUser),
     // Nothing pushes `/profile` today, but an automatic leading arrow would
     // appear if anything ever did — including for a new user who must not be
     // able to dismiss onboarding.
     automaticallyImplyLeading: false,
     leading: _backButton(context),
-    title: Text(
-      profilePageTitle(loadState: _loadState, isNewUser: _isNewUser),
-      style: Theme.of(context).textTheme.headlineSmall,
-    ),
   );
 
   /// The non-saving exit; only built for a loaded, existing user. It shares

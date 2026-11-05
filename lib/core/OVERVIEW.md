@@ -137,7 +137,7 @@ has a slot, so none exists.
 
 Three faces with a fixed division of labour: Archivo carries text (weight 800,
 ExtraBold, for control labels), Archivo Black carries headings, and Pacifico
-carries hero titles only; Home is the screen wired to one today. A section
+carries hero titles only; Home and Login are the screens wired to one. A section
 header in Pacifico, or a hero title in Archivo Black, breaks the pairing. The
 type scale lives in `buildTextTheme`; `labelLarge` is the control label every
 button and chip inherits.
@@ -175,13 +175,13 @@ a fourth needs a screen that genuinely cannot be themed.
   elevation 0, the surface colour, a 6dp radius and the 2px `outline`. The inner
   `Card` keeps ink on a Material surface; a bare decorated container would lose
   `ListTile`'s ink.
-- `BrandHero(title, actions, titleStyle)` — the primary block Home uses in place
-  of an app bar. The title is split on `\n` into explicit lines, each scaled
-  down with `FittedBox`, so a long name or a high text scale shrinks the glyphs
-  instead of breaking a word. The line never grows past the block, so a 2.0 text
-  scale is capped on the hero alone. `titleStyle` defaults to `displayMedium`;
-  Home passes the Pacifico role and `heroLoginTextStyle` is the login-sized
-  variant, so the face is chosen at the call site.
+- `BrandHero(title, actions, titleStyle)` — the primary block Home and Login use
+  in place of an app bar. The title is split on `\n` into explicit lines, each
+  scaled down with `FittedBox`, so a long name or a high text scale shrinks the
+  glyphs instead of breaking a word. The line never grows past the block, so a
+  2.0 text scale is capped on the hero alone. `titleStyle` defaults to
+  `displayMedium`; Home passes `heroHomeTextStyle` and Login passes
+  `heroLoginTextStyle`, so the face and size are chosen at the call site.
 - `StatusPill(label, tone)` — a claim-state badge. `neutral` is outlined with
   muted ink, `accent` is a brass fill with `onSecondary` text. The theme gallery
   previews both tones, and the wishlist details page renders both claim states

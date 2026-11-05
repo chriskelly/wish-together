@@ -105,21 +105,34 @@ profile).
 - The `users/{uid}` document id **is** the Firebase Auth uid.
 - Onboarding is router-driven: a user with no display name — null, empty, or whitespace-only —
   cannot reach home until they save a name on `ProfilePage`.
+- **The login title is the hero's, not a paragraph.** `LoginPage` opens with the same full-bleed
+  `BrandHero` Home uses, and authors the title as `'Welcome to\nWishTogether'`. Each line is
+  scaled down to the width instead of wrapping, so "WishTogether" shrinks rather than breaking
+  mid-word on a 320 px phone or at a 2.0 text scale. The hero is pinned, so it cannot shrink: it
+  is dropped whenever the keyboard is up, because on a short landscape viewport it would push the
+  form past the bottom; in portrait that only costs the form its breathing room. The scroll
+  area's minimum height comes from the space left under the hero, not from the screen height.
+  With the hero gone the page has to cover what the hero provided: it takes the top safe-area
+  inset itself and sets the status-bar icon style for the canvas, which is the one reason the
+  page carries an `AnnotatedRegion` when the hero already has one. `login_page_test` pins the
+  320 px / 2.0-scale case (both lines whole, the wider one scaled) and the keyboard case (no
+  overflow, form below the status bar, no hero).
 - **`ProfilePage` offers a non-saving exit to an existing user, and none to a new one.** The
-  AppBar's back arrow is gated by `shouldShowProfileBackButton`, which applies the same rule the
-  router uses for onboarding — no display name, null/empty/whitespace-only alike — and is offered
-  only for a **loaded** profile (`ProfileLoadState.loaded`), so the arrow is never offered where
-  the redirect would only send the user back, and never on the strength of a read that has not
-  succeeded.
+  `PrimaryAppBar`'s back arrow is gated by `shouldShowProfileBackButton`, which applies the same
+  rule the router uses for onboarding — no display name, null/empty/whitespace-only alike — and
+  is offered only for a **loaded** profile (`ProfileLoadState.loaded`), so the arrow is never
+  offered where the redirect would only send the user back, and never on the strength of a read
+  that has not succeeded.
   It navigates with `context.go(profileExitTarget(redirectTo))` — the rule Save also uses, so
   the two exits cannot disagree — never `pop`, because `/profile` is a top-level route and both
   Home → Profile and a web deep link arrive with a one-deep stack. `profileExitTarget` falls
   back to home for an absent, blank, or self-referential (`/profile` in any spelling: trailing
   slash or query string included) `redirect_to`
   and otherwise forwards the value it was handed, trimmed (an invitation arrives as a path,
-  `/join?group=123`; the value is still untrusted query input). The AppBar also sets
+  `/join?group=123`; the value is still untrusted query input). The bar also sets
   `automaticallyImplyLeading: false` so a future `push` cannot put an automatic arrow on the
-  onboarding state.
+  onboarding state; `ProfilePage` supplies the arrow itself through `leading`, which is why the
+  two states stay a decision the page makes rather than one the bar infers.
 - **A profile read that throws or finds no document shows an error with Retry.**
   `ProfilePage` models its single read as `ProfileLoadState` (`loading`, `loaded`, `failed`).
   A throw from `LoadUserProfileUseCase` — which deliberately propagates rather than swallowing —
@@ -222,8 +235,9 @@ opened another code page. A platform that never reports fails with a `TimeoutExc
   `VerificationPage`; an auto-verified credential signs the user in directly;
   `confirmPhoneCode` builds a `PhoneAuthProvider` credential and signs in with it.
 
-`VerificationPage` is pushed on top of `LoginPage`, so the AppBar's back action returns to the
-number the user typed, still in the field. It used to replace the login page in the stack: on web
+`VerificationPage` is pushed on top of `LoginPage`, so its `PrimaryAppBar` keeps the implied
+back action that returns to the number the user typed, still in the field. It used to replace
+the login page in the stack: on web
 the browser's Back still reached login, but a freshly built one with the number gone, and the app
 itself offered no in-app way out. Because the push is imperative the web address bar keeps
 showing `/login` while the code page is up, and a reload returns to login — the page was never
@@ -330,5 +344,7 @@ validate it on the **staging** site (or live) with a throwaway account for each 
   arrow, Save or delete section; a `null` result shows the same error; a successful Retry
   renders the form (with an arrow for an existing user, without one for a nameless user); a
   failed Retry keeps Retry available; a double tap starts one read; a Retry in flight shows the
-  spinner; and a read that fails after the page is disposed raises nothing.
+  spinner; and a read that fails after the page is disposed raises nothing. One case pushes the
+  page onto a navigator, where an implicit leading arrow would be allowed, and asserts a new user
+  still gets none.
 - `test/core/router_test.dart` covers the auth redirect matrix.

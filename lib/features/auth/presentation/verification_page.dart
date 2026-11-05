@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:wishtogether/common/widgets/primary_app_bar.dart';
 import 'package:wishtogether/common/widgets/support_code_tile.dart';
 import 'package:wishtogether/core/logging/diagnostics.dart';
 import 'package:wishtogether/core/service_locator.dart';
@@ -49,7 +50,7 @@ class _VerificationPageState extends State<VerificationPage> {
     return Scaffold(
       // Login opens this page with push, so the AppBar has an implied leading
       // action back to the number the user entered.
-      appBar: AppBar(title: const Text('Verify Code')),
+      appBar: const PrimaryAppBar(title: 'Verify Code'),
       body: LayoutBuilder(
         builder: (context, viewport) => SingleChildScrollView(
           child: ConstrainedBox(

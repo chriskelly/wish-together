@@ -134,6 +134,10 @@ and the `routeChanged` / repository records in the console.
   URL-addressable: capture it from the current state and note the route from the
   console instead.
 
+This recipe produces a web capture carrying the `Dev session` frame. For the
+App Store listing (device status bar, no dev label, the required 1206 × 2622
+upload size) use the `appstore-screenshots` skill instead.
+
 ## Author a scenario
 
 A **committed** scenario is one Dart module plus one registry line:

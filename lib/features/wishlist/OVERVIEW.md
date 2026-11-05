@@ -100,6 +100,9 @@ shared with a group appears in that group's details page because of
   `FakeFirebaseFirestore`. The field-scope repository test and the use case's
   `verifyNever(update)` together guard the regression.
 - `test/features/wishlist/presentation/` — `claimFailureMessage` copy and its fallback for
-  a thrown object that is not a `ClaimFailure`; the pages themselves have no widget tests.
+  a thrown object that is not a `ClaimFailure`; `wishlist_details_page_test` pins the two
+  reader claim states (`StatusPill` accent beside Unclaim, neutral for someone else's), the
+  unclaimed case, each item row's `BrandCard` at the page's margin, the owner-only bar
+  controls, and the claim row fitting a 320 px phone at 1.3 text scale.
 - `rules_tests/` — a whole-map claim carrying stale content is denied, documenting the
   denial the pair-only write avoids; the rules themselves are unchanged.

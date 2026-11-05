@@ -85,9 +85,12 @@ from `AuthSession`; no uid is passed in from the UI.
   (canonical origin off web, supplied origin, encoded id) and the page's layout: at a
   phone width, scrolled to the end, the Leave Group tap target does not intersect the
   Share Wishlist button, tapping Leave Group opens the leave confirmation, an owner sees
-  no Leave Group button, and the floating button opens the share dialog. A long unbroken
-  member name truncates with an ellipsis before the Owner/Member label, a name that fits
-  is not truncated, and only the owner's row is labelled Owner.
+  no Leave Group button, and the floating button opens the share dialog. The bar carries
+  the invite and edit controls for the owner only. A shared wishlist renders inside a
+  `BrandCard` at the page's row margin (the inner `Card` is pinned by
+  `test/common/widgets/brand_card_test.dart`). A long unbroken member name truncates with
+  an ellipsis before the Owner/Member label, a name that fits is not truncated, and only
+  the owner's row is labelled Owner.
 - `test/features/group/presentation/join_group_page_test.dart` drives the real `/join` route
   through a `GoRouter` and pins the invite outcomes: an existing member lands on
   `/group/<id>` with no tap, no interstitial and no `/join` left in the router's matches,

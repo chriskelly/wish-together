@@ -167,9 +167,9 @@ override is only for one call site that must differ from the theme.
 
 ### Primitives
 
-Three widgets under `lib/common/widgets/` — `brand_card.dart`,
-`brand_hero.dart` and `status_pill.dart` — exist because a theme cannot express
-them; a fourth needs a screen that genuinely cannot be themed.
+Three of the shared widgets are the primitives — `brand_card.dart`,
+`brand_hero.dart` and `status_pill.dart` — because a theme cannot express them;
+a fourth needs a screen that genuinely cannot be themed.
 
 - `BrandCard(child, margin)` — a shadow container wrapping a `Card` with
   elevation 0, the surface colour, a 6dp radius and the 2px `outline`. The inner
@@ -184,7 +184,13 @@ them; a fourth needs a screen that genuinely cannot be themed.
   variant, so the face is chosen at the call site.
 - `StatusPill(label, tone)` — a claim-state badge. `neutral` is outlined with
   muted ink, `accent` is a brass fill with `onSecondary` text. The theme gallery
-  previews both tones; the claim screens still render their states inline.
+  previews both tones, and the wishlist details page renders both claim states
+  with them.
+
+`PrimaryAppBar(title, actions, leading, automaticallyImplyLeading)` is the bar
+the shared feature pages adopt as they are restyled. Its extra slots forward to
+`AppBar`, so a bar keeps whatever controls and back-arrow behaviour it had; the
+title style and the 2px bottom rule are the only treatment it imposes.
 
 ## Invariants
 

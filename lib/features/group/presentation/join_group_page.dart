@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:wishtogether/common/widgets/primary_app_bar.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/domain/auth_session.dart';
 import 'package:wishtogether/features/auth/presentation/home_page.dart';
@@ -77,12 +78,8 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
     );
   }
 
-  AppBar _buildAppBar() => AppBar(
-    title: Text(
-      'Group Invitation',
-      style: Theme.of(context).textTheme.headlineSmall,
-    ),
-  );
+  PrimaryAppBar _buildAppBar() =>
+      const PrimaryAppBar(title: 'Group Invitation');
 
   Widget _buildLoadingState() =>
       const Center(child: CircularProgressIndicator());

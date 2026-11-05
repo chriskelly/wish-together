@@ -3,6 +3,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:wishtogether/common/widgets/brand_card.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
 import 'package:wishtogether/features/auth/domain/auth_session.dart';
@@ -73,6 +74,7 @@ void main() {
 
     late MockAuthService authService;
     late MockUserRepository userRepository;
+    late MockWishlistRepository wishlistRepository;
 
     // A display name is user-controlled and has no write-time length limit, so
     // the member row must truncate it instead of overflowing. 52 characters is
@@ -100,7 +102,7 @@ void main() {
       when(() => groupRepository.streamOne(groupId))
           .thenAnswer((_) => Stream.value(group));
 
-      final wishlistRepository = MockWishlistRepository();
+      wishlistRepository = MockWishlistRepository();
       when(
         () => wishlistRepository.streamWhere(
           any(),
@@ -270,6 +272,25 @@ void main() {
       expect(leaveGroupButton, findsNothing);
     });
 
+    testWidgets('offers a member no invite or edit control in the bar', (
+      tester,
+    ) async {
+      await pumpPage(tester, wideViewport);
+
+      expect(find.byTooltip('Copy Invitation Link'), findsNothing);
+      expect(find.byTooltip('Edit Group'), findsNothing);
+    });
+
+    testWidgets('carries the invite and edit controls for the owner', (
+      tester,
+    ) async {
+      when(() => authService.currentUserId).thenReturn(ownerId);
+      await pumpPage(tester, wideViewport);
+
+      expect(find.byTooltip('Copy Invitation Link'), findsOneWidget);
+      expect(find.byTooltip('Edit Group'), findsOneWidget);
+    });
+
     testWidgets('opens the share dialog from the floating button', (
       tester,
     ) async {
@@ -341,6 +362,33 @@ void main() {
         isFalse,
         reason: 'a name that fits should not be truncated',
       );
+    });
+
+    /// The margin the page gives every shared-wishlist row.
+    const rowMargin = EdgeInsets.symmetric(vertical: 4.0);
+
+    testWidgets('renders a shared wishlist inside a BrandCard at the page '
+        'margin', (tester) async {
+      const wishlistName = 'Moving Day';
+      final sharedWishlist = Wishlist(
+        id: 'shared-1',
+        name: wishlistName,
+        ownerId: ownerId,
+        sharedWithGroups: const [groupId],
+      );
+      when(() => wishlistRepository.streamWhere(any(), arrayContains: groupId))
+          .thenAnswer((_) => Stream.value([sharedWishlist]));
+      when(() => userRepository.get(ownerId))
+          .thenAnswer((_) async => User(id: ownerId, displayName: 'Priya'));
+
+      await pumpPage(tester, wideViewport);
+
+      final card = find.ancestor(
+        of: find.text(wishlistName),
+        matching: find.byType(BrandCard),
+      );
+      expect(card, findsOneWidget);
+      expect(tester.widget<BrandCard>(card).margin, rowMargin);
     });
 
     testWidgets("labels the owner's row and no other", (tester) async {

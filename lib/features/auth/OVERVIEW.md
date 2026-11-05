@@ -118,20 +118,21 @@ profile).
   320 px / 2.0-scale case (both lines whole, the wider one scaled) and the keyboard case (no
   overflow, form below the status bar, no hero).
 - **`ProfilePage` offers a non-saving exit to an existing user, and none to a new one.** The
-  AppBar's back arrow is gated by `shouldShowProfileBackButton`, which applies the same rule the
-  router uses for onboarding — no display name, null/empty/whitespace-only alike — and is offered
-  only for a **loaded** profile (`ProfileLoadState.loaded`), so the arrow is never offered where
-  the redirect would only send the user back, and never on the strength of a read that has not
-  succeeded.
+  `PrimaryAppBar`'s back arrow is gated by `shouldShowProfileBackButton`, which applies the same
+  rule the router uses for onboarding — no display name, null/empty/whitespace-only alike — and
+  is offered only for a **loaded** profile (`ProfileLoadState.loaded`), so the arrow is never
+  offered where the redirect would only send the user back, and never on the strength of a read
+  that has not succeeded.
   It navigates with `context.go(profileExitTarget(redirectTo))` — the rule Save also uses, so
   the two exits cannot disagree — never `pop`, because `/profile` is a top-level route and both
   Home → Profile and a web deep link arrive with a one-deep stack. `profileExitTarget` falls
   back to home for an absent, blank, or self-referential (`/profile` in any spelling: trailing
   slash or query string included) `redirect_to`
   and otherwise forwards the value it was handed, trimmed (an invitation arrives as a path,
-  `/join?group=123`; the value is still untrusted query input). The AppBar also sets
+  `/join?group=123`; the value is still untrusted query input). The bar also sets
   `automaticallyImplyLeading: false` so a future `push` cannot put an automatic arrow on the
-  onboarding state.
+  onboarding state; `ProfilePage` supplies the arrow itself through `leading`, which is why the
+  two states stay a decision the page makes rather than one the bar infers.
 - **A profile read that throws or finds no document shows an error with Retry.**
   `ProfilePage` models its single read as `ProfileLoadState` (`loading`, `loaded`, `failed`).
   A throw from `LoadUserProfileUseCase` — which deliberately propagates rather than swallowing —
@@ -343,5 +344,7 @@ validate it on the **staging** site (or live) with a throwaway account for each 
   arrow, Save or delete section; a `null` result shows the same error; a successful Retry
   renders the form (with an arrow for an existing user, without one for a nameless user); a
   failed Retry keeps Retry available; a double tap starts one read; a Retry in flight shows the
-  spinner; and a read that fails after the page is disposed raises nothing.
+  spinner; and a read that fails after the page is disposed raises nothing. One case pushes the
+  page onto a navigator, where an implicit leading arrow would be allowed, and asserts a new user
+  still gets none.
 - `test/core/router_test.dart` covers the auth redirect matrix.

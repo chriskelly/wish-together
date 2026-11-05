@@ -75,10 +75,10 @@ jobs:
           if-no-files-found: warn
 
       # The DSN is public by design (it ships inside the bundle), so it lives in a
-      # repository variable, not a secret. A fork PR receives neither that variable
-      # nor the Sentry token, and GitHub also withholds repository secrets from a
-      # Dependabot PR (the variable is still visible), so both build without
-      # diagnostics — and deploy nothing. Every build this repository does deploy
+      # repository variable, not a secret. A fork PR has no Sentry token; a
+      # Dependabot PR receives the variable but not the secrets. The resolver
+      # deliberately ignores the DSN for both, so neither build carries
+      # diagnostics and neither deploys. Every build this repository does deploy
       # must report, so a missing variable fails the run instead of shipping a
       # silent bundle.
       - name: Resolve the Sentry configuration
@@ -93,13 +93,8 @@ jobs:
           # changes the actor, but the PR is still Dependabot's.
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
-          untrusted=""
-          if [ "$EVENT_NAME" = "pull_request" ]; then
-            if [ "$HEAD_REPO" != "$THIS_REPO" ] || [ "$PR_AUTHOR" = "dependabot[bot]" ]; then
-              untrusted=1
-            fi
-          fi
-          if [ -n "$untrusted" ]; then
+          if [ "$EVENT_NAME" = "pull_request" ] &&
+            { [ "$HEAD_REPO" != "$THIS_REPO" ] || [ "$PR_AUTHOR" = "dependabot[bot]" ]; }; then
             echo "Sentry: fork or Dependabot pull request, so no repository secrets: no DSN, no environment override, no upload."
             echo "upload=false" >> "$GITHUB_OUTPUT"
             exit 0
@@ -217,8 +212,7 @@ jobs:
           dart run sentry_dart_plugin --sentry-define=upload_debug_symbols=false
 
       # Fork and Dependabot PRs do not receive repository secrets, so they only
-      # get the checks above. The parentheses matter: on a push to master
-      # `github.event.pull_request` is null.
+      # get the checks above.
       - name: Authenticate to Firebase
         if: github.event_name == 'push' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')
         uses: google-github-actions/auth@v3

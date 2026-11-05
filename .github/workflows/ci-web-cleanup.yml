@@ -22,8 +22,8 @@ env:
 jobs:
   cleanup-preview:
     name: Delete preview channel
-    # Fork PRs never created a channel and receive no secrets.
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    # Fork and Dependabot PRs never created a channel and receive no secrets.
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-26.04
     steps:
       - name: Checkout

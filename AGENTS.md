@@ -182,10 +182,9 @@ names — keep it that way, so shipping a screen does not require a policy edit.
 
 Nothing is reported without a DSN. `WT_SENTRY_DSN` is empty in local runs, in the test suite and
 in the checks that do not deploy (`ci-ios.yml`, fork and Dependabot PRs), so Sentry is not
-initialised there at
-all (no SDK, no handlers, no network); a debug run reports only to the console. Builds that are
-deployed or shipped do carry one — see Releases, environments and source maps for which build
-reports under which environment.
+initialised there at all (no SDK, no handlers, no network); a debug run reports only to the
+console. Builds that are deployed or shipped do carry one — see Releases, environments and
+source maps for which build reports under which environment.
 
 ### What is never reported by the app
 
@@ -312,9 +311,9 @@ secret and authorises the upload.
   tag on the upload.
 - Staging carries no release and no dist on purpose: it uploads no symbols, so an identity would
   name a build Sentry cannot symbolicate.
-- `ci-web.yml` withholds the DSN from a fork or Dependabot PR by comparing the head repository
-  and author, so such a build compiles without diagnostics and deploys nothing. A same-repo run
-  whose variable is missing fails rather than deploying a silent bundle.
+- `ci-web.yml` treats a fork or Dependabot PR as untrusted — a fork by head repository,
+  Dependabot by PR author — so such a build compiles without diagnostics and deploys nothing.
+  A same-repo run whose variable is missing fails rather than deploying a silent bundle.
 
 The App Store privacy answers are already submitted on this basis: diagnostics are **Crash Data**
 and **Other Diagnostic Data**, linked to the user (the account hash is a pseudonymous link), not
@@ -362,7 +361,7 @@ deletes the preview channel when the PR closes. Both authenticate with the
 `google-github-actions/auth`, and pin the Flutter and firebase-tools versions in the
 workflow `env`. Coverage is uploaded as the `coverage-lcov` artifact and is **report-only**
 (no threshold). Preview deploys are skipped for pull requests from forks and Dependabot,
-which do not receive secrets.
+which do not receive repository secrets.
 
 iOS has its own pipeline, all on `macos-26` runners with the same pinned Flutter version:
 

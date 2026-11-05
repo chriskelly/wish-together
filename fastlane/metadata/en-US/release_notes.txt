@@ -1,2 +1,1 @@
-Wishlists and groups have a fresh look: crisper cards, clearer claim labels and cleaner headers.
-The sign-in screen has a fresh look, and its title no longer gets cut off on small phones.
+WishTogether has a fresh look! Finally something other than that default Flutter blue...

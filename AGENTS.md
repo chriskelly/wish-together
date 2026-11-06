@@ -14,7 +14,7 @@ staging `staging`); phone OTP, Google on web and App Check; tests with `flutter_
 .
 ├── AGENTS.md          # rules + this index
 ├── docs/              # cross-cutting reference
-├── lib/               # main.dart wiring · core/ · dev/ · features/ — each has AGENTS.md
+├── lib/               # wiring · core/ · dev/ · features/* — each area has an AGENTS.md
 ├── test/  rules_tests/  scripts/  fastlane/   # tests · rules emulator · seed/token · lanes
 ├── firebase.json  firebase.staging.json  firestore.rules  firestore.indexes.json  # config
 └── web/               # index.html, manifest.json, privacy.html, AASA
@@ -60,11 +60,10 @@ presentation → application → data → core/data
      └────────────┴───────────┴──→ domain (plain models, no dependencies)
 ```
 
-- `presentation/` holds pages and widgets and never calls Firestore or builds a repository;
-  `application/` holds use cases that resolve collaborators from `getIt`; `data/` holds
-  `FirebaseRepository<T>` subclasses; `domain/` holds the models, free of Flutter and Firebase;
-  `core/` is shared infrastructure plus the composition roots (`lib/core/router.dart`,
-  `lib/core/service_locator.dart`), which deliberately import feature pages and repositories.
+- `presentation/` holds pages and widgets and never calls Firestore; `application/` holds use
+  cases that resolve collaborators from `getIt`; `data/` holds `FirebaseRepository<T>`
+  subclasses; `domain/` holds the models, free of Flutter and Firebase; `core/` is shared
+  infrastructure plus the composition roots, which deliberately import feature pages.
 
 New state and behaviour go `presentation → application → data`. Reach another feature's domain
 through its repository or use case, never its presentation layer, and keep Firebase types
@@ -87,7 +86,8 @@ nearest parent `AGENTS.md`.
 
 Follow TDD for every feature and bugfix. A red must be **logical** — an assertion failure or a
 wrong value, not an import, missing symbol, or compile error; scaffold until it is logical and do
-not record the structural run. Test our logic, not framework wiring, trivial getters, or defaults.
+not record the structural run. Test our logic, not framework wiring, trivial getters, or
+defaults; fakes and mocks are normal at boundaries.
 
 - One behaviour per test, named after it; keep arrange / act / assert distinct, bind shared
   literals to a variable, and never assert against wall-clock time.

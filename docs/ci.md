@@ -13,7 +13,7 @@ channel** (`pr-<number>`, commented on the PR). Pushes to `master` run the same 
 **deploy live** to `https://wishtogether.gift`. `.github/workflows/ci-web-cleanup.yml`
 deletes the preview channel when the PR closes. Both authenticate with the
 `FIREBASE_SERVICE_ACCOUNT` repository secret (a service-account JSON) via
-`google-github-actions/auth`; `ci-web.yml` additionally pins the Flutter version, and both
+`google-github-actions/auth`; `.github/workflows/ci-web.yml` additionally pins the Flutter version, and both
 pin firebase-tools. Coverage is uploaded as the `coverage-lcov` artifact and is **report-only**
 (no threshold). Preview deploys are skipped for pull requests from forks and Dependabot,
 which do not receive repository secrets. `.github/workflows/lint.yml` separately runs

@@ -11,7 +11,7 @@ import 'package:wishtogether/dev/fixtures/shared_scenario.dart';
 import 'package:wishtogether/dev/run_dev_session.dart';
 import 'package:wishtogether/main.dart';
 
-// Every scenario at the URL `lib/dev/OVERVIEW.md` publishes for it.
+// Every scenario at the URL `lib/dev/docs/scenarios.md` publishes for it.
 //
 // A fixture can parse and still render an error page: a group id the viewer
 // cannot read, a page that resolves a missing document, a route that never

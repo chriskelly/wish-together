@@ -1,4 +1,8 @@
-# Group — Overview
+# Groups and invitations
+
+Scope: group membership, the invite link, and sharing a wishlist into a group.
+Read before touching `lib/features/group/` or the `/join` route. Paths are
+relative to `lib/features/group/` unless they start with `lib/` or `test/`.
 
 Groups are how users share wishlists with family and friends. A group is a named set of
 members identified by Firebase Auth uid; wishlists are shared *into* a group.
@@ -14,10 +18,10 @@ members identified by Firebase Auth uid; wishlists are shared *into* a group.
 
 | Layer | Files |
 | ----- | ----- |
-| `domain/` | `group.dart` |
-| `data/` | `group_repository.dart` |
-| `application/` | `create_group_use_case.dart`, `join_group_use_case.dart`, `leave_group_use_case.dart`, `update_group_use_case.dart`, `share_wishlist_with_group_use_case.dart` |
-| `presentation/` | `group_form_page.dart`, `group_details_page.dart`, `join_group_page.dart` |
+| `domain/` | `domain/group.dart` |
+| `data/` | `data/group_repository.dart` |
+| `application/` | `application/create_group_use_case.dart`, `application/join_group_use_case.dart`, `application/leave_group_use_case.dart`, `application/update_group_use_case.dart`, `application/share_wishlist_with_group_use_case.dart` |
+| `presentation/` | `presentation/group_form_page.dart`, `presentation/group_details_page.dart`, `presentation/join_group_page.dart` |
 
 ## Key types
 

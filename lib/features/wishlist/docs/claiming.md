@@ -1,4 +1,9 @@
-# Wishlist — Overview
+# Wishlists and claiming
+
+Scope: wishlist and item models, the spoiler-free claim flow, and the rules that
+gate a claim. Read before touching `lib/features/wishlist/` or how a claim is
+written. Paths are relative to `lib/features/wishlist/` unless they start with
+`lib/` or `test/`.
 
 Wishlists and their items, plus the spoiler-free gift-claiming behavior that is the heart
 of the product.
@@ -14,10 +19,10 @@ of the product.
 
 | Layer | Files |
 | ----- | ----- |
-| `domain/` | `wishlist.dart`, `item.dart` |
-| `data/` | `wishlist_repository.dart`, `item_repository.dart` |
-| `application/` | `create_wishlist_use_case.dart`, `update_wishlist_use_case.dart`, `create_item_use_case.dart`, `update_item_use_case.dart`, `claim_item_use_case.dart`, `claim_failure.dart`, `unclaim_item_use_case.dart` |
-| `presentation/` | `wishlist_form_page.dart`, `wishlist_details_page.dart`, `claim_failure_message.dart`, `item_form_page.dart` |
+| `domain/` | `domain/wishlist.dart`, `domain/item.dart` |
+| `data/` | `data/wishlist_repository.dart`, `data/item_repository.dart` |
+| `application/` | `application/create_wishlist_use_case.dart`, `application/update_wishlist_use_case.dart`, `application/create_item_use_case.dart`, `application/update_item_use_case.dart`, `application/claim_item_use_case.dart`, `application/claim_failure.dart`, `application/unclaim_item_use_case.dart` |
+| `presentation/` | `presentation/wishlist_form_page.dart`, `presentation/wishlist_details_page.dart`, `presentation/claim_failure_message.dart`, `presentation/item_form_page.dart` |
 
 ## Key types
 
@@ -44,7 +49,7 @@ of the product.
   The claim use cases report a `claimAction` phase (`started`, `completed`, or `denied` with
   the error code); `ClaimItemUseCase` throws a `ClaimFailure` whose reason is one of
   `accessDenied`, `offline`, `itemMissing`, `signedOut` or `unknown`, preserving the
-  write's stack trace. `claim_failure_message.dart` turns the thrown object into copy, so
+  write's stack trace. `presentation/claim_failure_message.dart` turns the thrown object into copy, so
   the claim path never prints the exception.
 
 ## Invariants

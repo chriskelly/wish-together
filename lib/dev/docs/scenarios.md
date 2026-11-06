@@ -1,9 +1,8 @@
 # Dev scenarios
 
-Scope: what a dev session is, the files that make it, and the six registered
-scenarios with the document ids each exposes. Read before opening a screen
-locally or adding a scenario. Paths are relative to `lib/dev/`, then to the
-repository root.
+Scope: what a dev session is, how its files fit together, and the six scenarios
+it can open. Read before opening a screen locally or adding a scenario. Paths
+are relative to `lib/dev/`, then to the repository root.
 
 ## Responsibility
 
@@ -19,26 +18,16 @@ handling, or any affordance reachable from `lib/main.dart`.
 
 ## Layout
 
-| File | Role |
-| ---- | ---- |
-| `dev_main.dart` | The committed entrypoint: resolves the launch and dispatches to the fake, live or refusal path. |
-| `dev_config.dart` | Define names, the bundle marker literal, and the pure resolution rules (`resolveDevLaunch`, `resolveScenarioId`). |
-| `dev_session.dart` | `DevAuthSession implements AuthSession`: the fake session's identity, no Firebase. |
-| `live_dev_session.dart` | The live backend: `Firebase.initializeApp`, custom-token sign-in, real Firestore on a named database, and the pages for a sign-in that cannot happen. |
-| `dev_banner.dart` | `DevSessionFrame`: the strip above every page plus the one accessibility node naming what is on screen. Tones: `scenario`, `live`, `starting`, `refused`. |
-| `dev_notice_screen.dart` | `DevNoticeScreen` (headline + details + one semantics node), the shared page theme, and the pages for an unknown scenario, a refused launch and a launch still starting. |
-| `theme_gallery.dart` | `ThemeGallery`: every primitive and the component states no scenario reaches (dialog, snackbar, chip tones, pills, form fields, empty state), following the platform brightness. |
-| `gallery_main.dart` | The gallery's own entrypoint; nothing in `lib/main.dart` imports it. |
-| `run_dev_session.dart` | The fake composition (`buildDevApp(fixture)`, `buildDevAppForScenario(id)`), `composeDevApp` — the shell both backends run — the `runDevSession*` entrypoint helpers, and the browser preparation. |
-| `fixtures/dev_fixture.dart` | `DevFixture` and the seeding loop. |
-| `fixtures/registry.dart` | Scenario id → fixture, with a loud failure for an unknown id. |
-| `fixtures/default_scenario.dart` | The scenario shown when nothing else is asked for. |
-| `fixtures/scenario_items.dart` | `devItems` (N generated items in one call) and `devItemFields` (one item document). |
-| `fixtures/family_scenario.dart` | The multi-family dataset: ten people, three groups, eleven wishlists. |
-| `fixtures/large_wishlist_scenario.dart` | Fifty items in one wishlist. |
-| `fixtures/empty_scenario.dart` | A signed-in account with no lists and no groups. |
-| `fixtures/overflow_scenario.dart` | Long text in every place a layout can hold it. |
-| `fixtures/shared_scenario.dart` | A group-shared wishlist with other members' claims. |
+`dev_main.dart` resolves the launch and dispatches to the fake, live or refusal path; the
+compile-time defines and the pure launch rules live in `dev_config.dart`. `run_dev_session.dart`
+builds the fake composition and `live_dev_session.dart` the live backend, both through
+`composeDevApp`; the banner, notice screens and theme gallery sit beside them, and the gallery
+covers the primitives and component states no scenario reaches.
+
+Fixtures live under `fixtures/`: `fixtures/dev_fixture.dart` owns `DevFixture` and the seeding
+loop, `fixtures/registry.dart` maps a scenario id to its fixture, and one module per scenario
+builds the documents. To see the current files, run `ls lib/dev lib/dev/fixtures`; to see the
+registered ids, read `fixtures/registry.dart`.
 
 ## The six scenarios
 
@@ -59,16 +48,12 @@ overflows when the name is unbroken, which is the layout gap the scenario exists
 is not part of the automated URL suite for that reason; the member row is the code that needs
 the fix, not the fixture.
 
-The document ids each scenario exposes:
-
-| Scenario | Ids |
-| -------- | --- |
-| `default` | users `dev-u1`–`dev-u3`, group `dev-g1`, wishlists `dev-l1`–`dev-l3`, items `dev-i1`–`dev-i7` |
-| `family` | users `fam-u1`–`fam-u10`, groups `fam-g1`–`fam-g3`, wishlists `fam-l1`–`fam-l11`, items `fam-i01`–`fam-i86` |
-| `large-wishlist` | user `lg-u1`, wishlist `lg-l1`, items `lg-i01`–`lg-i50` |
-| `empty` | user `emp-u1`, and nothing else |
-| `overflow` | users `ovf-u1`–`ovf-u3`, group `ovf-g1`, wishlists `ovf-l1`–`ovf-l2`, items `ovf-i1`–`ovf-i5` |
-| `shared` | users `shr-u1`–`shr-u4`, group `shr-g1`, wishlists `shr-l1`–`shr-l2`, items `shr-i1`–`shr-i6` |
+The document ids follow the scenario's short prefix — `dev`, `fam`, `lg`, `emp`, `ovf`, `shr` —
+then a kind letter (`u` user, `g` group, `l` wishlist, `i` item) and a number. Hand-written item
+ids count from `1` (`dev-i1`, `shr-i6`); the generated sets in `family` and `large-wishlist`
+zero-pad to two digits (`fam-i01`). Each scenario's module builds its own ids and holds the names
+and relationships; `test/dev/scenario_library_test.dart` pins the exact set. Read either to find
+one, and use the scenario table above for start URLs.
 
 Worth opening directly:
 
@@ -83,6 +68,3 @@ Worth opening directly:
 A fixture cannot store spoiler mode: it is a per-view toggle on the wishlist details page, on by
 default for the owner and absent for a reader. To see an owned list's claims, press **Show claimed
 status**; to see claims without pressing anything, open a list the viewer does not own.
-
-The names and the relationships behind each id are in that scenario's module; the tables above
-are only the handles an agent needs to write a URL.

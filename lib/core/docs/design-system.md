@@ -5,10 +5,11 @@ three primitives a theme cannot express. Read before changing a colour, the type
 scale, or a shared widget's look. Paths are relative to `lib/core/`, then to the
 repository root.
 
-The look comes from two files. `design_tokens.dart` is the only place a brand
-value is written; `theme.dart` turns those values into `lightTheme` and
-`darkTheme`, which `lib/main.dart`, the update gate and the dev shell pass to
-`MaterialApp`. A brand change edits the tokens, not `ThemeData`.
+`design_tokens.dart` defines `BrandPalette.light` and `BrandPalette.dark` plus the geometry and
+type constants. `theme.dart` calls `toColorScheme()` and builds `lightTheme` and `darkTheme` from
+one palette each; `lib/main.dart`, the update gate and the dev notice pages pass both to
+`MaterialApp`. The theme's slots and component themes are derived in that builder, so a colour or
+`ThemeData` field set anywhere else is not carried by the theme.
 
 ## Roles and slots
 

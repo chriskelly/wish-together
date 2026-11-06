@@ -61,17 +61,18 @@ cannot announce. The conventions, so a new screen stays drivable:
 
 ## Boundaries
 
-- `lib/main.dart` never imports anything under `lib/dev/`, and no production bundle contains
-  the fake store: `test/dev/no_dev_in_production_test.dart` walks the import graph.
+- `test/dev/no_dev_in_production_test.dart` starts at `lib/main.dart`, follows every import and
+  export, and fails if the graph reaches `lib/dev/` or `package:fake_cloud_firestore/`.
 - The banner's key carries `devBundleMarker` (`wishtogether-dev-session`), the literal a CI
   bundle guard searches the compiled production bundle for. Every dev page carries it, the
   failure pages included.
-- Fake mode never calls `Firebase.initializeApp` and never touches a real Firebase singleton, so
-  there is no project, no credential and no network. `live_dev_session.dart` is the one file
-  allowed to do so; the boundary test names exactly that file, and fails if it is renamed without
-  updating the list. Because the entrypoint imports that file, a dev build does link the Firebase
-  Auth and Firestore web plugins — registration only; the fake branch never initialises them, so
-  nothing is contacted.
+- The second test in that file scans every `.dart` file under `lib/dev/` for
+  `Firebase.initializeApp(...)` and the `FirebaseApp`, `FirebaseAuth`, `FirebaseFirestore`,
+  `FirebaseAppCheck` and `FirebaseRemoteConfig` singletons, exempts exactly `live_dev_session.dart`,
+  and asserts that path exists, so a rename fails the test instead of silently widening the
+  exception. So a fake session has no project, no credential and no network. Because the
+  entrypoint imports the live file, a dev build links the Firebase Auth and Firestore web plugins —
+  registration only; the fake branch never initialises them, so nothing is contacted.
 - In fake mode the shell resolves `AuthSession` only. `AuthService` is registered but throws when
   resolved, so the sign-in, verification and deletion screens are unbuildable there; the home page
   hides its sign-out control and the profile page hides the danger zone rather than offering

@@ -51,11 +51,9 @@ SDK.
   `LogRecord` carries the snapshot from when it was emitted.
 - **`ConsoleSink(enabled: …)` takes the debug gate as an argument** (the composition root
   passes `kDebugMode`), so the branch is testable in a VM test. Release builds pass `false`.
-- No barrel file: import the concrete path (`package:wishtogether/core/logging/app_log.dart`).
-- **No direct `debugPrint`/`debugPrintStack` in `lib/` except `log_sink.dart`.**
-  `test/no_debug_print_test.dart` scans every `lib/**/*.dart` and exempts only the console
-  sink's two calls. The Profile page's former `debugPrintStack` now reports
-  `profile-load-failed` through `AppLog`.
+- `test/no_debug_print_test.dart` scans every `lib/**/*.dart` for `debugPrint`,
+  `debugPrintStack` and `developer.log`, and skips `log_sink.dart` by path. The Profile page's
+  former `debugPrintStack` now reports `profile-load-failed` through `AppLog`.
 - **Every record is a Sentry breadcrumb; only the diagnostic families are events.**
   `ErrorEvent` → `error`; `FirestoreErrorEvent`, a failed `AuthStateEvent` and an
   `UpdateGateEvent` with `result: failedOpen` → `warning`; everything else → `info`, breadcrumb

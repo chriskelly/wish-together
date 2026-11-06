@@ -36,16 +36,15 @@ relative to `lib/features/group/`, then to the repository root.
 
 ## Invariants
 
-- Membership is a `members` array of uids, mutated with atomic array operations — there is
-  no membership sub-collection.
-- A group is never left without an owner. Account deletion hands an owned group to
-  its first remaining member with a single `transferOwnership` update (`ownerId` and
-  `members` change together, so a request that is still the old owner passes any
-  owner-only rule); only a group whose last member is leaving is deleted.
-- A group's owner is always a member; the creator is added as a member at creation.
-- Only the owner sees the edit and copy-invite actions; non-owners see the Leave action.
-- Sharing a wishlist writes the **group id into the wishlist's** `sharedWithGroups` array,
-  not the group document. It is idempotent: an already-shared group is skipped.
+- Membership changes are single field updates on the group document, so two concurrent joins cannot
+  overwrite each other and there is no second collection to keep in sync.
+- Account deletion calls `transferOwnership`, which changes `ownerId` and `members` in one update;
+  the group is deleted instead only when no member remains.
+- `CreateGroupUseCase` writes the creator into `members` in the same document as `ownerId`, so the
+  two cannot disagree.
+- `GroupDetailsPage` gates the edit and copy-invite actions on `isOwner`; everyone else gets Leave.
+- `ShareWishlistWithGroupUseCase` rewrites the wishlist's `sharedWithGroups` with the group id
+  added only when absent, which is what makes a repeated share harmless.
 - The group's "Shared Wishlists" list is the set of wishlists whose `sharedWithGroups`
   `arrayContains` the group id; a wishlist is removed by its owner.
 - The invite format is `<origin>/join?group=<groupId>` — a real path, not a hash URL. Web

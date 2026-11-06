@@ -28,7 +28,10 @@ read lifecycles of the home and profile pages. Read before touching
 
 ## Invariants
 
-- The `users/{uid}` document id **is** the Firebase Auth uid.
+- `AuthSession.currentUserId` is the Firebase Auth uid (`AuthService` returns
+  `_auth.currentUser?.uid`), and the router, profile use cases and account deletion pass it to
+  `UserRepository`, which reads and writes `users/<uid>`; the rules compare the path segment with
+  `request.auth.uid`.
 - Onboarding is router-driven: a user with no display name — null, empty, or whitespace-only —
   cannot reach home until they save a name on `ProfilePage`.
 - The default wishlist is created only on the first save (when the prior name had no content

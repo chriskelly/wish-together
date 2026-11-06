@@ -71,14 +71,14 @@ large-wishlist /wishlist/lg-l1` selects the scenario and the page, while
 `tool/dev.sh /wishlist/dev-l1` keeps the default scenario and starts on that
 page. The table's URL is also what you open by hand.
 
-| Id | Start URL | What it shows | Document ids |
-| -- | --------- | ------------- | ------------ |
-| `default` | `/` | Two wishlists the viewer owns, one shared list owned by somebody else, one group, one claimed item. | users `dev-u1`–`dev-u3`, group `dev-g1`, lists `dev-l1`–`dev-l3`, items `dev-i1`–`dev-i7` |
-| `family` | `/` | Ten people, three overlapping groups, eleven lists, eighty-six items, claims on owned and shared lists — the `seed-demo` shape with an invented cast. | users `fam-u1`–`fam-u10`, groups `fam-g1`–`fam-g3`, lists `fam-l1`–`fam-l11`, items `fam-i01`–`fam-i86` |
-| `large-wishlist` | `/wishlist/lg-l1` | Fifty generated items in one list, for scrolling and performance. | user `lg-u1`, list `lg-l1`, items `lg-i01`–`lg-i50` |
-| `empty` | `/` | A signed-in account with no lists and no groups. | user `emp-u1` only |
-| `overflow` | `/wishlist/ovf-l1` | Long names, an unbroken item name, a long link and description. | users `ovf-u1`–`ovf-u3`, group `ovf-g1`, lists `ovf-l1`–`ovf-l2`, items `ovf-i1`–`ovf-i5` |
-| `shared` | `/group/shr-g1` or `/wishlist/shr-l2` | A group-shared list and claims by another member and by the viewer. | users `shr-u1`–`shr-u4`, group `shr-g1`, lists `shr-l1`–`shr-l2`, items `shr-i1`–`shr-i6` |
+| Id | Start URL | What it shows |
+| -- | --------- | ------------- |
+| `default` | `/` | Two wishlists the viewer owns, one shared list owned by somebody else, one group, one claimed item. |
+| `family` | `/` | Ten people, three overlapping groups, eleven lists, eighty-six items, claims on owned and shared lists — the `seed-demo` shape with an invented cast. |
+| `large-wishlist` | `/wishlist/lg-l1` | Fifty generated items in one list, for scrolling and performance. |
+| `empty` | `/` | A signed-in account with no lists and no groups. |
+| `overflow` | `/wishlist/ovf-l1` | Long names, an unbroken item name, a long link and description. |
+| `shared` | `/group/shr-g1` or `/wishlist/shr-l2` | A group-shared list and claims by another member and by the viewer. |
 
 Useful deep links:
 
@@ -90,7 +90,8 @@ Useful deep links:
 - `/wishlist/shr-l2?scenario=shared` — another member's list; `shr-i5` is claimed
   by a third member and `shr-i6` by the viewer.
 
-`lib/dev/docs/scenarios.md` has the same tables next to the fixtures.
+`lib/dev/docs/scenarios.md` publishes the same scenario table and explains how ids are discovered
+from the fixture modules.
 
 ## Drive it as a text-only agent
 
@@ -153,8 +154,7 @@ A **committed** scenario is one Dart module plus one registry line:
 3. Add one import and one map entry in `lib/dev/fixtures/registry.dart`.
 4. Run `flutter test test/dev/dev_fixture_test.dart test/dev/scenario_library_test.dart`
    and add a mount test in `test/dev/scenario_urls_test.dart` for its start URL.
-5. Add rows to the layout, scenarios and document-id tables in
-   `lib/dev/docs/scenarios.md`, and to the scenario table in this skill.
+5. Add a row to the scenario table in `lib/dev/docs/scenarios.md` and in this skill.
 
 A **private** scenario is a gitignored entrypoint, unreferenced by anything
 else, so a fresh clone compiles without it:

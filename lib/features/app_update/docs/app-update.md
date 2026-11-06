@@ -15,9 +15,10 @@ When the gate blocks, the normal app is never mounted: the blocking screen is it
 - Mount a blocking screen instead of the app when the running build is below
   the minimum.
 
-It is a **policy nudge, not a security control**. A modified client can bypass
-it. Its job is to keep a client that no longer understands a server contract
-from breaking quietly.
+The minimum and the running build are both read on the client, so a modified
+build can skip the comparison. The gate exists to keep a client that no longer
+understands a server contract from breaking quietly, not to resist a determined
+one.
 
 ## Key types
 

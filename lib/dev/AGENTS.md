@@ -19,7 +19,7 @@ Paths here are relative to `lib/dev/`, then to the repository root.
 
 ## Reference
 
-- What runs, the layout, the scenarios and their ids → `docs/scenarios.md`
+- What runs, the layout, the scenarios and how to find their ids → `docs/scenarios.md`
 - Running the fake backend and authoring a fixture → `docs/fake-mode.md`
 - Real Auth and Firestore on the staging database → `docs/live-mode.md`
 - What a fake-mode success does not prove, accessible names, boundaries → `docs/limits.md`

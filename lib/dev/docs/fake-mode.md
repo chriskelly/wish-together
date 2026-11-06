@@ -63,8 +63,7 @@ A committed scenario is one Dart module plus one registry line.
    changes, not for the literal contents. Add one mount test in
    `test/dev/scenario_urls_test.dart` for the scenario's **Open** URL: that handle is what an
    agent copies, so it is the one thing the data tests cannot prove.
-5. Add a row to the Layout table, the scenarios table and the document-ids table in
-   `docs/scenarios.md`.
+5. Add a row to the scenario table in `docs/scenarios.md`.
 
 Keep the data plausible and self-consistent: a group's owner is one of its members, a list is
 shared only with groups that exist and that the owner belongs to, and a claim names a person in

@@ -10,9 +10,9 @@ You can use the deployed version at [https://wishtogether.gift](https://wishtoge
 
 <table>
   <tr>
-    <td><img src="docs/images/home.png" width="240" alt="Home screen listing the viewer's wishlists and groups"></td>
-    <td><img src="docs/images/wishlist-sasha-birthday.png" width="240" alt="A shared wishlist showing the viewer's claimed item"></td>
-    <td><img src="docs/images/group-the-carters.png" width="240" alt="A group with its shared wishlists and members"></td>
+    <td><img src="docs/media/home.png" width="240" alt="Home screen listing the viewer's wishlists and groups"></td>
+    <td><img src="docs/media/wishlist-sasha-birthday.png" width="240" alt="A shared wishlist showing the viewer's claimed item"></td>
+    <td><img src="docs/media/group-the-carters.png" width="240" alt="A group with its shared wishlists and members"></td>
   </tr>
   <tr>
     <td align="center">Your home</td>

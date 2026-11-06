@@ -73,10 +73,8 @@ of the product.
   claim any unclaimed item, or unclaim one they claimed themselves; the rules deny claim
   writes when the wishlist has never been shared and deny taking over another reader's
   claim.
-- Another reader cannot take a claim over: the current claimer must unclaim first
-  (`claimedBy` and `claimedAt` back to null), or the rules deny the write. The wishlist
-  owner is not bound by this and can still edit or clear a claim. There is no separate
-  claim document.
+- Another reader cannot take a claim over, and the wishlist owner is not bound by the rule.
+  There is no separate claim document. The rule itself is in `docs/authorization.md`.
 - Item reads are gated on the parent wishlist: its owner can always read the items, while
   everyone else can read them only once the wishlist has been shared with a group. A
   non-owner opening a never-shared wishlist therefore gets a permission error from the

@@ -38,7 +38,7 @@ in `docs/diagnostics.md`.
 ## How it is tested
 
 - `test/core/logging/sentry_startup_test.dart` — empty/whitespace DSN disables; environment and staging rules;
-  release/dist naming; the §4.5 option values; iOS build read and fallback.
+  release/dist naming; the Sentry option values; iOS build read and fallback.
 - `test/core/logging/sentry_sink_test.dart` — breadcrumb vs event, stack passthrough, one scope write per session
   change, sign-out clears the user, transport failures swallowed.
 - `test/core/logging/diagnostics_test.dart` — Sentry sink present only with a transport, provider mapping.

@@ -14,7 +14,7 @@ import 'session_context.dart';
 AppLog? get appLogOrNull =>
     getIt.isRegistered<AppLog>() ? getIt<AppLog>() : null;
 
-/// The §4.2 auth outcome of a transition, or null when the provider is outside
+/// The auth outcome of a transition, or null when the provider is outside
 /// the vocabulary.
 ///
 /// Firebase can link several providers onto one account, so the last matching

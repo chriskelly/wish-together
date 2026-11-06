@@ -75,7 +75,7 @@ change, and backs the current key JSON up (on `--apply`) to
 PATCH fails, read the backup and the printed revert command before retrying.
 
 The pure logic (set math, the host guard, and URL construction) is covered by
-`scripts/preview-auth.test.sh` — stubbed `curl`/`gcloud`, no network:
+`.agents/skills/preview-auth/scripts/preview-auth.test.sh` — stubbed `curl`/`gcloud`, no network:
 
 ```sh
 bash .agents/skills/preview-auth/scripts/preview-auth.test.sh

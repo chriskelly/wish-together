@@ -1,4 +1,4 @@
-/// The §4.3 allowlist, enforced inside the façade.
+/// The allowlist, enforced inside the façade.
 ///
 /// `AppLog` serialises only these keys, and S2's `beforeSend`/`beforeBreadcrumb`
 /// reuse this set instead of restating it, so one list governs both ends.

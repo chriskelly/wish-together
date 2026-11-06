@@ -35,8 +35,8 @@ as `/join?group=123`), which is how an iOS Universal Link starts the router.
 - Every redirect for a logged-in user calls `UserRepository.getOrCreateUser`, so the
   `users/{uid}` document is created lazily on first navigation.
 - Web routes are **real paths** (`usePathUrlStrategy`): `/join?group=…`, `/group/<id>`,
-  `/wishlist/<id>`. The router receives in-app locations (path + query) only; hash URLs
-  (`/#/…`) are not supported and land on `/`.
+  `/wishlist/<id>`. The router receives in-app locations (path + query) only; hash URLs are
+  not supported (`docs/deep-links.md`).
 - `redirect_to` is forwarded verbatim as a location; it is never normalized from a fragment
   or an absolute URL.
 

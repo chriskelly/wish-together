@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
 # Signing certificates and provisioning profiles live in a private git
-# repository so CI can sign builds without an Apple ID. See AGENTS.md for the
-# one-time `match` setup and the required secrets.
+# repository so CI can sign builds without an Apple ID. See `docs/ci.md`
+# for the one-time `match` setup and the required secrets.
 git_url(ENV["MATCH_GIT_URL"] || "git@github.com:chriskelly/ios-match-certs.git")
 storage_mode("git")
 type("appstore")

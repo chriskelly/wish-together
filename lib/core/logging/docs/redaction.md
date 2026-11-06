@@ -60,7 +60,7 @@ event field.
   `LoadContextsIntegration` merges them into a Dart event through `beforeBreadcrumb` — where the
   category/message allowlist drops them — but the native-crash envelope bypasses both callbacks.
   On those paths the protections are `sendDefaultPii: false` and the absence of any PII-bearing
-  custom key; check the native breadcrumbs on the manual iOS run before S4 relies on the
+  custom key; check the native breadcrumbs on the manual iOS run before relying on the
   guarantee. Its policy text must not claim the scrubber covers every crash.
 
 ## How it is tested
@@ -68,7 +68,7 @@ event field.
 - `test/core/logging/redaction_test.dart` — route patterns and masks, collection mask, code shape rejection, and
   the shared `readErrorCode` reader.
 - `test/core/logging/sentry_policy_test.dart` — level mapping (including a `failedOpen` gate), capture split,
-  the exact §4.5 scope-tag names, allowlisted breadcrumb/event data, exception-value and
+  the exact scope-tag names, allowlisted breadcrumb/event data, exception-value and
   message scrubbing, and every drop rule.
 - `test/core/logging/sentry_scrub_end_to_end_test.dart` — a real `SentryClient`/`beforeSend` round trip: the
   serialised envelope carries no phone number, document id, uid, device name or typed name.

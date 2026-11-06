@@ -29,8 +29,8 @@ flutter run -t lib/dev/dev_main.dart -d chrome
 | Input | Effect |
 | ----- | ------ |
 | the page path | the route, e.g. `/wishlist/dev-l1` |
-| `?scenario=<id>` | the fixture, read once at startup |
-| `--dart-define=WT_DEV_SCENARIO=<id>` | the fixture when the URL names none |
+| `?scenario=<id>` | the fixture, read once at startup; ignored in live mode, and the banner says so |
+| `--dart-define=WT_DEV_SCENARIO=<id>` | the fixture when the URL names none (fake only) |
 | `--dart-define=WT_DEV_BACKEND=` | unset or `fake` for the in-memory backend; `live` for the real one; anything else is a page naming both |
 
 An unknown scenario id renders a page naming the ids that exist rather than leaving a blank tab:

@@ -7,8 +7,7 @@ relative to `lib/dev/` unless they start with `lib/` or `test/`.
 
 ## Divergences: what a fake-mode success does not prove
 
-Read this before reporting "works" from a dev session. The fake-dependent items are pinned by a
-test in `test/dev/fake_parity_test.dart`, green under the `fake_cloud_firestore` that
+The fake-dependent items are pinned by a test in `test/dev/fake_parity_test.dart`, green under the `fake_cloud_firestore` that
 `pubspec.lock` pins, so a dependency upgrade that changes the gap fails loudly. The others
 cannot be exercised in one process, or are app behaviour the harness reproduces faithfully.
 

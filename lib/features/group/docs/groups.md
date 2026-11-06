@@ -55,8 +55,8 @@ members identified by Firebase Auth uid; wishlists are shared *into* a group.
   uses the current origin; native uses `https://wishtogether.gift`. On iOS the URL is a
   Universal Link (`app_links`); the router receives the location `/join?group=<groupId>` and
   preserves it as `redirect_to` through login, verification, and profile, so an invited,
-  not-yet-onboarded user still lands on the join page. Legacy `/#/join?…` links are not
-  supported and land on `/`.
+  not-yet-onboarded user still lands on the join page. Legacy hash links are not
+  supported (`docs/deep-links.md`).
 - Accepting an invite for a group the viewer already belongs to goes straight to that
   group's details page. The navigation is reported as a replacement, so on web the invite
   entry is replaced rather than stacked and Back does not return to `/join`. There is no

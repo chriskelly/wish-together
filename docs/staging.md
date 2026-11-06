@@ -59,8 +59,15 @@ deployed there and exercised with seeded, real-shaped data while production is u
   `.verify`, and re-validates `firebase.staging.json` immediately before deploying it. Dispatch
   from `master` with `ref=<branch>` so the tooling itself is trusted; dispatching a branch runs
   that branch's workflow code with the credentials (the run warns when it is not `master`).
-- `.github/workflows/ci-rules.yml` is unchanged: the emulator suite still gates, and a merge to `master` still
-  publishes to production. Staging is the pre-merge rehearsal, not the production deploy path.
+- **Pre-merge dispatch of this workflow or its scripts:** until a change to
+  `.github/workflows/deploy-staging.yml`, to `scripts/staging-config.mjs`, or to any script the
+  deploy runs (for example the `appAssociation` key the validator checks) is on `master`,
+  dispatch that branch from **"Use workflow from" = the branch** *and* `ref=<branch>`; the
+  dispatch runs master's copy of those steps, so an unknown config key fails closed and a new
+  step is simply not exercised. Normal branches keep the documented `master` + `ref=<branch>`
+  mode.
+- Rules still reach production only through `.github/workflows/ci-rules.yml`
+  (`docs/authorization.md`). Staging is the pre-merge rehearsal, not that path.
 - `firebase.json` **must not** learn about the `staging` database: production rules/indexes
   are published from it, and adding a second database there would make
   `firebase deploy --only firestore:rules` ambiguous. The staging database lives only in

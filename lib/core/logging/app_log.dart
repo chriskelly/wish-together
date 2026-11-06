@@ -69,7 +69,7 @@ class AppLog {
     event(RouteChangedEvent(route: _session.route));
   }
 
-  /// Takes the RAW uid and stores only its §4.4 reference.
+  /// Takes the RAW uid and stores only its hashed reference.
   ///
   /// Hashing at this boundary is what guarantees a uid cannot be stored on
   /// [session] or reach a sink. `null` (or a blank uid) clears the reference,

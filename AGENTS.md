@@ -92,17 +92,17 @@ not record the structural run. Test our logic, not framework wiring, trivial get
 - One behaviour per test, named after it; keep arrange / act / assert distinct, bind shared
   literals to a variable, and never assert against wall-clock time.
 - Use cases: `mocktail` mocks registered in `getIt`, `getIt.reset()` in `setUp` and `tearDown`,
-  and fallback values in `setUpAll` for any type passed to `any()`.
+  and fallback values in `setUpAll` for any type passed to `any()` or `captureAny()`.
 - Repositories: `FakeFirebaseFirestore` through the `firestore:` constructor argument. Router:
   the pure `handleRedirect` with mocked `AuthSession` and `UserRepository`.
-- Widget tests cover the login page and the app-update screen; broader coverage is backlog.
-  Place tests under `test/` mirroring `lib/`. These rules outrank any skill's TDD checklist.
+- Widget tests cover the login page and the app-update screen (broader coverage is backlog);
+  mirror `lib/` under `test/` as `<file>_test.dart`. These rules outrank any skill's checklist.
 
 ## Local skills
 
-`.agents/skills/` holds the four skills above plus read-only submodules of the Flutter and
-Firebase teams' Agent Skills. Never hand-edit a vendored skill: where one conflicts with this
-file, this file wins. Run `git submodule update --init` in a fresh checkout, `--remote` to update.
+`.agents/skills/` holds `sentry-triage`, `preview-auth`, `dev-session` and `appstore-screenshots`,
+plus read-only submodules of the Flutter and Firebase Agent Skills. Never hand-edit a vendored
+one: this file wins on conflict. Run `git submodule update --init`, or `--remote`, in a checkout.
 
 ## Hard guardrails
 

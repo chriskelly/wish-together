@@ -1,7 +1,9 @@
 # CI and signing
 
-Scope: the workflows that gate a PR, deploy the web app, and sign iOS builds.
-Read before changing a workflow, a pinned version, a secret, or a lane.
+Scope: the workflows that deploy the web app and sign iOS builds, with the secrets
+and pinned versions they use. Read before changing one of those workflows, a
+secret, or a lane. `.github/workflows/lint.yml` (actionlint, dev-script and Fastlane gates) is a
+separate, small workflow.
 
 ## Web
 
@@ -31,9 +33,8 @@ All on `macos-26` runners with the same pinned Flutter version:
   submits for App Store review. Screenshots are uploaded by hand to the editable version first
   and the lane passes `skip_screenshots: true`, so it never touches them; see
   `.agents/skills/appstore-screenshots/`.
-- `.github/workflows/clear-release-notes.yml` — runs when *App Store Release* succeeds and
-  empties `release_notes.txt` on `master` (see `docs/release.md`). It is the only workflow
-  that commits, and it pushes with `[skip ci]`.
+- `.github/workflows/clear-release-notes.yml` — runs when *App Store Release* succeeds; the
+  only workflow that commits, and it pushes with `[skip ci]` (see `docs/release.md`).
 
 ## Signing and secrets
 

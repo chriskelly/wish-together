@@ -49,16 +49,14 @@ would help — configure them in the Sentry console, not in this file.
   event, so every `authState` event that reaches Sentry is a genuine failure.
 - `event:firestoreError` with `error_code:permission-denied` — a rules regression. Legitimate
   volume is near zero, so a single denial after a rules deploy is worth knowing about.
-- `event:updateGate` with `reason:*` — the gate failed open, meaning it did **not** decide. Read
-  it as "the gate could not run", never as "the gate allowed it".
+- `event:updateGate` with `reason:*` — the gate could not run; see
+  `lib/features/app_update/docs/app-update.md`.
 - Site uptime for `https://wishtogether.gift/` — independent of the app, and the only signal
   that survives a crash loop exhausting the event quota.
 
 **One rule is not a preference:** scope every alert and every saved search to
 `environment:production`. Preview channels and the staging dispatch report to this same project
-and must never page anyone. That separation comes from the build's environment define, so if
-the define is ever dropped, previews report as production — see Builds, environments and
-source maps.
+and must never page anyone.
 
 Nothing checks that any rule exists. Read this section as what is *possible*, not what is
 *configured*.
@@ -74,10 +72,9 @@ true. Check them under **Settings**, organization and project.
   not promise longer without changing the policy.
 - **IP storage**: "Prevent Storing of IP Addresses" must be **on**. `sendDefaultPii: false` only
   stops the SDK attaching `user.ip_address`; the server enriches the event from the request
-  anyway. It was off until 2026-10-28, when the only event in the project was found carrying
-  `user.ip_address` and `user.geo`. The operator turned it on and verified it with a fresh
-  event on 2026-10-29 that carried no `user.ip_address`. Re-check it before shipping a build
-  that reports, or the policy's IP sentence is false.
+  anyway. It was off once, and the only event then in the project carried `user.ip_address`
+  and `user.geo`. Re-check it before shipping a build that reports, or the policy's IP
+  sentence is false.
 - **App Privacy answers** (App Store Connect, not a file): `Diagnostics → Crash Data` **Yes**,
   `Diagnostics → Other Diagnostic Data` **Yes**, linked to the user, not tracking, not
   advertising. `Identifiers → Device ID` is **Yes** for every iOS user while auto session
@@ -104,8 +101,7 @@ is a secret and authorises the upload.
   and uses the same value for `SENTRY_RELEASE` and `SENTRY_DIST`, so the uploaded artifact
   bundle matches the release the app reports. `releaseNameFor` and `distNameFor` in
   `lib/core/logging/sentry_startup.dart` are the formatters; the workflow mirrors them
-  literally. A preview channel is tagged `preview` because every alert filters on
-  `environment:production`: PR traffic must never page anyone.
+  literally.
 - The upload runs `sentry_dart_plugin` — a dev dependency, configured by the `sentry:` block in
   `pubspec.yaml`, invoked explicitly after the build — and a failed upload fails the run. A
   deployed build without its symbols reports unreadable stack traces, which is worse than not
@@ -174,7 +170,5 @@ is a secret and authorises the upload.
    does not install; adding one would produce per-navigation sessions with a different field
    set. Turning the option off would remove the iOS path and the installation id, but that is a
    code change, not a documentation one.
-4. **The update gate reports one decision per launch.** The first result wins, so a launch whose
-   check times out reports `failedOpen` with `reason: check-failed`, and its late `blocked`
-   verdict is never reported. Read `failedOpen` as "the gate did not decide", not as "the gate
-   allowed it".
+4. **The update gate reports one decision per launch.** Read `failedOpen` as "the gate did not
+   decide"; the record and its reasons are in `lib/features/app_update/docs/app-update.md`.

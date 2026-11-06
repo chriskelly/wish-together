@@ -54,7 +54,7 @@ and it is read only at startup.
 | Id | What it shows | Open |
 | -- | ------------- | ---- |
 | `default` | Two wishlists the viewer owns, one shared list owned by somebody else, one group, one claimed item. | `/` |
-| `family` | Ten people, three overlapping groups, eleven wishlists, eighty-six items, claims on owned and on shared lists. The shape of `seed-demo.mjs` with an invented cast and renamed items. | `/` |
+| `family` | Ten people, three overlapping groups, eleven wishlists, eighty-six items, claims on owned and on shared lists. The shape of `scripts/seed-demo.mjs` with an invented cast and renamed items. | `/` |
 | `large-wishlist` | Fifty items in one list, generated, for scrolling and performance. | `/wishlist/lg-l1` |
 | `empty` | A signed-in account with no wishlists and no groups. | `/` |
 | `overflow` | Long display, group and wishlist names, an unbroken item name, a long link and a long description. | `/wishlist/ovf-l1` |

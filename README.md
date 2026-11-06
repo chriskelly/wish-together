@@ -19,8 +19,8 @@ By default, no need to worry about spoilers! The owner can enable spoiler mode w
 
 ## Development
 
-WishTogether is a Flutter app. `AGENTS.md` is the working contract for the repo:
-architecture, commands, conventions, and the authorization model.
+WishTogether is a Flutter app. `AGENTS.md` is the rules and index for the repo; the topic docs under
+`docs/` and `lib/**/docs/` carry architecture, CI, staging and authorization.
 
 ### Agent tooling
 

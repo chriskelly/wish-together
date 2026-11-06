@@ -11,12 +11,12 @@ Sentry sink, its policy and the startup wiring are the files that know about the
 
 ## Responsibility
 
-- Define the closed event vocabulary (§4.2) as typed Dart classes.
+- Define the closed event vocabulary as typed Dart classes.
 - Derive and carry the launch identifiers: `session_id`, `support_code`, `user_ref`, build.
-- Enforce the breadcrumb allowlist (§4.3) before a record reaches any sink.
+- Enforce the breadcrumb allowlist before a record reaches any sink.
 - Hand records to `LogSink` implementations. `ConsoleSink` prints in debug; `SentrySink`
   forwards to Sentry. Sinks own the side effects.
-- Own the Sentry configuration (§4.5) and the null-safe accessor the rest of the app reports
+- Own the Sentry configuration and the null-safe accessor the rest of the app reports
   through.
 
 ## Key types
@@ -28,10 +28,10 @@ Sentry sink, its policy and the startup wiring are the files that know about the
 | `LogRecord` | `log_record.dart` | One event plus the session snapshot; `toMap()` is the only serialisation boundary. |
 | `AppEvent` | `app_event.dart` | Sealed vocabulary: session start/end, auth, Firestore, route, update gate, App Check, claim, error. |
 | `SessionContext` | `session_context.dart` | Immutable identifiers of one launch, plus the pure id helpers. |
-| `logRecordKeys`, `redactRoute`, `redactCollection`, `redactCode`, `readErrorCode` | `redaction.dart` | The §4.3 allowlist and the redactions every record passes through (see `docs/redaction.md`). |
+| `logRecordKeys`, `redactRoute`, `redactCollection`, `redactCode`, `readErrorCode` | `redaction.dart` | The allowlist and the redactions every record passes through (see `docs/redaction.md`). |
 | `SentrySink` / `SentryTransport` | `sentry_sink.dart` | One breadcrumb per record; errors and warnings are also events. The transport isolates the SDK statics so the mapping is testable. |
-| `sentryLevelFor`, `shouldCapture`, `scrubEvent`, `scrubBreadcrumb` | `sentry_policy.dart` | The §4.2 level mapping and the second line of defence (see `docs/redaction.md`). |
-| `SentryStartup`, `BuildIdentity`, `readBuildIdentity` | `sentry_startup.dart` | The §4.5 option values as pure data, plus the web/iOS build identity. |
+| `sentryLevelFor`, `shouldCapture`, `scrubEvent`, `scrubBreadcrumb` | `sentry_policy.dart` | The level mapping and the second line of defence (see `docs/redaction.md`). |
+| `SentryStartup`, `BuildIdentity`, `readBuildIdentity` | `sentry_startup.dart` | The Sentry option values as pure data, plus the web/iOS build identity. |
 | `appLogOrNull`, `authOutcomeFor`, `createLaunchDiagnostics` | `diagnostics.dart` | Null-safe accessor, the auth-outcome mapping and the launch composition. |
 | `RouteChangeRecorder` | `../router.dart` | Records one `routeChanged` per router location change. |
 | `SupportCodeTile` | `../../common/widgets/support_code_tile.dart` | The six-character code with a copy action. |
@@ -42,7 +42,8 @@ Sentry sink, its policy and the startup wiring are the files that know about the
   cannot change the caller's decision. `AppLog.flush` is the only method that returns a
   future, and it swallows sink failures too.
 - **`clean` belongs only to `sessionEnd`;** `min`/`running`/`reason` only to `updateGate`.
-  The wire-key contract is in the epic spec §4.2.
+  The wire-key contract is `logRecordKeys` plus the shape `toMap()` writes; see
+  `docs/redaction.md`.
 - **The facade's breadcrumb ring and Sentry's breadcrumb buffer are separate 30s.**
   `AppLog.maxBreadcrumbs` caps the in-memory ring that `AppLog.breadcrumbs` exposes (oldest
   dropped, errors excluded); the Sentry option `maxBreadcrumbs: 30` caps the SDK scope. The
@@ -92,4 +93,4 @@ allowlist.
 - `test/core/logging/app_log_test.dart` — fan-out to sinks, error message never captured, uid never emitted,
   route redaction, 30-breadcrumb cap, sink/`toString` failures swallowed, `flush`.
 - `test/core/logging/log_sink_test.dart` — `ConsoleSink` prints when enabled and is silent when disabled.
-- `test/core/logging/route_literals_test.dart` — every page route constant is in `logRouteLiterals` (gap 5).
+- `test/core/logging/route_literals_test.dart` — every page route constant is in `logRouteLiterals`.

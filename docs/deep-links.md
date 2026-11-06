@@ -33,11 +33,5 @@ twice).
   `app_links` also cancels registration when it is not attached to the debugger. A debug
   build therefore validates **warm** links only; cold start is validated with a Release or
   TestFlight build after the narrow production AASA is live.
-- **Pre-merge staging dispatch:** until a change to `.github/workflows/deploy-staging.yml`, to
-  `scripts/staging-config.mjs`, or to any script the deploy runs (for example the
-  `appAssociation` key the validator checks) is on `master`, dispatch that branch from
-  **"Use workflow from" = the branch** *and* `ref=<branch>`; the dispatch runs master's copy
-  of those steps, so an unknown config key fails closed and a new step is simply not
-  exercised. Normal branches keep the documented `master` + `ref=<branch>` mode.
 - Apple's AASA CDN caches the file; first-time verification can take hours. Simulators do not
   open Universal Links, and typing the URL in Safari opens the website by design.

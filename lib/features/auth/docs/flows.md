@@ -57,7 +57,7 @@ profile).
   `deleteAccount()`. Failed sign-ins report an `authState` event with the provider
   outcome and the structured error code; the identifier the user typed and the
   exception message are never reported. A user cancelling a prompt reports the
-  outcome with no code (a breadcrumb, not an S4 auth-failure event). Provider-SDK
+  outcome with no code (a breadcrumb, not an auth-failure event). Provider-SDK
   errors whose `code` is not a string (Apple authorization errors, some Google
   sign-in errors) also stay breadcrumbs; only `FirebaseAuthException` codes reach
   the auth-failure event family.
@@ -107,10 +107,7 @@ opened another code page. A platform that never reports fails with a `TimeoutExc
   `confirmPhoneCode` builds a `PhoneAuthProvider` credential and signs in with it.
 
 `VerificationPage` is pushed on top of `LoginPage`, so its `PrimaryAppBar` keeps the implied
-back action that returns to the number the user typed, still in the field. It used to replace
-the login page in the stack: on web
-the browser's Back still reached login, but a freshly built one with the number gone, and the app
-itself offered no in-app way out. Because the push is imperative the web address bar keeps
+back action that returns to the number the user typed, still in the field. The push is imperative, so the web address bar keeps
 showing `/login` while the code page is up, and a reload returns to login — the page was never
 reloadable anyway, since it needs the verification id passed as route `extra`. Leaving the page
 discards a pending web sign-in, and a successful confirmation drops it too, so neither can be

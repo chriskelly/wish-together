@@ -46,10 +46,10 @@ String environmentFor({required bool releaseMode, required String override}) {
   return releaseMode ? _productionEnvironment : _debugEnvironment;
 }
 
-/// `wishtogether@<build>`, the release name of §4.4.
+/// `wishtogether@<build>`, the release name.
 String releaseNameFor(String build) => 'wishtogether@$build';
 
-/// `<platform>-<build>`, the dist name of §4.4.
+/// `<platform>-<build>`, the dist name.
 String distNameFor(String platform, String build) => '$platform-$build';
 
 /// Build identity of this launch: the web commit SHA, or iOS's
@@ -85,7 +85,7 @@ Future<BuildIdentity> readBuildIdentity({
   return BuildIdentity(build: resolveBuildId(raw), platform: tag);
 }
 
-/// The Sentry configuration of §4.5, as data.
+/// The Sentry configuration, as data.
 ///
 /// The option values are pure: constructing one reads no globals, so they can
 /// be asserted in a VM test. [readIdentity] is the composition-root helper that
@@ -124,7 +124,7 @@ class SentryStartup {
   String? get dist =>
       isStaging ? null : distNameFor(identity.platform, identity.build);
 
-  /// Applies the §4.5 values. Kept in one place so the contract is testable.
+  /// Applies the Sentry values. Kept in one place so the contract is testable.
   void configure(SentryFlutterOptions options) {
     options
       ..dsn = dsn
@@ -146,7 +146,7 @@ class SentryStartup {
       ..onErrorSampleRate = 0;
     if (isStaging) {
       // The SDK's release integration fills release/dist from PackageInfo when
-      // they are null, which would give staging a release §4.5 says it has not.
+      // they are null, which would give staging a release it must not have.
       for (final integration
           in options.integrations.whereType<LoadReleaseIntegration>()) {
         options.removeIntegration(integration);

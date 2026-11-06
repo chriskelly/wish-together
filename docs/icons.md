@@ -22,7 +22,7 @@ channel.
   a deliberately warmer, slightly darker cream than the icon's ground, and `theme_color` is the
   cranberry `#B32234`.
 - **Android:** five legacy `mipmap-*/ic_launcher.png` (48 to 192) plus the adaptive icon in
-  `mipmap-anydpi-v26/ic_launcher.xml`. Its foreground is the source centred on the same cream,
+  `android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml`. Its foreground is the source centred on the same cream,
   in two passes: `sips -z <inner> <inner> web/favicon.png --out /tmp/fg.png`, then
   `sips --padToHeightWidth <layer> <layer> --padColor FFFCF0 /tmp/fg.png --out <file>`
   (`--padToHeightWidth` must come before `--padColor`, and padding in the same `sips` call as

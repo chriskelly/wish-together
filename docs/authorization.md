@@ -38,7 +38,7 @@ app only queries the viewer's own wishlists and the wishlists shared with a grou
 belong to, but Firestore cannot express "shared with a group I belong to" as a provable
 list query, so a crafted client can enumerate every wishlist and read the group ids in it.
 Enumeration alone is enough for the items: an item is readable and claimable whenever its
-parent wishlist has ever been shared with any group, so a crafted client reaches the items
+parent wishlist is currently shared with at least one group, so a crafted client reaches the items
 of every shared wishlist — no invite, group join or membership needed. Item reads and claim
 writes are still gated on the parent wishlist, which is narrower than the wishlist read.
 Because another reader cannot take a claim over, any signed-in user can claim every
@@ -63,8 +63,8 @@ private note) without accepting that it is public to signed-in users.
 ## How rules reach production
 
 `.github/workflows/ci-rules.yml` runs the emulator suite in `rules_tests/` when a pull
-request or a merge to `master` touches `firestore.rules`, anything under `rules_tests/`, or
-that workflow file itself. On a merge it then runs the same suite and publishes the rules to
+request or a merge to `master` touches `firestore.rules`, `firebase.json`, anything under
+`rules_tests/`, or that workflow file itself. On a merge it then runs the same suite and publishes the rules to
 production. That suite is the **only** check in front of publication — a merge deploys, and
 no other job inspects the rules — so a rules change needs its tests (see Commands in
 `AGENTS.md`), and a case the suite does not cover is not covered at all.

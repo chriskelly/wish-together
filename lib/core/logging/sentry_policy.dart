@@ -153,7 +153,7 @@ SentryEvent? scrubEvent(SentryEvent event, Hint hint) {
   event.transaction = null;
   event.culprit = null;
   // A native scope can copy these onto a Dart event, and `fingerprint` is an
-  // outbound field the contract never intentionally uses. This app sets none of them.
+  // outbound field this app never intentionally uses. It sets none of them.
   event.fingerprint = null;
   event.logger = null;
   event.serverName = null;

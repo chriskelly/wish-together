@@ -4,6 +4,8 @@ A development entrypoint that boots the app **signed in**, on the real widgets, 
 in-memory fixture (the default) or real Firebase on a named database. It exists so an agent or
 the user can see, drive and screenshot any signed-in screen without a deployment.
 
+Paths here are relative to `lib/dev/`, then to the repository root.
+
 ## Rules
 
 - `lib/main.dart` never imports anything under `lib/dev/`, and no production bundle contains

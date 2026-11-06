@@ -6,8 +6,9 @@ that changes something a user sees.
 
 ## Build numbers
 
-Build numbers are resolved from App Store Connect (highest already uploaded + 1), never from
-the per-workflow run number, so the TestFlight and App Store lanes cannot collide.
+Build numbers are resolved from App Store Connect (highest already uploaded + 1), raised to
+the workflow run number when that is higher, and falling back to it if App Store Connect cannot
+be read — so the TestFlight and App Store lanes cannot collide.
 
 ## A released marketing version closes its TestFlight train
 

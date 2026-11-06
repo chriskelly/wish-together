@@ -68,7 +68,7 @@ root.
 - Spoiler-free: the owner's details page defaults `_isSpoilerFree = true` and hides claimed
   status until toggled. A reader of a shared wishlist always sees the true status and can
   claim any unclaimed item, or unclaim one they claimed themselves; the rules deny claim
-  writes when the wishlist has never been shared.
+  writes when the wishlist is not currently shared with any group.
 - Another reader cannot take a claim over, and the wishlist owner is not bound by the rule.
   There is no separate claim document. The rule itself is in `docs/authorization.md`.
 - Item reads are gated on the parent wishlist (rule in `docs/authorization.md`). A non-owner

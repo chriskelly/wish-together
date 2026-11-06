@@ -106,7 +106,7 @@ const int _maxDottedNameLength = 40;
 /// return (`permission-denied`, `ERROR_OPERATION_NOT_SUPPORTED`). This is a
 /// **shape gate for a structured field, not a general PII classifier**, and it
 /// is defence in depth behind the typed events. It drops values shaped like the
-/// secrets this app handles: names, uids, document ids, phone numbers and free text:
+/// sensitive identifiers this app must never send:
 ///
 /// - a bare all-digit value, or digit groups joined by `-`/`.` — phone-shaped;
 /// - a bare alphanumeric token of 16+ characters — uid- or document-id-shaped;

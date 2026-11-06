@@ -124,7 +124,7 @@ class SentryStartup {
   String? get dist =>
       isStaging ? null : distNameFor(identity.platform, identity.build);
 
-  /// Applies the Sentry values. Kept in one place so the contract is testable.
+  /// Applies the Sentry values. Kept in one place so the policy is testable.
   void configure(SentryFlutterOptions options) {
     options
       ..dsn = dsn

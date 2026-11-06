@@ -139,11 +139,11 @@ is a secret and authorises the upload.
   archive holds no dSYM: the plugin uploads what it finds and would otherwise succeed having
   uploaded nothing. `ios-<build>` is the dist the app reports, not a tag on the upload.
 - Staging carries no release and no dist on purpose: it uploads no symbols, so an
-  identity would name a build Sentry cannot symbolicate. `.github/workflows/ci-
-  web.yml` treats a fork or Dependabot PR as untrusted — a fork by head repository,
-  Dependabot by PR author — so such a build compiles without diagnostics and deploys
-  nothing. A same-repo run whose variable is missing fails rather than deploying a
-  silent bundle.
+  identity would name a build Sentry cannot symbolicate.
+  `.github/workflows/ci-web.yml` treats a fork or Dependabot PR as untrusted — a fork by
+  head repository, Dependabot by PR author — so such a build compiles without diagnostics
+  and deploys nothing. A same-repo run whose variable is missing fails rather than
+  deploying a silent bundle.
 
 ## Known blind spots
 

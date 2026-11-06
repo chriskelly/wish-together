@@ -50,8 +50,8 @@ from breaking quietly.
   App Check activation are not part of that bound.
 - **Diagnostics:** a launch reports **exactly one** decision record, and the first result
   wins. A check that hits the timeout reports `failedOpen/check-failed`; the abandoned
-  `_check` is not allowed to append a contradictory second record, and a retry keeps the
-  decision is not reported again (the service is a launch-time singleton). An allowed/blocked decision is
+  `_check` is not allowed to append a contradictory second record, and a retry does not
+  report a second decision (the service is a launch-time singleton). An allowed/blocked decision is
   a breadcrumb; every fail-open path (including a missing update URL) is
   `result: failedOpen`, which the Sentry policy treats as a warning event. A non-integer
   `min_supported_build` makes that same record `failedOpen` with `reason: min-not-integer`

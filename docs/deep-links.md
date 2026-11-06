@@ -5,7 +5,7 @@ entitlements that must agree with it. Read before changing a link path, the AASA
 file, or a hosting config.
 
 The app receives iOS Universal Links through `app_links`, not Flutter's built-in handler
-(`FlutterDeepLinkingEnabled` is **false** in `Info.plist`; two handlers would navigate
+(`FlutterDeepLinkingEnabled` is **false** in `ios/Runner/Info.plist`; two handlers would navigate
 twice).
 
 - The canonical URL is `<origin>/join?group=<id>` (plus `/group/<id>` and `/wishlist/<id>`).

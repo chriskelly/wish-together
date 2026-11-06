@@ -40,7 +40,7 @@ staging `staging`); phone OTP, Google on web and App Check; tests with `flutter_
 
 | Action | Command |
 | ------ | ------- |
-| Format, analyze | `dart format .` · `flutter analyze` |
+| Install, format, analyze | `flutter pub get` · `dart format .` · `flutter analyze` |
 | Run all tests | `flutter test` |
 | Run one area, or one file | `flutter test test/features/auth` · `flutter test <path/to/file>_test.dart` |
 | Run the Firestore rules tests | `cd rules_tests && npm ci && npm test` (needs Node 22+ and a JDK; regenerate its lockfile with that Node's npm, or `npm ci` fails in CI) |

@@ -52,11 +52,11 @@ String sessionIdFromBytes(List<int> bytes) {
   return buffer.toString();
 }
 
-/// The part of the session id a user reads out loud (§4.4).
+/// The part of the session id a user reads out loud.
 String supportCodeFor(String sessionId) =>
     sessionId.substring(0, min(supportCodeLength, sessionId.length));
 
-/// The §4.4 `user_ref`: the first 12 hex characters of `sha256(uid)`.
+/// The `user_ref`: the first 12 hex characters of `sha256(uid)`.
 ///
 /// The uid itself is never stored or reported; see `AppLog.setUserRef`.
 String userRefForUid(String uid) =>
@@ -64,7 +64,7 @@ String userRefForUid(String uid) =>
 
 final RegExp _userRefShape = RegExp(r'^[0-9a-f]{12}$');
 
-/// Whether [value] has the shape of a derived §4.4 user reference.
+/// Whether [value] has the shape of a derived user reference.
 bool isUserRef(String value) => _userRefShape.hasMatch(value);
 
 /// The identifiers of one app launch.

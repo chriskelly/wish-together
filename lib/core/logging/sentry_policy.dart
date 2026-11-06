@@ -43,7 +43,7 @@ const Set<String> _sdkProvenanceTags = <String>{
 bool _isAllowedEventTag(String key) =>
     logRecordKeys.contains(key) || _sdkProvenanceTags.contains(key);
 
-/// The §4.2 level of a record.
+/// The reporting level of a record.
 SentryLevel sentryLevelFor(LogRecord record) => switch (record.event) {
   ErrorEvent() => SentryLevel.error,
   FirestoreErrorEvent() => SentryLevel.warning,
@@ -52,7 +52,7 @@ SentryLevel sentryLevelFor(LogRecord record) => switch (record.event) {
   _ => SentryLevel.info,
 };
 
-/// The six scope tags of §4.5.
+/// The six Sentry scope tags.
 ///
 /// `user_ref` is absent when signed out, which is what makes
 /// `LiveSentryTransport` remove the tag instead of leaving the previous
@@ -130,8 +130,8 @@ SentryEvent? scrubEvent(SentryEvent event, Hint hint) {
   }
   // Contexts are an allowlist, not a subtraction: Flutter's error-details
   // context carries free `informationCollector` text (a typed name, a text
-  // span), and the device context carries a human device name. §4.3 allows the
-  // OS class/version and the app version/build, nothing else.
+  // span), and the device context carries a human device name. The allowlist
+  // permits the OS class/version and the app version/build, nothing else.
   final os = event.contexts['os'];
   final app = event.contexts['app'];
   event.contexts.clear();
@@ -152,8 +152,8 @@ SentryEvent? scrubEvent(SentryEvent event, Hint hint) {
   // Neither is ever set by this app's sink.
   event.transaction = null;
   event.culprit = null;
-  // A native scope can copy these onto a Dart event, and `fingerprint` is part
-  // of the epic's outbound-field list. This app sets none of them.
+  // A native scope can copy these onto a Dart event, and `fingerprint` is an
+  // outbound field this app never intentionally uses. It sets none of them.
   event.fingerprint = null;
   event.logger = null;
   event.serverName = null;

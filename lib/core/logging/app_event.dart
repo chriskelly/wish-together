@@ -1,4 +1,4 @@
-/// The closed vocabulary of things the app reports (§4.2).
+/// The closed vocabulary of things the app reports.
 ///
 /// Every event is a typed class with typed fields; there is deliberately no
 /// free-form `String message` on the privacy-sensitive path. `sealed` means a

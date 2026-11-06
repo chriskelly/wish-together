@@ -117,7 +117,7 @@ An empty result is **never** proof. Check, in order:
 
 Known blind spots make an empty search a non-answer for some paths: a native iOS crash before the
 app emits its first record, and a browser-captured JavaScript error, carry no `support_code` at all.
-See `AGENTS.md` → Diagnostics → Known blind spots.
+See `docs/diagnostics.md` → Known blind spots.
 
 ## 6. Report
 

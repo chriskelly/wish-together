@@ -545,13 +545,13 @@ class AuthService implements AuthSession {
   /// Reports a failed sign-in attempt with its provider and structured code.
   ///
   /// The identifier the user typed is never passed: only the code, which is
-  /// what S4's auth-failure alert counts.
+  /// what the auth-failure alert counts.
   void _reportAuthFailure(AuthOutcome outcome, Object error) {
     final code = readErrorCode(error);
     appLogOrNull?.event(
       AuthStateEvent(
         outcome: outcome,
-        // A cancellation is a breadcrumb, not an S4 auth-failure event.
+        // A cancellation is a breadcrumb, not an auth-failure event.
         code: _authCancellationCodes.contains(code) ? null : code,
       ),
     );

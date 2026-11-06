@@ -8,7 +8,7 @@ description: Enable real phone and Google sign-in on ONE Firebase Hosting previe
 Make **one** preview host work for real sign-in — phone OTP and Google — then
 undo it. CI never allowlists a preview host; an operator may do it here, locally,
 for one host at a time, and revert afterwards. The persistent, always-authorized
-host is the staging site (see `AGENTS.md` → "Staging environment").
+host is the staging site (see `docs/staging.md`).
 
 > **This mutates production Firebase config** for the project in `.firebaserc`
 > (Auth authorized domains and the browser API key's HTTP referrers). It is a
@@ -45,7 +45,7 @@ steps.**
   lack one of those. The script sends `x-goog-user-project` on the Identity
   Toolkit calls (which require it for user credentials).
 - The preview host from `firebase hosting:channel:list --json` (or the URL that
-  `ci-web.yml` commented on the PR) — **copy the exact host**, e.g.
+  `.github/workflows/ci-web.yml` commented on the PR) — **copy the exact host**, e.g.
   `wish-together-project--pr-12-abcde.web.app`.
 
 ## Usage
@@ -75,7 +75,7 @@ change, and backs the current key JSON up (on `--apply`) to
 PATCH fails, read the backup and the printed revert command before retrying.
 
 The pure logic (set math, the host guard, and URL construction) is covered by
-`scripts/preview-auth.test.sh` — stubbed `curl`/`gcloud`, no network:
+`.agents/skills/preview-auth/scripts/preview-auth.test.sh` — stubbed `curl`/`gcloud`, no network:
 
 ```sh
 bash .agents/skills/preview-auth/scripts/preview-auth.test.sh

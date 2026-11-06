@@ -50,9 +50,9 @@ node_modules/
 # firebase
 .firebase/
 
-# Local working docs (never committed)
-docs/specs/
-docs/plans/
+# Local specs and plans (never committed)
+.agents/specs/
+.agents/plans/
 
 # One-off dev-session entrypoints and their fixtures: unreferenced by anything
 # else, so a fresh clone compiles without them.

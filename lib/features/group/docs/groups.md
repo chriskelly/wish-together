@@ -1,7 +1,8 @@
-# Group — Overview
+# Groups and invitations
 
-Groups are how users share wishlists with family and friends. A group is a named set of
-members identified by Firebase Auth uid; wishlists are shared *into* a group.
+Scope: group membership, the invite link, and sharing a wishlist into a group.
+Read before touching `lib/features/group/` or the `/join` route. Paths are
+relative to `lib/features/group/`, then to the repository root.
 
 ## Responsibility
 
@@ -14,10 +15,10 @@ members identified by Firebase Auth uid; wishlists are shared *into* a group.
 
 | Layer | Files |
 | ----- | ----- |
-| `domain/` | `group.dart` |
-| `data/` | `group_repository.dart` |
-| `application/` | `create_group_use_case.dart`, `join_group_use_case.dart`, `leave_group_use_case.dart`, `update_group_use_case.dart`, `share_wishlist_with_group_use_case.dart` |
-| `presentation/` | `group_form_page.dart`, `group_details_page.dart`, `join_group_page.dart` |
+| `domain/` | `domain/group.dart` |
+| `data/` | `data/group_repository.dart` |
+| `application/` | `application/create_group_use_case.dart`, `application/join_group_use_case.dart`, `application/leave_group_use_case.dart`, `application/update_group_use_case.dart`, `application/share_wishlist_with_group_use_case.dart` |
+| `presentation/` | `presentation/group_form_page.dart`, `presentation/group_details_page.dart`, `presentation/join_group_page.dart` |
 
 ## Key types
 
@@ -51,8 +52,8 @@ members identified by Firebase Auth uid; wishlists are shared *into* a group.
   uses the current origin; native uses `https://wishtogether.gift`. On iOS the URL is a
   Universal Link (`app_links`); the router receives the location `/join?group=<groupId>` and
   preserves it as `redirect_to` through login, verification, and profile, so an invited,
-  not-yet-onboarded user still lands on the join page. Legacy `/#/join?…` links are not
-  supported and land on `/`.
+  not-yet-onboarded user still lands on the join page. Legacy hash links are not
+  supported (`docs/deep-links.md`).
 - Accepting an invite for a group the viewer already belongs to goes straight to that
   group's details page. The navigation is reported as a replacement, so on web the invite
   entry is replaced rather than stacked and Back does not return to `/join`. There is no

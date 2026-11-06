@@ -22,7 +22,7 @@ import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
 /// - the paged cascade in `WishlistRepository.deleteWithItems` (the 501-item
 ///   case), in `test/features/wishlist/data/wishlist_repository_test.dart`;
 /// - the divergence list an agent reads before trusting a fake-mode success, in
-///   `lib/dev/OVERVIEW.md`.
+///   `lib/dev/docs/limits.md`.
 ///
 /// The last group pins behaviour where the fake *differs* from Firestore. Those
 /// tests are not assertions that the fake is right: they fail loudly if a

@@ -191,7 +191,7 @@ class AppUpdateService {
   /// `check-failed` and returns, but `_check` keeps running and would append a
   /// second, contradictory record (a reproduced `failedOpen/check-failed`
   /// followed by `blocked`), which puts two decisions on one launch and fakes a
-  /// block into S4's alert family. One service instance is one launch, so the
+  /// block into the alert family. One service instance is one launch, so the
   /// latch is per instance and a retry keeps the first decision.
   void _report(UpdateGateEvent event) {
     if (_decisionReported) {

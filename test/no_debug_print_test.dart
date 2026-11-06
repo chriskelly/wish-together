@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-/// The one file allowed to print: S1's console sink.
+/// The one file allowed to print: the console sink.
 const String consoleSinkPath = 'lib/core/logging/log_sink.dart';
 
 /// Matches every way `lib/` could write to the console without the facade.

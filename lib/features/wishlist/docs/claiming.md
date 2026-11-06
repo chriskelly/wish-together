@@ -1,7 +1,9 @@
-# Wishlist — Overview
+# Wishlists and claiming
 
-Wishlists and their items, plus the spoiler-free gift-claiming behavior that is the heart
-of the product.
+Scope: wishlist and item models, the spoiler-free claim flow, and the rules that
+gate a claim. Read before touching `lib/features/wishlist/` or how a claim is
+written. Paths are relative to `lib/features/wishlist/`, then to the repository
+root.
 
 ## Responsibility
 
@@ -14,10 +16,10 @@ of the product.
 
 | Layer | Files |
 | ----- | ----- |
-| `domain/` | `wishlist.dart`, `item.dart` |
-| `data/` | `wishlist_repository.dart`, `item_repository.dart` |
-| `application/` | `create_wishlist_use_case.dart`, `update_wishlist_use_case.dart`, `create_item_use_case.dart`, `update_item_use_case.dart`, `claim_item_use_case.dart`, `claim_failure.dart`, `unclaim_item_use_case.dart` |
-| `presentation/` | `wishlist_form_page.dart`, `wishlist_details_page.dart`, `claim_failure_message.dart`, `item_form_page.dart` |
+| `domain/` | `domain/wishlist.dart`, `domain/item.dart` |
+| `data/` | `data/wishlist_repository.dart`, `data/item_repository.dart` |
+| `application/` | `application/create_wishlist_use_case.dart`, `application/update_wishlist_use_case.dart`, `application/create_item_use_case.dart`, `application/update_item_use_case.dart`, `application/claim_item_use_case.dart`, `application/claim_failure.dart`, `application/unclaim_item_use_case.dart` |
+| `presentation/` | `presentation/wishlist_form_page.dart`, `presentation/wishlist_details_page.dart`, `presentation/claim_failure_message.dart`, `presentation/item_form_page.dart` |
 
 ## Key types
 
@@ -44,7 +46,7 @@ of the product.
   The claim use cases report a `claimAction` phase (`started`, `completed`, or `denied` with
   the error code); `ClaimItemUseCase` throws a `ClaimFailure` whose reason is one of
   `accessDenied`, `offline`, `itemMissing`, `signedOut` or `unknown`, preserving the
-  write's stack trace. `claim_failure_message.dart` turns the thrown object into copy, so
+  write's stack trace. `presentation/claim_failure_message.dart` turns the thrown object into copy, so
   the claim path never prints the exception.
 
 ## Invariants
@@ -66,17 +68,13 @@ of the product.
 - Spoiler-free: the owner's details page defaults `_isSpoilerFree = true` and hides claimed
   status until toggled. A reader of a shared wishlist always sees the true status and can
   claim any unclaimed item, or unclaim one they claimed themselves; the rules deny claim
-  writes when the wishlist has never been shared and deny taking over another reader's
-  claim.
-- Another reader cannot take a claim over: the current claimer must unclaim first
-  (`claimedBy` and `claimedAt` back to null), or the rules deny the write. The wishlist
-  owner is not bound by this and can still edit or clear a claim. There is no separate
-  claim document.
-- Item reads are gated on the parent wishlist: its owner can always read the items, while
-  everyone else can read them only once the wishlist has been shared with a group. A
-  non-owner opening a never-shared wishlist therefore gets a permission error from the
-  items query instead of an empty list, and `WishlistDetailsPage` shows its error state
-  rather than the items.
+  writes when the wishlist is not currently shared with any group.
+- Another reader cannot take a claim over, and the wishlist owner is not bound by the rule.
+  There is no separate claim document. The rule itself is in `docs/authorization.md`.
+- Item reads are gated on the parent wishlist (rule in `docs/authorization.md`). A non-owner
+  opening a never-shared wishlist therefore gets a permission error from the items query
+  instead of an empty list, and `WishlistDetailsPage` shows its error state rather than the
+  items.
 
 ## Data flow
 

@@ -189,7 +189,7 @@ changes rather than deleting it.
    draft is allowed to be the version being released.
 3. The lane takes What's New from `fastlane/metadata/en-US/release_notes.txt`,
    clears that file on success, and resolves the build number from App Store
-   Connect. See the release section in `AGENTS.md`.
+   Connect. See `docs/release.md`.
 
 ## Traps
 

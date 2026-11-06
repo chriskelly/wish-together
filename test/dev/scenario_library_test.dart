@@ -303,7 +303,7 @@ void main() {
 
   group('the documented document ids', () {
     // The ids are a published contract: an agent deep-links to them and
-    // lib/dev/OVERVIEW.md lists them. A count assertion alone would stay
+    // lib/dev/docs/scenarios.md lists them. A count assertion alone would stay
     // green if a scheme changed, so each scenario's id set is pinned here.
 
     test(

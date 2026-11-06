@@ -24,7 +24,7 @@
 // so it is safe to run against any target at any time.
 //
 // While the data exists, any signed-in user can read it (wishlists are
-// enumerable by design — see AGENTS.md, "Authorization model"), so run
+// enumerable by design — see docs/authorization.md), so run
 // `--clean-only` after capturing screenshots.
 
 import { readFileSync } from 'node:fs';

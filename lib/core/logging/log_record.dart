@@ -24,7 +24,7 @@ class LogRecord {
     _ => null,
   };
 
-  /// The wire form used by every sink and by S2's scrubber.
+  /// The wire form used by every sink and by the Sentry scrubber.
   ///
   /// The session route and `user_ref` are gated here as well, so a
   /// hand-built `SessionContext` cannot put an id path or a raw uid on the

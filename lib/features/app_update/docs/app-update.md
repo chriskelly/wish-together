@@ -1,7 +1,11 @@
-# App update — Overview
+# App update gate
 
-The startup gate that can force an outdated client onto a newer build. When it
-blocks, the normal app is never mounted: the blocking screen is its own
+Scope: how the app decides to block an outdated client, the Remote Config keys
+it reads, and the runbook for raising the minimum. Read before touching
+`lib/features/app_update/` or publishing a Remote Config change. Paths are
+relative to `lib/features/app_update/`, then to the repository root.
+
+When the gate blocks, the normal app is never mounted: the blocking screen is its own
 `MaterialApp`, outside the router.
 
 ## Responsibility
@@ -46,8 +50,8 @@ from breaking quietly.
   App Check activation are not part of that bound.
 - **Diagnostics:** a launch reports **exactly one** decision record, and the first result
   wins. A check that hits the timeout reports `failedOpen/check-failed`; the abandoned
-  `_check` is not allowed to append a contradictory second record, and a retry keeps the
-  decision is not reported again (the service is a launch-time singleton). An allowed/blocked decision is
+  `_check` is not allowed to append a contradictory second record, and a retry does not
+  report a second decision (the service is a launch-time singleton). An allowed/blocked decision is
   a breadcrumb; every fail-open path (including a missing update URL) is
   `result: failedOpen`, which the Sentry policy treats as a warning event. A non-integer
   `min_supported_build` makes that same record `failedOpen` with `reason: min-not-integer`

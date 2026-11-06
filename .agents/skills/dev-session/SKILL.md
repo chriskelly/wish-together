@@ -90,7 +90,7 @@ Useful deep links:
 - `/wishlist/shr-l2?scenario=shared` — another member's list; `shr-i5` is claimed
   by a third member and `shr-i6` by the viewer.
 
-`lib/dev/OVERVIEW.md` has the same tables next to the fixtures.
+`lib/dev/docs/scenarios.md` has the same tables next to the fixtures.
 
 ## Drive it as a text-only agent
 
@@ -154,7 +154,7 @@ A **committed** scenario is one Dart module plus one registry line:
 4. Run `flutter test test/dev/dev_fixture_test.dart test/dev/scenario_library_test.dart`
    and add a mount test in `test/dev/scenario_urls_test.dart` for its start URL.
 5. Add rows to the layout, scenarios and document-id tables in
-   `lib/dev/OVERVIEW.md`, and to the scenario table in this skill.
+   `lib/dev/docs/scenarios.md`, and to the scenario table in this skill.
 
 A **private** scenario is a gitignored entrypoint, unreferenced by anything
 else, so a fresh clone compiles without it:
@@ -184,7 +184,7 @@ it; `flutter test` never compiles it. Changing it costs a restart, not a reload.
 ## Limits: what a fake-mode success does not prove
 
 Read this before reporting "works". The full divergence list is in
-`lib/dev/OVERVIEW.md`.
+`lib/dev/docs/limits.md`.
 
 - **Rules and composite indexes are not enforced.** A write production would
   deny succeeds here; a query that needs an index passes. Live mode is the check.

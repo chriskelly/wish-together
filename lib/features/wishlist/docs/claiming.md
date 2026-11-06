@@ -36,10 +36,9 @@ root.
 - `ItemRepository extends FirebaseRepository<Item>` — path
   `wishlists/{wishlistId}/items`; converts `claimedAt` between an ISO-8601 string (model)
   and a Firestore `Timestamp` (storage); `unclaim(itemId)` nulls `claimedBy` and
-  `claimedAt` in one update, and `claim(itemId, claimedBy:)` writes only that pair, with
-  `Timestamp.now()` as the timestamp. A claim never writes the rest of the item, so a
-  reader's stale copy or a document missing an optional field cannot make the write
-  invalid.
+  `claimedAt` in one update. `claim(itemId, claimedBy:)` sends a two-field update
+  (`claimedBy` and `claimedAt: Timestamp.now()`) without reading the item first, so a stale copy
+  or a document missing an optional field cannot make the write invalid.
 - Use cases: create/update wishlist; create/update item; `ClaimItemUseCase` (takes the
   item id and claims it for the current uid; `ItemRepository.claim` stamps `claimedAt`);
   `UnclaimItemUseCase`.
@@ -51,13 +50,13 @@ root.
 
 ## Invariants
 
-- Items are always scoped to a wishlist sub-collection; never query items globally.
-- Deleting a wishlist goes through `deleteWithItems`, because Firestore does not
-  remove a sub-collection when its parent document is deleted. It pages through
-  the items first, then deletes the wishlist; a write landing inside that window
-  is not covered (only a server-side cascade could close it). Its page read and
-  batch commit go through the `ItemRepository`'s protected reporting helpers, so
-  a failed cascade reports `firestoreError` records instead of failing silently.
+- `ItemRepository` is bound to `wishlists/{wishlistId}/items`; `WishlistRepository.items(id)` is
+  the only way pages reach it, so an item query always carries its parent.
+- `deleteWithItems` reads up to 500 items at a time, batch-deletes each page through the
+  `ItemRepository` reporting helpers, and deletes the wishlist once a page comes back empty. A
+  write landing after that empty read and before the parent delete is not covered; only a
+  server-side cascade could close that window. A failed page read or commit reports
+  `firestoreError` instead of failing silently.
 - An `Item` must have an id before it can be updated;
   `WishlistRepository.updateItemInWishlist` throws `ArgumentError` otherwise.
 - `claimedAt` is stored as a Firestore `Timestamp` but modeled as a `DateTime`; the
@@ -65,9 +64,9 @@ root.
   `fake_cloud_firestore` agree.
 - Owner-only UI: the add-item FAB, item edit/delete actions, wishlist edit, and the spoiler
   toggle appear only when `wishlist.ownerId == currentUserId`.
-- Spoiler-free: the owner's details page defaults `_isSpoilerFree = true` and hides claimed
-  status until toggled. A reader of a shared wishlist always sees the true status and can
-  claim any unclaimed item, or unclaim one they claimed themselves; the rules deny claim
+- `WishlistDetailsPage` defaults `_isSpoilerFree` to true for the owner's controls, while a reader's
+  item row goes straight to `_buildClaimedPill` or `_buildUserClaimedView`, so claimed status needs
+  no toggle. A reader can claim any unclaimed item or unclaim their own; the rules deny claim
   writes when the wishlist is not currently shared with any group.
 - Another reader cannot take a claim over, and the wishlist owner is not bound by the rule.
   There is no separate claim document. The rule itself is in `docs/authorization.md`.

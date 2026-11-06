@@ -84,10 +84,10 @@ nearest parent `AGENTS.md`.
 
 ## Testing
 
-Follow TDD for every feature and bugfix. A red must be **logical** — an assertion failure or a
-wrong value, not an import, missing symbol, or compile error; scaffold until it is logical and do
-not record the structural run. Test our logic, not framework wiring, trivial getters, or
-defaults; fakes and mocks are normal at boundaries.
+The user's explicit instruction outranks these rules. Follow TDD for every feature and bugfix. A
+red must be **logical** — an assertion failure or a wrong value, not an import, missing symbol, or
+compile error; scaffold until it is logical and do not record the structural run. Test our logic,
+not framework wiring, trivial getters, or defaults; fakes and mocks are normal at boundaries.
 
 - One behaviour per test, named after it; keep arrange / act / assert distinct, bind shared
   literals to a variable, and never assert against wall-clock time.

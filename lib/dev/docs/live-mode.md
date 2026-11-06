@@ -2,8 +2,8 @@
 
 Scope: signing a dev session in against real Auth and the staging Firestore
 database, its refusals, and the one port it can use. Read before a rules
-rehearsal or any check the fake cannot enforce. Paths are relative to `lib/dev/`
-unless they start with `lib/` or `test/`.
+rehearsal or any check the fake cannot enforce. Paths are relative to
+`lib/dev/`, then to the repository root.
 
 Live mode signs in for real, so it is the check for everything the fake cannot enforce: security
 rules, composite indexes, server timestamps, cross-client real-time fan-out, and the shape of real

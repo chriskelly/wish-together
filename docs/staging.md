@@ -1,8 +1,8 @@
 # Staging environment
 
-Scope: what the staging site is, how it deploys, the one-time setup it needs, and
-the demo dataset. Read before a staging dispatch, a rules rehearsal, or seeding
-demo data.
+Scope: what the staging site is, how it deploys, the one-time setup it needs,
+and the demo dataset. Read before a staging dispatch, a rules rehearsal, or
+seeding demo data.
 
 `https://wish-together-staging.web.app` is a persistent pre-merge environment where
 **real phone and Google sign-in work** (once the one-time allowlisting below is done). It

@@ -32,7 +32,7 @@ class CapturingTransport implements Transport {
 
 void main() {
   test('no free text survives beforeSend into the serialised event', () async {
-    // The options come from the real §4.5 configuration, so this test also
+    // The options come from the real Sentry configuration, so this test also
     // proves `SentryStartup.configure` installs the policy.
     final options = SentryFlutterOptions();
     SentryStartup.fromEnvironment(

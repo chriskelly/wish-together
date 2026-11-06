@@ -2,10 +2,7 @@
 
 Scope: group membership, the invite link, and sharing a wishlist into a group.
 Read before touching `lib/features/group/` or the `/join` route. Paths are
-relative to `lib/features/group/` unless they start with `lib/` or `test/`.
-
-Groups are how users share wishlists with family and friends. A group is a named set of
-members identified by Firebase Auth uid; wishlists are shared *into* a group.
+relative to `lib/features/group/`, then to the repository root.
 
 ## Responsibility
 

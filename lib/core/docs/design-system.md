@@ -2,8 +2,8 @@
 
 Scope: where a brand value lives, how Material slots are pinned from it, and the
 three primitives a theme cannot express. Read before changing a colour, the type
-scale, or a shared widget's look. Paths are relative to `lib/core/` unless they
-start with `lib/` or `test/`.
+scale, or a shared widget's look. Paths are relative to `lib/core/`, then to the
+repository root.
 
 The look comes from two files. `design_tokens.dart` is the only place a brand
 value is written; `theme.dart` turns those values into `lightTheme` and

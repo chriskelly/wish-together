@@ -2,12 +2,11 @@
 
 Scope: the typed event vocabulary, the facade, and which records reach Sentry as
 events. Read before adding an event, a sink, or a caller of `AppLog`. Paths are
-relative to `lib/core/logging/` unless they start with `lib/`, `test/` or
-`package:`.
+relative to `lib/core/logging/`, then to the repository root.
 
-The app's only reporting seam: typed events in, allowlisted records out. The facade is pure
-Dart (no Firebase, no network) so the privacy rules are unit-testable with a fake sink; the
-Sentry sink, its policy and the startup wiring are the files that know about the SDK.
+The facade is pure Dart (no Firebase, no network) so the privacy rules are unit-testable with a
+fake sink; the Sentry sink, its policy and the startup wiring are the files that know about the
+SDK.
 
 ## Responsibility
 

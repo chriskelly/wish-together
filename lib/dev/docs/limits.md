@@ -1,9 +1,9 @@
 # Dev limits and accessibility
 
 Scope: what a fake-mode success does not prove, the naming conventions that keep
-a screen drivable by a text-only agent, and the boundaries that keep dev code out
-of production. Read before reporting "works" from a dev session. Paths are
-relative to `lib/dev/` unless they start with `lib/` or `test/`.
+a screen drivable by a text-only agent, and the boundaries that keep dev code
+out of production. Read before reporting "works" from a dev session. Paths are
+relative to `lib/dev/`, then to the repository root.
 
 ## Divergences: what a fake-mode success does not prove
 

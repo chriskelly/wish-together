@@ -2,8 +2,8 @@
 
 Scope: running the in-memory backend, authoring a fixture, and what the fake
 Firestore actually serves. Read before adding a scenario or reporting that a
-screen "works" from a dev session. Paths are relative to `lib/dev/` unless they
-start with `lib/` or `test/`.
+screen "works" from a dev session. Paths are relative to `lib/dev/`, then to the
+repository root.
 
 ## Running it
 

@@ -2,14 +2,8 @@
 
 Scope: what a dev session is, the files that make it, and the six registered
 scenarios with the document ids each exposes. Read before opening a screen
-locally or adding a scenario. Paths are relative to `lib/dev/` unless they start
-with `lib/` or `test/`.
-
-A development entrypoint that boots the app **signed in**, on the real widgets, against one of
-two backends: an in-memory Firestore seeded from a Dart fixture (the default), or real Firebase
-Auth and real Firestore on a **named** database (live). It exists so an agent (or the user) can
-see, drive and screenshot any signed-in screen without a deployment, and can check real rules
-and queries when that is what matters.
+locally or adding a scenario. Paths are relative to `lib/dev/`, then to the
+repository root.
 
 ## Responsibility
 

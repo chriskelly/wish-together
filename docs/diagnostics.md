@@ -11,11 +11,11 @@ disclosure; this file is the operator view. The policy names **categories** of d
 features or event names — keep it that way, so shipping a screen does not require a policy
 edit.
 
-Nothing is reported without a DSN. `WT_SENTRY_DSN` is empty in local runs, in the test suite
-and in the checks that do not deploy (`.github/workflows/ci-ios.yml`, fork and Dependabot PRs), so Sentry is not
-initialised there at all (no SDK, no handlers, no network); a debug run reports only to the
-console. Builds that are deployed or shipped do carry one — see Builds, environments and
-source maps.
+Nothing is reported without a DSN. `WT_SENTRY_DSN` is empty in local runs, in the test
+suite and in the checks that do not deploy (`.github/workflows/ci-ios.yml`, fork and
+Dependabot PRs), so Sentry is not initialised there at all (no SDK, no handlers, no
+network); a debug run reports only to the console. Builds that are deployed or shipped
+do carry one — see Builds, environments and source maps.
 
 ## What is never reported by the app
 
@@ -72,9 +72,10 @@ true. Check them under **Settings**, organization and project.
   not promise longer without changing the policy.
 - **IP storage**: "Prevent Storing of IP Addresses" must be **on**. `sendDefaultPii: false` only
   stops the SDK attaching `user.ip_address`; the server enriches the event from the request
-  anyway. It was off once, and the only event then in the project carried `user.ip_address`
-  and `user.geo`. Re-check it before shipping a build that reports, or the policy's IP
-  sentence is false.
+  anyway. It was off until the only event then in the project was found carrying
+  `user.ip_address` and `user.geo`; it is now **on**, verified with a fresh event that carried
+  neither. Re-check it before shipping a build that reports, or the policy's IP sentence is
+  false.
 - **App Privacy answers** (App Store Connect, not a file): `Diagnostics → Crash Data` **Yes**,
   `Diagnostics → Other Diagnostic Data` **Yes**, linked to the user, not tracking, not
   advertising. `Identifiers → Device ID` is **Yes** for every iOS user while auto session
@@ -137,11 +138,12 @@ is a secret and authorises the upload.
   because Sentry pairs symbols with events by debug id. The lane refuses to ship when the
   archive holds no dSYM: the plugin uploads what it finds and would otherwise succeed having
   uploaded nothing. `ios-<build>` is the dist the app reports, not a tag on the upload.
-- Staging carries no release and no dist on purpose: it uploads no symbols, so an identity would
-  name a build Sentry cannot symbolicate. `.github/workflows/ci-web.yml` treats a fork or Dependabot PR as
-  untrusted — a fork by head repository, Dependabot by PR author — so such a build compiles
-  without diagnostics and deploys nothing. A same-repo run whose variable is missing fails
-  rather than deploying a silent bundle.
+- Staging carries no release and no dist on purpose: it uploads no symbols, so an
+  identity would name a build Sentry cannot symbolicate. `.github/workflows/ci-
+  web.yml` treats a fork or Dependabot PR as untrusted — a fork by head repository,
+  Dependabot by PR author — so such a build compiles without diagnostics and deploys
+  nothing. A same-repo run whose variable is missing fails rather than deploying a
+  silent bundle.
 
 ## Known blind spots
 

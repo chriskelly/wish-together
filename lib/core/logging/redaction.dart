@@ -1,6 +1,6 @@
 /// The allowlist, enforced inside the façade.
 ///
-/// `AppLog` serialises only these keys, and S2's `beforeSend`/`beforeBreadcrumb`
+/// `AppLog` serialises only these keys, and `beforeSend`/`beforeBreadcrumb`
 /// reuse this set instead of restating it, so one list governs both ends.
 const Set<String> logRecordKeys = <String>{
   'event',
@@ -106,7 +106,7 @@ const int _maxDottedNameLength = 40;
 /// return (`permission-denied`, `ERROR_OPERATION_NOT_SUPPORTED`). This is a
 /// **shape gate for a structured field, not a general PII classifier**, and it
 /// is defence in depth behind the typed events. It drops values shaped like the
-/// secrets §S3 names plus the two the contract check found:
+/// secrets this app handles: names, uids, document ids, phone numbers and free text:
 ///
 /// - a bare all-digit value, or digit groups joined by `-`/`.` — phone-shaped;
 /// - a bare alphanumeric token of 16+ characters — uid- or document-id-shaped;

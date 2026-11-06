@@ -9,7 +9,7 @@ stay opaque at its exact pixel size: the App Store rejects an icon with a transp
 channel.
 
 - **iOS:** fifteen PNGs in `ios/Runner/Assets.xcassets/AppIcon.appiconset/` cover the nineteen
-  entries in its `Contents.json`, because four iPad entries reuse an iPhone filename, so do not expect
+  entries in its Contents.json, because four iPad entries reuse an iPhone filename, so do not expect
   one file per entry. Each file is `points × scale` pixels, so `29x29@2x` is 58 px and is made
   with `sips -z 58 58 web/favicon.png --out <file>`; the 1024 marketing icon is a byte copy of
   the source.
@@ -33,6 +33,8 @@ channel.
   circle launchers guarantee, while the outer 18 dp of each 108 dp layer may be cropped. The
   background layer is `@color/ic_launcher_background` in
   `android/app/src/main/res/values/ic_launcher_background.xml`, also `#FFFCF0`.
-- **Verify:** run `sips -g pixelWidth -g pixelHeight -g hasAlpha` over every PNG under `web/`,
-  the iOS set and `android/app/src/main/res/mipmap-*`; every file must report `hasAlpha: no` at
-  the size its `ios/Runner/Assets.xcassets/AppIcon.appiconset/Contents.json` entry, density bucket or inner/layer pair names.
+- **Verify:** run `sips -g pixelWidth -g pixelHeight -g hasAlpha` over every PNG under
+  `web/`, the iOS set and `android/app/src/main/res/mipmap-*`; every file must report
+  `hasAlpha: no` at the size its
+  `ios/Runner/Assets.xcassets/AppIcon.appiconset/Contents.json` entry, density bucket
+  or inner/layer pair names.

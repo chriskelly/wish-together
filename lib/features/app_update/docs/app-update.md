@@ -1,12 +1,11 @@
 # App update gate
 
-Scope: how the app decides to block an outdated client, the Remote Config keys it
-reads, and the runbook for raising the minimum. Read before touching
+Scope: how the app decides to block an outdated client, the Remote Config keys
+it reads, and the runbook for raising the minimum. Read before touching
 `lib/features/app_update/` or publishing a Remote Config change. Paths are
-relative to `lib/features/app_update/` unless they start with `lib/` or `test/`.
+relative to `lib/features/app_update/`, then to the repository root.
 
-The startup gate that can force an outdated client onto a newer build. When it
-blocks, the normal app is never mounted: the blocking screen is its own
+When the gate blocks, the normal app is never mounted: the blocking screen is its own
 `MaterialApp`, outside the router.
 
 ## Responsibility

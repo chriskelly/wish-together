@@ -1,9 +1,8 @@
 # CI and signing
 
-Scope: the workflows that deploy the web app and sign iOS builds, with the secrets
-and pinned versions they use. Read before changing one of those workflows, a
-secret, or a lane. `.github/workflows/lint.yml` (actionlint, dev-script and Fastlane gates) is a
-separate, small workflow.
+Scope: the workflows that gate a PR, deploy the web app, and sign iOS builds, with the
+secrets and pinned versions they use. Read before changing one of those workflows, a
+secret, or a lane.
 
 ## Web
 
@@ -17,7 +16,8 @@ deletes the preview channel when the PR closes. Both authenticate with the
 `google-github-actions/auth`, and pin the Flutter and firebase-tools versions in the
 workflow `env`. Coverage is uploaded as the `coverage-lcov` artifact and is **report-only**
 (no threshold). Preview deploys are skipped for pull requests from forks and Dependabot,
-which do not receive repository secrets.
+which do not receive repository secrets. `.github/workflows/lint.yml` separately runs
+actionlint, the dev-script tests and the Fastlane gates.
 
 ## iOS
 
@@ -50,11 +50,12 @@ upload, which also reads the `SENTRY_DSN` variable (see `docs/diagnostics.md`).
 `aps-environment` is `production` in `Runner.entitlements` (Release/Profile, used by
 TestFlight) and `development` in `Runner-Debug.entitlements` (Debug).
 
-Security posture: `.github/workflows/testflight-release.yml` runs the *PR's* `fastlane/Fastfile` and app code
-with the `match` signing key, App Store Connect API key and Sentry auth token in the
-environment. It is restricted to same-repo pull requests and the `no-deploy` label opts a PR
-out — but anyone who can push a branch reaches those secrets' effects. Add a GitHub
-`environment` with required reviewers if that needs a human gate.
+Security posture: `.github/workflows/testflight-release.yml` runs the *PR's*
+`fastlane/Fastfile` and app code with the `match` signing key, App Store Connect API key
+and Sentry auth token in the environment. It is restricted to same-repo pull requests
+and the `no-deploy` label opts a PR out — but anyone who can push a branch reaches those
+secrets' effects. Add a GitHub `environment` with required reviewers if that needs a
+human gate.
 
 ## One-time local setup
 

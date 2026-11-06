@@ -1,8 +1,8 @@
 # Redaction and the allowlist
 
-Scope: what may reach Sentry, the shape gates every field passes through, and the
-two SDK callbacks that re-check the record. Read before adding a wire key or an
-event field.
+Scope: what may reach Sentry, the shape gates every field passes through, and
+the two SDK callbacks that re-check the record. Read before adding a wire key or
+an event field.
 
 ## The allowlist
 

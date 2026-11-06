@@ -2,10 +2,7 @@
 
 Scope: what `lib/core/` is responsible for, its key types, and the startup order
 that wires them. Read before adding a shared type or changing `lib/main.dart`.
-Paths below are relative to `lib/core/` unless they start with `lib/` or `test/`.
-
-Shared infrastructure and the composition roots that wire the app together. Nothing here
-is a feature; features import from `core/`.
+Paths are relative to `lib/core/`, then to the repository root.
 
 ## Responsibility
 

@@ -1,12 +1,9 @@
 # Auth flows
 
-Scope: how a user signs in with phone, Google or Apple, how the profile is saved,
-and how account deletion runs. Read before changing a provider, a sign-in page,
-or the deletion cascade. Paths are relative to `lib/features/auth/` unless they
-start with `lib/` or `test/`.
-
-Authentication, first-run onboarding, and the pages that frame the signed-in app (home and
-profile).
+Scope: how a user signs in with phone, Google or Apple, how the profile is
+saved, and how account deletion runs. Read before changing a provider, a sign-in
+page, or the deletion cascade. Paths are relative to `lib/features/auth/`, then
+to the repository root.
 
 ## Responsibility
 
@@ -106,13 +103,14 @@ opened another code page. A platform that never reports fails with a `TimeoutExc
   `VerificationPage`; an auto-verified credential signs the user in directly;
   `confirmPhoneCode` builds a `PhoneAuthProvider` credential and signs in with it.
 
-`VerificationPage` is pushed on top of `LoginPage`, so its `PrimaryAppBar` keeps the implied
-back action that returns to the number the user typed, still in the field. The push is imperative, so the web address bar keeps
-showing `/login` while the code page is up, and a reload returns to login — the page was never
-reloadable anyway, since it needs the verification id passed as route `extra`. Leaving the page
-discards a pending web sign-in, and a successful confirmation drops it too, so neither can be
-reused; a rejected code keeps it so the user can retry. The page also shows the session's
-support code: a wrong or expired code is an auth failure the user may have to report, and it is
+`VerificationPage` is pushed on top of `LoginPage`, so its `PrimaryAppBar` keeps the
+implied back action that returns to the number the user typed, still in the field. The
+push is imperative, so the web address bar keeps showing `/login` while the code page is
+up, and a reload returns to login — the page was never reloadable anyway, since it needs
+the verification id passed as route `extra`. Leaving the page discards a pending web
+sign-in, and a successful confirmation drops it too, so neither can be reused; a
+rejected code keeps it so the user can retry. The page also shows the session's support
+code: a wrong or expired code is an auth failure the user may have to report, and it is
 the one screen where that failure is most likely.
 
 On iOS, the Apple button (from `sign_in_with_apple`) calls `AuthService.signInWithApple`, which

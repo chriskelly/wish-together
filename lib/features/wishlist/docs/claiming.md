@@ -2,11 +2,8 @@
 
 Scope: wishlist and item models, the spoiler-free claim flow, and the rules that
 gate a claim. Read before touching `lib/features/wishlist/` or how a claim is
-written. Paths are relative to `lib/features/wishlist/` unless they start with
-`lib/` or `test/`.
-
-Wishlists and their items, plus the spoiler-free gift-claiming behavior that is the heart
-of the product.
+written. Paths are relative to `lib/features/wishlist/`, then to the repository
+root.
 
 ## Responsibility
 
@@ -71,15 +68,13 @@ of the product.
 - Spoiler-free: the owner's details page defaults `_isSpoilerFree = true` and hides claimed
   status until toggled. A reader of a shared wishlist always sees the true status and can
   claim any unclaimed item, or unclaim one they claimed themselves; the rules deny claim
-  writes when the wishlist has never been shared and deny taking over another reader's
-  claim.
+  writes when the wishlist has never been shared.
 - Another reader cannot take a claim over, and the wishlist owner is not bound by the rule.
   There is no separate claim document. The rule itself is in `docs/authorization.md`.
-- Item reads are gated on the parent wishlist: its owner can always read the items, while
-  everyone else can read them only once the wishlist has been shared with a group. A
-  non-owner opening a never-shared wishlist therefore gets a permission error from the
-  items query instead of an empty list, and `WishlistDetailsPage` shows its error state
-  rather than the items.
+- Item reads are gated on the parent wishlist (rule in `docs/authorization.md`). A non-owner
+  opening a never-shared wishlist therefore gets a permission error from the items query
+  instead of an empty list, and `WishlistDetailsPage` shows its error state rather than the
+  items.
 
 ## Data flow
 

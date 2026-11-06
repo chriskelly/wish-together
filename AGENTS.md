@@ -101,8 +101,8 @@ not record the structural run. Test our logic, not framework wiring, trivial get
 ## Local skills
 
 `.agents/skills/` holds `sentry-triage`, `preview-auth`, `dev-session` and `appstore-screenshots`,
-plus read-only submodules of the Flutter and Firebase Agent Skills. Never hand-edit a vendored
-one: this file wins on conflict. Run `git submodule update --init`, or `--remote`, in a checkout.
+plus read-only submodules of the Flutter and Firebase Agent Skills (never hand-edit one: this file
+wins on conflict; `git submodule update --init` in a fresh checkout, `--remote` then commit).
 
 ## Hard guardrails
 

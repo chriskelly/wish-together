@@ -73,7 +73,7 @@ void main() {
       expect(startup.dist, 'web-$webBuild');
     });
 
-    test('writes the §4.5 option values verbatim', () {
+    test('writes the Sentry option values verbatim', () {
       final startup = SentryStartup.fromEnvironment(
         identity: const BuildIdentity(build: webBuild, platform: 'web'),
         releaseMode: true,

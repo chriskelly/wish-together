@@ -1,8 +1,8 @@
 # Router
 
-Scope: the `go_router` graph, the redirect contract that gates onboarding, and the
-URL allowlist behind Universal Links. Read before adding a route or changing a
-redirect. Paths are relative to `lib/core/` unless they start with `lib/` or `test/`.
+Scope: the `go_router` graph, the redirect contract that gates onboarding, and
+the URL allowlist behind Universal Links. Read before adding a route or changing
+a redirect. Paths are relative to `lib/core/`, then to the repository root.
 
 `createRouter` builds a `GoRouter` whose `refreshListenable` re-evaluates on auth changes
 and whose `redirect` delegates to the pure function `handleRedirect(uriString, AuthSession,

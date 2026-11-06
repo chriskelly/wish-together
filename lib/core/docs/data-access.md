@@ -2,8 +2,7 @@
 
 Scope: the repository base class, how a Firestore instance is chosen, and the
 reporting contract every query honours. Read before adding a repository method
-or a query. Paths are relative to `lib/core/` unless they start with `lib/` or
-`test/`.
+or a query. Paths are relative to `lib/core/`, then to the repository root.
 
 ## `FirebaseRepository<T>`
 
@@ -38,8 +37,8 @@ app code — repositories are only constructed by `setupServiceLocator`.
 
 ## Invariants
 
-- Every domain model declares its `collectionName` and provides `copyWith`, `toMap` and a
-  `fromMap` factory, and imports neither Flutter nor Firebase.
+- Every persisted model — user, group, wishlist and item — declares its `collectionName` and
+  provides `copyWith`, `toMap` and a `fromMap` factory, and imports neither Flutter nor Firebase.
 - `FirebaseRepository.instance` is `late final`, assigned once in the constructor.
 - `FirebaseRepository.collectionName` is what a diagnostics event reports; the path never is,
   because a nested path (`wishlists/<id>/items`) contains a document id.

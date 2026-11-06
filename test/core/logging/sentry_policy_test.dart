@@ -105,7 +105,7 @@ void main() {
       expect(
         breadcrumb.data!.keys.every(logRecordKeys.contains),
         isTrue,
-        reason: 'breadcrumb data must stay inside the §4.3 allowlist',
+        reason: 'breadcrumb data must stay inside the allowlist',
       );
     });
 
@@ -129,7 +129,7 @@ void main() {
       expect(
         event.tags!.keys.every(logRecordKeys.contains),
         isTrue,
-        reason: 'event tags must stay inside the §4.3 allowlist',
+        reason: 'event tags must stay inside the allowlist',
       );
     });
 
@@ -182,7 +182,7 @@ void main() {
   });
 
   group('scopeTagsFor', () {
-    test('names the six scope tags of §4.5', () {
+    test('names the six Sentry scope tags', () {
       expect(scopeTagsFor(session()), <String, String>{
         'support_code': testSession.supportCode,
         'session_id': testSession.sessionId,
@@ -307,7 +307,7 @@ void main() {
       );
     });
 
-    test('rebuilds contexts to the §4.3 allowlist', () {
+    test('rebuilds contexts to the allowlist', () {
       final event = SentryEvent(
         tags: const {'event': 'error'},
         contexts: Contexts()

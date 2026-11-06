@@ -1,8 +1,8 @@
 # Auth platform prerequisites
 
 Scope: the Firebase and Apple configuration each sign-in method needs, and the
-compile-time stubs that keep one codebase building on every platform. Read before
-enabling a provider or testing auth on a deployed host.
+compile-time stubs that keep one codebase building on every platform. Read
+before enabling a provider or testing auth on a deployed host.
 
 Web phone auth requires the app's host to be listed in **Firebase Auth → Settings →
 Authorized domains** — the reCAPTCHA check fails with `unauthorized-domain` otherwise.

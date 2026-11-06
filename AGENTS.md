@@ -95,8 +95,8 @@ not record the structural run. Test our logic, not framework wiring, trivial get
   and fallback values in `setUpAll` for any type passed to `any()` or `captureAny()`.
 - Repositories: `FakeFirebaseFirestore` through the `firestore:` constructor argument. Router:
   the pure `handleRedirect` with mocked `AuthSession` and `UserRepository`.
-- Widget tests cover the login page and the app-update screen (broader coverage is backlog);
-  mirror `lib/` under `test/` as `<file>_test.dart`. These rules outrank any skill's checklist.
+- Widget tests cover the auth, update, group and wishlist pages; golden coverage is backlog.
+  Mirror `lib/` under `test/` as `<file>_test.dart`. These rules outrank any skill's checklist.
 
 ## Local skills
 

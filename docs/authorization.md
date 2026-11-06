@@ -14,8 +14,8 @@ if you own it. The owner is `ownerId` on a wishlist or a group, the parent wishl
 - A group owner may hand the group to another member and remove themselves in the same
   write. That is the only way `ownerId` changes, and it exists so a group survives its
   owner deleting their account.
-- On an item, the gate is: the parent wishlist's owner, or a reader of a wishlist that has
-  been shared with a group. That reader may set the claim fields (`claimedBy`,
+- On an item, the gate is: the parent wishlist's owner, or a reader of a wishlist that is
+  shared with a group. That reader may set the claim fields (`claimedBy`,
   `claimedAt`) for themselves, and only as a pair: a claim carries a timestamp, and an
   unclaimed item has neither. Another reader cannot take over a claim: if someone else has
   claimed the item, their write is denied until that person unclaims it. This bounds *other
@@ -31,7 +31,7 @@ their own group. Only the owner may rename a group.
 members-only (the group's members array must contain the caller; a second, owner-pinned
 list rule exists so `where('ownerId','==',uid)` stays provable — the owner is always a
 member, so the listable set is unchanged), and items are readable only by their
-wishlist's owner or when that wishlist has been shared with a group. Note
+wishlist's owner or when that wishlist is shared with a group. Note
 that the second exception constrains *item* reads only. A wishlist document is readable by
 any signed-in user, and that includes **listing the whole `wishlists` collection** — the
 app only queries the viewer's own wishlists and the wishlists shared with a group they

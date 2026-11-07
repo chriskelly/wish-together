@@ -68,12 +68,10 @@ root.
   item row goes straight to `_buildClaimedPill` or `_buildUserClaimedView`, so claimed status needs
   no toggle. A reader can claim any unclaimed item or unclaim their own; the rules deny claim
   writes when the wishlist is not currently shared with any group.
-- A reader's claimed item card is muted: the fill steps to `surfaceContainerHighest`, a 4px
-  edge marks it (brass for the viewer's own claim, muted ink for another member's), the title
-  and description use `onSurfaceVariant`, and the title is struck through. The edge is
-  decorative; the existing claim pill and the strike carry the state. The owner's view never
-  applies this treatment; the spoiler toggle changes only whether the claimed-date text is
-  shown.
+- A reader's claimed item card is muted: the fill steps to `surfaceContainerHighest`, the title
+  and description use `onSurfaceVariant`, and the title is struck through. The owner's view
+  never applies this treatment; the spoiler toggle changes only whether the claimed-date text
+  is shown.
 - Another reader cannot take a claim over, and the wishlist owner is not bound by the rule.
   There is no separate claim document. The rule itself is in `docs/authorization.md`.
 - Item reads are gated on the parent wishlist (rule in `docs/authorization.md`). A non-owner

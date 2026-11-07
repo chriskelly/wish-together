@@ -165,10 +165,6 @@ class BrandPalette {
 abstract final class BrandGeometry {
   static const double radius = 6;
   static const double borderWidth = 2;
-
-  /// The left rule that marks a reader's claimed item card.
-  static const double claimedEdgeWidth = 4;
-
   static const double spacingXs = 4;
   static const double spacingSm = 8;
   static const double spacingMd = 16;

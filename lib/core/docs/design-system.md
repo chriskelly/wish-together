@@ -21,10 +21,10 @@ one palette each; `lib/main.dart`, the update gate and the dev notice pages pass
 | `canvas` | `surfaceContainerLowest`, `scaffoldBackgroundColor` | scaffold and app-bar ground |
 | `surface` | `surface`, `surfaceContainerLow`, `surfaceContainer`, `surfaceContainerHigh` | cards, dialogs, sheets |
 | `ink` | `onSurface` | body text, card outline, shadow |
-| `inkMuted` | `onSurfaceVariant` | subtitles, available, claimed by someone else, a reader's claimed card text and the other member's claim edge, enabled input borders |
+| `inkMuted` | `onSurfaceVariant` | subtitles, available, claimed by someone else, a reader's claimed card text, enabled input borders |
 | `primary` | `primary` | hero block, filled buttons, links, progress spinners |
 | `onPrimary` | `onPrimary` | text on primary |
-| `secondary` | `secondary` | claimed-by-you fill and card edge, FAB |
+| `secondary` | `secondary` | claimed-by-you fill, FAB |
 | `onSecondary` | `onSecondary` | text on secondary |
 | `outline` | `outline` | the 2px card border |
 | `outlineVariant` | `outlineVariant` | dividers, the empty placeholder |

@@ -7,7 +7,6 @@ import 'package:wishtogether/common/widgets/list_item_actions.dart';
 import 'package:wishtogether/common/widgets/primary_app_bar.dart';
 import 'package:wishtogether/common/widgets/status_pill.dart';
 import 'package:wishtogether/common/widgets/stream_list_builder.dart';
-import 'package:wishtogether/core/design_tokens.dart';
 import 'package:wishtogether/core/logging/diagnostics.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/domain/auth_session.dart';
@@ -134,7 +133,7 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
         ? (color: scheme.onSurfaceVariant, strikeThrough: true)
         : null;
 
-    Widget cardBody = Padding(
+    final cardBody = Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -147,30 +146,6 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
         ],
       ),
     );
-
-    if (applyClaimedTreatment) {
-      final edgeColor = item.claimedBy == _currentUserId
-          ? scheme.secondary
-          : scheme.onSurfaceVariant;
-      // The Card paints its 2px outline in the foreground, so the strip starts
-      // after it. It sits in the content's left padding, so claiming an item
-      // does not move the text.
-      cardBody = Stack(
-        children: [
-          cardBody,
-          Positioned(
-            left: BrandGeometry.borderWidth,
-            top: 0,
-            bottom: 0,
-            width: BrandGeometry.claimedEdgeWidth,
-            child: ColoredBox(
-              key: ValueKey('claimed-edge-${item.id}'),
-              color: edgeColor,
-            ),
-          ),
-        ],
-      );
-    }
 
     return BrandCard(
       key: ValueKey(item.id),

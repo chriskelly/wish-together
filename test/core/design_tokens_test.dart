@@ -224,7 +224,6 @@ void main() {
   test('geometry matches the design foundation', () {
     expect(BrandGeometry.radius, 6);
     expect(BrandGeometry.borderWidth, 2);
-    expect(BrandGeometry.claimedEdgeWidth, 4);
     expect(BrandGeometry.spacingXs, 4);
     expect(BrandGeometry.spacingSm, 8);
     expect(BrandGeometry.spacingMd, 16);

@@ -130,20 +130,28 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildItemNameAndUrl(item),
-            (item.description != null && item.description!.isNotEmpty)
-                ? _buildItemDescription(item)
-                : (item.url != null && item.url!.isNotEmpty)
-                ? const SizedBox(
-                    height: 16,
-                  ) // Ensure there's space between url and actions
-                : const SizedBox.shrink(),
+            // One area per card lets a drag select across the name, link and
+            // description. The action row stays outside it, so its buttons keep
+            // their own long-press behaviour.
+            SelectionArea(child: _buildItemText(item)),
             _buildItemActions(item, isOwner, context),
           ],
         ),
       ),
     );
   }
+
+  Widget _buildItemText(Item item) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _buildItemNameAndUrl(item),
+      (item.description != null && item.description!.isNotEmpty)
+          ? _buildItemDescription(item)
+          : (item.url != null && item.url!.isNotEmpty)
+          ? const SizedBox(height: 16) // Space between url and actions
+          : const SizedBox.shrink(),
+    ],
+  );
 
   Widget _buildItemNameAndUrl(Item item) {
     // The Row first allocates the fixed 8px spacing.

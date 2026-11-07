@@ -33,15 +33,10 @@ const USAGE = `Usage: npm run migrate:claims -- [options]
   --help              print this message
 
 Requires GOOGLE_APPLICATION_CREDENTIALS for ${PROJECT_ID}. Items that already
-have a claims map are skipped, so a rerun is safe.`;
+have a claims map are skipped unless a limit is missing or legacy keys remain.`;
 
 /// A mistake in how the command was invoked. The CLI maps it to exit 2.
-class UsageError extends Error {
-  constructor(message) {
-    super(message);
-    this.name = 'UsageError';
-  }
-}
+class UsageError extends Error {}
 
 function splitFlag(arg) {
   const equals = arg.startsWith('--') ? arg.indexOf('=') : -1;
@@ -145,10 +140,6 @@ function resolveMode(options) {
   return options.yes ? 'apply' : 'dry-run';
 }
 
-function isProduction(databaseId) {
-  return databaseId === PRODUCTION_DATABASE;
-}
-
 /// The service-account credentials for this project, or a refusal that names
 /// what is wrong. Nothing is read at import time.
 function requireCredentials(env = process.env) {
@@ -196,17 +187,24 @@ function isPlainObject(value) {
   return prototype === Object.prototype || prototype === null;
 }
 
-/// The fields to write for one legacy item, or null when it is already migrated.
-/// A claimed uid without a usable timestamp is repaired with [now]; the new UI
-/// stores that date but does not display it.
+/// The fields to write for one legacy item, or null when there is nothing to
+/// write. A claimed uid without a usable timestamp is repaired with [now]; the
+/// new UI stores that date but does not display it.
 export function planItem(data, now = Timestamp.now()) {
   if (isPlainObject(data.claims)) {
-    // Already migrated. A map that still carries the legacy keys is cleaned up,
-    // so a rerun converges instead of leaving verify to report them forever.
-    if (!Object.hasOwn(data, 'claimedBy') && !Object.hasOwn(data, 'claimedAt')) {
-      return null;
+    // Already migrated. A missing limit or leftover legacy keys are written so a
+    // rerun converges instead of leaving verify to report them forever.
+    const cleanup = {};
+    if (!Object.hasOwn(data, 'claimLimit')) {
+      cleanup.claimLimit = 1;
     }
-    return { claimedBy: FieldValue.delete(), claimedAt: FieldValue.delete() };
+    if (Object.hasOwn(data, 'claimedBy')) {
+      cleanup.claimedBy = FieldValue.delete();
+    }
+    if (Object.hasOwn(data, 'claimedAt')) {
+      cleanup.claimedAt = FieldValue.delete();
+    }
+    return Object.keys(cleanup).length > 0 ? cleanup : null;
   }
   if (data.claims !== undefined && data.claims !== null) {
     throw new Error('claims is not a map');
@@ -247,6 +245,12 @@ export function verifyItem(data) {
     problems.push('missing claimLimit');
   } else if (!Number.isInteger(data.claimLimit) || data.claimLimit < 0) {
     problems.push(`invalid claimLimit ${String(data.claimLimit)}`);
+  } else if (
+    isPlainObject(data.claims) &&
+    data.claimLimit > 0 &&
+    Object.keys(data.claims).length > data.claimLimit
+  ) {
+    problems.push(`claims exceed claimLimit ${data.claimLimit}`);
   }
   if (Object.hasOwn(data, 'claimedBy')) {
     problems.push('leftover claimedBy');
@@ -369,7 +373,7 @@ export async function main(
 
   try {
     log.log(`Target: ${PROJECT_ID}/${options.databaseId} (${mode})`);
-    if (isProduction(options.databaseId)) {
+    if (options.databaseId === PRODUCTION_DATABASE) {
       log.warn(
         'Target is the PRODUCTION database. Pass --database staging to rehearse.',
       );

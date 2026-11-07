@@ -267,6 +267,14 @@ test('an item with no legacy keys at all is migrated to an empty map', () => {
   assert.equal(plan.claimLimit, 1);
 });
 
+test('a claims map without a limit gets one, so a rerun converges', () => {
+  assert.deepEqual(planItem({ claims: {} }), { claimLimit: 1 });
+  assert.deepEqual(
+    Object.keys(planItem({ claims: {}, claimedBy: null })),
+    ['claimLimit', 'claimedBy'],
+  );
+});
+
 test('an already migrated item with leftover legacy keys is only cleaned up', () => {
   const plan = planItem({
     claims: {},
@@ -282,12 +290,14 @@ test('an already migrated item with leftover legacy keys is only cleaned up', ()
 
 test('a non-map claims value stops the run instead of being skipped', () => {
   assert.throws(() => planItem({ claims: 'nope' }), /claims is not a map/);
+  assert.throws(() => planItem({ claims: 42 }), /claims is not a map/);
   assert.throws(() => planItem({ claims: Timestamp.now() }), /claims is not a map/);
   assert.throws(() => planItem({ claims: [Timestamp.now()] }), /claims is not a map/);
 });
 
 test('a claimedBy that is not a non-empty string stops the run', () => {
   assert.throws(() => planItem({ claimedBy: 123 }), /claimedBy is not a string/);
+  assert.throws(() => planItem({ claimedBy: {} }), /claimedBy is not a string/);
   assert.throws(() => planItem({ claimedBy: '' }), /claimedBy is not a string/);
 });
 
@@ -325,6 +335,13 @@ test('verifyItem names every malformed field', () => {
   assert.deepEqual(verifyItem({ claims: {}, claimLimit: 1.5 }), [
     'invalid claimLimit 1.5',
   ]);
+  assert.deepEqual(
+    verifyItem({
+      claims: { a: Timestamp.now(), b: Timestamp.now() },
+      claimLimit: 1,
+    }),
+    ['claims exceed claimLimit 1'],
+  );
   assert.deepEqual(verifyItem({ claims: { 'uid-1': 'yesterday' }, claimLimit: 1 }), [
     'invalid claim timestamp for uid-1',
   ]);
@@ -471,4 +488,11 @@ test('a verify with no problems exits zero and with problems exits one', async (
 
 test('a verify that scans zero items fails', async () => {
   assert.equal(await main(['--verify'], deps(fakeDb([]))), 1);
+});
+
+test('a limited apply writes at most the limit', async () => {
+  const db = fakeDb(documents(5));
+
+  assert.equal(await main(['--yes', '--limit', '2'], deps(db)), 0);
+  assert.equal(db.batches.flat().length, 2);
 });

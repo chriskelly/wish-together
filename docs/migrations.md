@@ -26,16 +26,18 @@ After:
 
 - `claimedBy`/`claimedAt` are deleted, not written as `null`.
 - A claimed uid without a usable `claimedAt` is repaired with the run time.
-- An item with a claims map is skipped; if it still carries the legacy keys, the
-  run deletes only those, so a rerun converges.
+- An item with a claims map is not re-claimed. A missing `claimLimit` or
+  leftover legacy keys are the only things written for it (counted as planned,
+  not skipped), so a rerun converges.
 - A non-null, non-map `claims` value stops the run and names the document,
   because no later run could repair it.
 - Writes are 400-document batches committed in order. The first failed batch
   stops the run and reports how many items were written before it.
 
 The new UI does not display claim dates, so a repaired timestamp is not
-user-visible. Until an already-open web tab reloads, the old build reads the
-deleted `claimedBy` as unclaimed and shows migrated claimed items as available.
+user-visible. Until the new web build is deployed and any open tab reloads, the
+old build reads the deleted `claimedBy` as unclaimed: it shows migrated claimed
+items as available, and a claim from it fails.
 
 Run the script from `scripts/`:
 
@@ -55,9 +57,10 @@ GOOGLE_APPLICATION_CREDENTIALS=~/path/to/service-account.json \
 | `--print-target` | Prints the resolved database and exits |
 | `--help` | Prints the usage |
 
-Exit codes: `0` success, `1` verification problems, a malformed document or a
-failed batch, `2` usage, target or credential refusal. A verify that scans zero
-items also exits 1: it has checked nothing, so check the target.
+Exit codes: `0` success; `1` verification problems, a malformed document, a
+failed batch or any other run failure; `2` usage, target or credential refusal.
+A verify that scans zero items also exits 1: it has checked nothing, so check
+the target.
 
 The `items` collection-group query is the one sanctioned exception to the
 wishlist area rule against global item reads. Client code must still never query
@@ -93,14 +96,18 @@ missed, and a deleted item aborts a batch.
 
 The freeze is a few minutes of item edits and claims being read-only, not an
 outage. Record the previous ruleset id so the rollback can redeploy it. Deploy
-it as an uncommitted edit to `firestore.rules`:
+it as an uncommitted edit to `firestore.rules`; production uses the default
+config and staging its own:
 
 ```sh
 firebase deploy --only firestore:rules --project wish-together-project
+firebase deploy --only firestore:rules --config firebase.staging.json \
+  --project wish-together-project
 ```
 
-CI publishes `master`'s rules whenever a push touches that file, so hold rules
-merges until the freeze is lifted.
+CI publishes `master`'s rules whenever a push touches `firestore.rules`,
+`firebase.json`, `rules_tests/` or the rules workflow, so hold those merges
+until the freeze is lifted.
 
 ## Staging rehearsal
 
@@ -117,8 +124,8 @@ merges until the freeze is lifted.
 The iOS app is live, so the release window includes an App Store build.
 
 1. Rehearse on `staging`, including the restore, and verify the counts.
-2. In App Store Connect, set the approved claims-aware build to manual release.
-   Do not submit it until the data and rules are in place.
+2. Confirm the claims-aware build is approved and set to manual release in App
+   Store Connect. Do not release it until the data and rules are in place.
 3. Deploy the freeze to production; record the prior ruleset id.
 4. Export production to the backup bucket, with `--database="(default)"`.
 5. Run the dry run against production and read the counts:
@@ -136,13 +143,15 @@ The iOS app is live, so the release window includes an App Store build.
    npm run migrate:claims -- --database "(default)" --verify
    ```
 
-8. Deploy the final rules, then the web build.
+8. Restore `firestore.rules` from git, then deploy the final rules, then the web
+   build.
 9. Smoke test on web: a reader claims, unclaims, a full item shows unavailable,
    and the owner edits an item without dropping a claim.
 10. Release the iOS build in the same window.
 11. Only after the build is available in the App Store, set
     `min_supported_build` and publish Remote Config with the App Store
-    `update_url`.
+    `update_url`; confirm a build below the minimum shows the update screen on
+    its next launch.
 12. Keep the export for a few days, then delete it.
 
 The minimum-build gate is iOS-only, runs at startup only, fails open (no
@@ -156,5 +165,7 @@ While frozen: import the export, then redeploy the previous rules. Nothing has
 shipped yet, so the old app still reads the legacy fields.
 
 After the release: import the export, redeploy the previous rules and hosting
-release. Once the claims-aware iOS build is live, a data rollback needs a
-follow-up build, so release iOS only after `--verify` is clean.
+release, and restore the previous `min_supported_build` value (publish Remote
+Config) so the older build can read the legacy fields. Once the claims-aware iOS
+build is live, a data rollback needs a follow-up build, so release iOS only
+after `--verify` is clean.

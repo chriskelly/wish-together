@@ -22,6 +22,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:wishtogether/features/wishlist/presentation/item_form_page.dart';
 import 'package:wishtogether/features/wishlist/presentation/wishlist_form_page.dart';
 
+typedef _ClaimedText = ({Color color, bool strikeThrough});
+
 class WishlistDetailsPage extends StatefulWidget {
   static const String routeName = 'wishlistDetails';
   static const String route = '/wishlist/:id';
@@ -122,38 +124,64 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
     Wishlist wishlist,
     bool isOwner,
   ) {
+    final scheme = Theme.of(context).colorScheme;
+    // The owner's view never changes: the claimed-date text is the only claim
+    // signal there. A reader always sees claims, so the card itself carries the
+    // state.
+    final applyClaimedTreatment = !isOwner && item.claimedBy != null;
+    final claimedText = applyClaimedTreatment
+        ? (color: scheme.onSurfaceVariant, strikeThrough: true)
+        : null;
+
+    final cardBody = Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // One area per card lets a drag select across the name, link and
+          // description. The action row stays outside it, so its buttons keep
+          // their own long-press behaviour.
+          SelectionArea(child: _buildItemText(item, claimedText: claimedText)),
+          _buildItemActions(item, isOwner, context),
+        ],
+      ),
+    );
+
     return BrandCard(
       key: ValueKey(item.id),
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // One area per card lets a drag select across the name, link and
-            // description. The action row stays outside it, so its buttons keep
-            // their own long-press behaviour.
-            SelectionArea(child: _buildItemText(item)),
-            _buildItemActions(item, isOwner, context),
-          ],
-        ),
-      ),
+      backgroundColor: applyClaimedTreatment
+          ? scheme.surfaceContainerHighest
+          : null,
+      child: cardBody,
     );
   }
 
-  Widget _buildItemText(Item item) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      _buildItemNameAndUrl(item),
-      (item.description != null && item.description!.isNotEmpty)
-          ? _buildItemDescription(item)
-          : (item.url != null && item.url!.isNotEmpty)
-          ? const SizedBox(height: 16) // Space between url and actions
-          : const SizedBox.shrink(),
-    ],
-  );
+  Widget _buildItemText(Item item, {required _ClaimedText? claimedText}) =>
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildItemNameAndUrl(item, claimedText: claimedText),
+          (item.description != null && item.description!.isNotEmpty)
+              ? _buildItemDescription(
+                  item,
+                  claimedTextColor: claimedText?.color,
+                )
+              : (item.url != null && item.url!.isNotEmpty)
+              ? const SizedBox(height: 16) // Space between url and actions
+              : const SizedBox.shrink(),
+        ],
+      );
 
-  Widget _buildItemNameAndUrl(Item item) {
+  Widget _buildItemNameAndUrl(Item item, {required _ClaimedText? claimedText}) {
+    final titleStyle = Theme.of(context).textTheme.titleLarge?.copyWith(
+      color: claimedText?.color,
+      decoration: (claimedText?.strikeThrough ?? false)
+          ? TextDecoration.lineThrough
+          : null,
+      decorationColor: claimedText?.color,
+    );
+
     // The Row first allocates the fixed 8px spacing.
     // The Flexible URL takes half the space if there is a url.
     // The Expanded name takes all space if there is no url.
@@ -162,12 +190,7 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Text(
-              item.name,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-          ),
+          Expanded(child: Text(item.name, style: titleStyle)),
           if (item.url != null && item.url!.isNotEmpty) ...[
             const SizedBox(width: 8),
             Flexible(
@@ -193,7 +216,13 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
     );
   }
 
-  Widget _buildItemDescription(Item item) => Text(item.description!);
+  Widget _buildItemDescription(Item item, {required Color? claimedTextColor}) {
+    final style = claimedTextColor == null
+        ? null
+        : Theme.of(context).textTheme.bodyMedium
+              ?.copyWith(color: claimedTextColor);
+    return Text(item.description!, style: style);
+  }
 
   Widget _buildItemActions(Item item, bool isOwner, BuildContext context) {
     final bool isClaimed = item.claimedBy != null;

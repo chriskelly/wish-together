@@ -68,6 +68,10 @@ root.
   item row goes straight to `_buildClaimedPill` or `_buildUserClaimedView`, so claimed status needs
   no toggle. A reader can claim any unclaimed item or unclaim their own; the rules deny claim
   writes when the wishlist is not currently shared with any group.
+- A reader's claimed item card is muted: the fill steps to `surfaceContainerHighest`, the title
+  and description use `onSurfaceVariant`, and the title is struck through. The owner's view
+  never applies this treatment; the spoiler toggle changes only whether the claimed-date text
+  is shown.
 - Another reader cannot take a claim over, and the wishlist owner is not bound by the rule.
   There is no separate claim document. The rule itself is in `docs/authorization.md`.
 - Item reads are gated on the parent wishlist (rule in `docs/authorization.md`). A non-owner
@@ -99,7 +103,9 @@ shared with a group appears in that group's details page because of
 - `test/features/wishlist/presentation/` — `claimFailureMessage` copy and its fallback for
   a thrown object that is not a `ClaimFailure`; `wishlist_details_page_test` pins the two
   reader claim states (`StatusPill` accent beside Unclaim, neutral for someone else's), the
-  unclaimed case, each item row's `BrandCard` at the page's margin, the owner-only bar
-  controls, and the claim row fitting a 320 px phone at 1.3 text scale.
+  unclaimed case, the reader's muted and struck-through claimed card in light and dark, the
+  owner's card staying unmarked in both spoiler modes, each item row's `BrandCard` at the
+  page's margin, the owner-only bar controls, and the claim row fitting a 320 px phone at 1.3
+  text scale.
 - `rules_tests/` — a whole-map claim carrying stale content is denied, documenting the
   denial the pair-only write avoids; the rules themselves are unchanged.

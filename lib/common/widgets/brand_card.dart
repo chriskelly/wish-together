@@ -12,7 +12,17 @@ class BrandCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry? margin;
 
-  const BrandCard({super.key, required this.child, this.margin});
+  /// The fill of the inner [Card]. Defaults to [ColorScheme.surfaceContainerLow];
+  /// a state that needs a different surface step passes its own token here. The
+  /// fill stays on the [Card] so its Material ink is preserved.
+  final Color? backgroundColor;
+
+  const BrandCard({
+    super.key,
+    required this.child,
+    this.margin,
+    this.backgroundColor,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +49,7 @@ class BrandCard extends StatelessWidget {
         child: Card(
           margin: EdgeInsets.zero,
           elevation: 0,
-          color: scheme.surfaceContainerLow,
+          color: backgroundColor ?? scheme.surfaceContainerLow,
           clipBehavior: Clip.antiAlias,
           shape: RoundedRectangleBorder(
             borderRadius: BrandGeometry.corners,

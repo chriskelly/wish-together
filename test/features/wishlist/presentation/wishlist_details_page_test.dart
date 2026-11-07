@@ -66,13 +66,23 @@ void main() {
     tearDown(getIt.reset);
 
     /// Pumps the page for an item stream that has already emitted [items].
-    Future<void> pumpPage(WidgetTester tester, List<Item> items) async {
+    Future<void> pumpPage(
+      WidgetTester tester,
+      List<Item> items, {
+      ThemeData? theme,
+      bool asOwner = false,
+    }) async {
+      if (asOwner) {
+        when(
+          () => wishlistRepository.streamOne(wishlistId),
+        ).thenAnswer((_) => Stream.value(wishlist.copyWith(ownerId: viewerId)));
+      }
       when(() => itemRepository.streamAll())
           .thenAnswer((_) => Stream.value(items));
 
       await tester.pumpWidget(
         MaterialApp(
-          theme: lightTheme,
+          theme: theme ?? lightTheme,
           home: const WishlistDetailsPage(wishlistId: wishlistId),
         ),
       );
@@ -81,6 +91,20 @@ void main() {
 
     /// The margin the page gives every item row.
     const itemMargin = EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0);
+
+    /// The Material card that carries the item row's fill.
+    Card cardOf(WidgetTester tester, String name) => tester.widget<Card>(
+      find.descendant(
+        of: find.ancestor(
+          of: find.text(name),
+          matching: find.byType(BrandCard),
+        ),
+        matching: find.byType(Card),
+      ),
+    );
+
+    Text titleOf(WidgetTester tester, String name) =>
+        tester.widget<Text>(find.text(name));
 
     StatusPillTone toneOf(WidgetTester tester, String label) =>
         tester.widget<StatusPill>(find.widgetWithText(StatusPill, label)).tone;
@@ -176,6 +200,214 @@ void main() {
 
       expect(find.text('Claim'), findsOneWidget);
       expect(find.byType(StatusPill), findsNothing);
+    });
+
+    group('claimed card treatment for readers', () {
+      const claimedItemId = 'item-1';
+
+      for (final (claimer, claimedBy) in <(String, String)>[
+        ('another member', otherReaderId),
+        ('the viewer', viewerId),
+      ]) {
+        testWidgets(
+          "mutes a claimed item's card fill for a reader when $claimer claimed it",
+          (tester) async {
+            await pumpPage(tester, [
+              Item(
+                id: claimedItemId,
+                name: itemName,
+                claimedBy: claimedBy,
+                claimedAt: DateTime.utc(2026, 11, 1),
+              ),
+            ]);
+
+            expect(
+              cardOf(tester, itemName).color,
+              lightTheme.colorScheme.surfaceContainerHighest,
+            );
+          },
+        );
+
+        testWidgets(
+          "mutes and strikes a claimed item's title for a reader when $claimer claimed it",
+          (tester) async {
+            await pumpPage(tester, [
+              Item(
+                id: claimedItemId,
+                name: itemName,
+                claimedBy: claimedBy,
+                claimedAt: DateTime.utc(2026, 11, 1),
+              ),
+            ]);
+
+            final scheme = lightTheme.colorScheme;
+            expect(
+              titleOf(tester, itemName).style?.color,
+              scheme.onSurfaceVariant,
+            );
+            expect(
+              titleOf(tester, itemName).style?.decoration,
+              TextDecoration.lineThrough,
+            );
+          },
+        );
+
+        testWidgets(
+          "mutes a claimed item's description for a reader when $claimer claimed it",
+          (tester) async {
+            const description = 'Handmade ceramic mug';
+            await pumpPage(tester, [
+              Item(
+                id: claimedItemId,
+                name: itemName,
+                description: description,
+                claimedBy: claimedBy,
+                claimedAt: DateTime.utc(2026, 11, 1),
+              ),
+            ]);
+
+            expect(
+              tester.widget<Text>(find.text(description)).style?.color,
+              lightTheme.colorScheme.onSurfaceVariant,
+            );
+          },
+        );
+      }
+
+      testWidgets("leaves an unclaimed item's description un-muted", (
+        tester,
+      ) async {
+        const description = 'Handmade ceramic mug';
+        await pumpPage(tester, [
+          Item(id: claimedItemId, name: itemName, description: description),
+        ]);
+
+        expect(tester.widget<Text>(find.text(description)).style, isNull);
+      });
+
+      testWidgets("leaves the owner's description un-muted", (tester) async {
+        const description = 'Handmade ceramic mug';
+        await pumpPage(tester, [
+          Item(
+            id: claimedItemId,
+            name: itemName,
+            description: description,
+            claimedBy: otherReaderId,
+            claimedAt: DateTime.utc(2026, 11, 1),
+          ),
+        ], asOwner: true);
+
+        expect(tester.widget<Text>(find.text(description)).style, isNull);
+      });
+
+      testWidgets("leaves a reader's unclaimed item unchanged", (tester) async {
+        await pumpPage(tester, [Item(id: claimedItemId, name: itemName)]);
+
+        final scheme = lightTheme.colorScheme;
+        expect(cardOf(tester, itemName).color, scheme.surfaceContainerLow);
+        expect(titleOf(tester, itemName).style?.color, scheme.onSurface);
+        expect(
+          titleOf(tester, itemName).style?.decoration,
+          isNot(TextDecoration.lineThrough),
+        );
+        expect(find.text('Claim'), findsOneWidget);
+      });
+
+      testWidgets('uses the dark palette for a claimed reader item', (
+        tester,
+      ) async {
+        await pumpPage(tester, [
+          Item(
+            id: claimedItemId,
+            name: itemName,
+            claimedBy: otherReaderId,
+            claimedAt: DateTime.utc(2026, 11, 1),
+          ),
+        ], theme: darkTheme);
+
+        final scheme = darkTheme.colorScheme;
+        expect(cardOf(tester, itemName).color, scheme.surfaceContainerHighest);
+        expect(titleOf(tester, itemName).style?.color, scheme.onSurfaceVariant);
+      });
+
+      testWidgets('renders a claimed card at 320 px without overflowing', (
+        tester,
+      ) async {
+        tester.view.devicePixelRatio = 1.0;
+        tester.view.physicalSize = const Size(320, 640);
+        addTearDown(tester.view.reset);
+        tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+        const longName = 'A very long claimed item name that must wrap cleanly';
+        await pumpPage(tester, [
+          Item(
+            id: claimedItemId,
+            name: longName,
+            claimedBy: otherReaderId,
+            claimedAt: DateTime.utc(2026, 11, 1),
+          ),
+        ]);
+
+        expect(tester.takeException(), isNull);
+      });
+    });
+
+    testWidgets("does not restyle the owner's card when claims are revealed", (
+      tester,
+    ) async {
+      await pumpPage(tester, [
+        Item(
+          id: 'item-1',
+          name: itemName,
+          claimedBy: otherReaderId,
+          claimedAt: DateTime.utc(2026, 11, 1),
+        ),
+      ], asOwner: true);
+
+      await tester.tap(find.byTooltip('Show claimed status'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Claimed on'), findsOneWidget);
+      expect(
+        cardOf(tester, itemName).color,
+        lightTheme.colorScheme.surfaceContainerLow,
+      );
+      expect(
+        titleOf(tester, itemName).style?.color,
+        lightTheme.colorScheme.onSurface,
+      );
+      expect(
+        titleOf(tester, itemName).style?.decoration,
+        isNot(TextDecoration.lineThrough),
+      );
+    });
+
+    testWidgets("does not restyle the owner's card in the spoiler-free view", (
+      tester,
+    ) async {
+      await pumpPage(tester, [
+        Item(
+          id: 'item-1',
+          name: itemName,
+          claimedBy: otherReaderId,
+          claimedAt: DateTime.utc(2026, 11, 1),
+        ),
+      ], asOwner: true);
+
+      expect(find.textContaining('Claimed on'), findsNothing);
+      expect(
+        cardOf(tester, itemName).color,
+        lightTheme.colorScheme.surfaceContainerLow,
+      );
+      expect(
+        titleOf(tester, itemName).style?.color,
+        lightTheme.colorScheme.onSurface,
+      );
+      expect(
+        titleOf(tester, itemName).style?.decoration,
+        isNot(TextDecoration.lineThrough),
+      );
     });
 
     testWidgets('keeps the claim row inside the card at a raised text scale', (

@@ -33,6 +33,7 @@ staging `staging`); phone OTP, Google on web and App Check; tests with `flutter_
 | Where do crash reports go, and what is never reported? | `docs/diagnostics.md` |
 | What do the Firestore rules allow? | `docs/authorization.md` |
 | How do CI, staging and releases work? | `docs/ci.md` · `docs/staging.md` · `docs/release.md` |
+| How do I migrate Firestore data? | `docs/migrations.md` (one-off script, gcloud export/import, issue #143) |
 | App icons, invite links | `docs/icons.md` · `docs/deep-links.md` |
 | Real auth on a preview, listing screenshots | `.agents/skills/preview-auth/` · `.agents/skills/appstore-screenshots/` |
 

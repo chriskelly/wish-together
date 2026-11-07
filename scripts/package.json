@@ -6,6 +6,7 @@
   "scripts": {
     "seed:demo": "node seed-demo.mjs",
     "dev:token": "node dev-token.mjs",
+    "migrate:claims": "node migrate-claims.mjs",
     "rules:release": "node rules-release.mjs",
     "test": "node --test"
   },

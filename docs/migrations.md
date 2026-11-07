@@ -30,8 +30,8 @@ After:
   leftover legacy keys are the only things written for it (counted as planned,
   not skipped), so a rerun converges. A map with several claims but no limit
   stops the run, because no safe limit can be guessed.
-- A non-null, non-map `claims` value stops the run and names the document,
-  because no later run could repair it.
+- A non-null, non-map `claims` value, or a `claimedBy` that is not a non-empty
+  string, stops the run and names the document; no later run could repair it.
 - Writes are 400-document batches committed in order. The first failed batch
   stops the run and reports how many items were written before it.
 
@@ -50,7 +50,7 @@ GOOGLE_APPLICATION_CREDENTIALS=~/path/to/service-account.json \
 
 | Flag | Effect |
 | --- | --- |
-| none | Dry run: prints counts and the first ten paths, writes nothing |
+| none | Dry run: prints counts and the first ten planned paths, writes nothing |
 | `--yes` | Performs the migration |
 | `--verify` | Reads again; prints `path: problem` and exits 1 on any |
 | `--limit <n>` | Stops after n scanned items, for a canary |
@@ -95,9 +95,9 @@ deletes; reads stay available. Without the freeze an old client can write the
 legacy fields after its item was migrated, an item created during the run is
 missed, and a deleted item aborts a batch.
 
-The freeze is a few minutes of item edits and claims being read-only, not an
-outage. Record the previous ruleset id so the rollback can redeploy it. Deploy
-it as an uncommitted edit to `firestore.rules`:
+The freeze is a few minutes of item creates, edits and claims being refused,
+not an outage. Record the previous ruleset id so the rollback can redeploy it.
+Deploy it as an uncommitted edit to `firestore.rules`:
 
 ```sh
 # staging
@@ -110,8 +110,8 @@ firebase deploy --only firestore:rules --project wish-together-project
 
 CI publishes `master`'s rules whenever a push touches `firestore.rules`,
 `firebase.json`, `rules_tests/` or the rules workflow, and the web build
-publishes on merge. Merging the claims PRs is therefore the deploy: hold those
-merges until `--verify` is clean, and merge only inside the freeze window.
+publishes on merge. Merging the rules/app PRs (PR 2 onward) is therefore the
+deploy: hold them until `--verify` is clean and merge inside the freeze window.
 
 ## Staging rehearsal
 
@@ -124,8 +124,8 @@ merges until `--verify` is clean, and merge only inside the freeze window.
 5. Run the import once to prove the rollback, then repeat the migration and
    `--verify`.
 6. Redeploy the previous staging rules and reseed staging: it now holds
-   claims-shaped data, and a later claim under the old rules would be written in
-   the legacy shape and dropped by the next migration.
+   claims-shaped data, and a later claim from the old app under the old rules
+   would be written in the legacy shape and dropped by the next migration.
 
 ## Production order
 
@@ -152,7 +152,8 @@ The iOS app is live, so the release window includes an App Store build.
    ```
 
 8. Merge the claims PRs; CI deploys the final rules and the web build. Confirm
-   the deployed rules release id.
+   the rules release id. If the rules job fails, the freeze stays live: fix and
+   push before releasing iOS.
 9. Smoke test on web: a reader claims, unclaims, a full item shows unavailable,
    and the owner edits an item without dropping a claim.
 10. Release the iOS build in the same window.
@@ -169,9 +170,9 @@ already-open web tab is not gated and must reload for the new build.
 
 ## Rollback
 
-While frozen: import the export, then `git checkout -- firestore.rules` (master
-still holds the pre-freeze rules because rules merges are held) and deploy it,
-or restore the recorded ruleset id in the console. Nothing has shipped yet, so
+While frozen: import the export, then `git fetch && git checkout origin/master --
+firestore.rules` (master still holds the pre-freeze rules because rules merges
+are held) and deploy it, or restore the recorded ruleset id in the console. Nothing has shipped yet, so
 the old app still reads the legacy fields.
 
 After the release: import the export, restore the recorded pre-freeze ruleset id

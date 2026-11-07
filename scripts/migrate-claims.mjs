@@ -32,19 +32,12 @@ const USAGE = `Usage: npm run migrate:claims -- [options]
   --print-target      print the resolved database and exit
   --help              print this message
 
-Requires GOOGLE_APPLICATION_CREDENTIALS for ${PROJECT_ID}. Items that already
-have a claims map are skipped unless a limit is missing or legacy keys remain.`;
+Requires GOOGLE_APPLICATION_CREDENTIALS for ${PROJECT_ID}. An item that already
+has a claims map is not re-claimed; a multi-claim map without a limit stops the
+run.`;
 
 /// A mistake in how the command was invoked. The CLI maps it to exit 2.
 class UsageError extends Error {}
-
-function splitFlag(arg) {
-  const equals = arg.startsWith('--') ? arg.indexOf('=') : -1;
-  if (equals === -1) {
-    return [arg, null];
-  }
-  return [arg.slice(0, equals), arg.slice(equals + 1)];
-}
 
 function requireValue(argv, index, flag) {
   const value = argv[index];
@@ -88,10 +81,13 @@ export function parseArgs(argv) {
   };
 
   for (let index = 0; index < argv.length; index += 1) {
-    const [name, inline] = splitFlag(argv[index]);
-    if (!name.startsWith('--')) {
-      throw new UsageError(`Unexpected argument ${JSON.stringify(argv[index])}`);
+    const arg = argv[index];
+    if (!arg.startsWith('--')) {
+      throw new UsageError(`Unexpected argument ${JSON.stringify(arg)}`);
     }
+    const equals = arg.indexOf('=');
+    const name = equals === -1 ? arg : arg.slice(0, equals);
+    const inline = equals === -1 ? null : arg.slice(equals + 1);
     switch (name) {
       case '--database': {
         const value =
@@ -197,11 +193,12 @@ export function planItem(data, now = Timestamp.now()) {
   if (isPlainObject(data.claims)) {
     // Already migrated. A missing limit or leftover legacy keys are written so a
     // rerun converges instead of leaving verify to report them forever.
+    const claimCount = Object.keys(data.claims).length;
+    if (!Number.isInteger(data.claimLimit) && claimCount > 1) {
+      throw new Error('claims map has several claims but no claimLimit');
+    }
     const cleanup = {};
     if (!Object.hasOwn(data, 'claimLimit')) {
-      if (Object.keys(data.claims).length > 1) {
-        throw new Error('claims map has several claims but no claimLimit');
-      }
       cleanup.claimLimit = 1;
     }
     if (Object.hasOwn(data, 'claimedBy')) {
@@ -313,7 +310,9 @@ export async function runClaims({
       continue;
     }
     result.planned += 1;
-    planned.push({ ref: doc.ref, fields });
+    if (mode !== 'dry-run') {
+      planned.push({ ref: doc.ref, fields });
+    }
     if (mode === 'dry-run' && previewed < PREVIEW_COUNT) {
       log.log(`would update ${doc.ref.path}`);
       previewed += 1;

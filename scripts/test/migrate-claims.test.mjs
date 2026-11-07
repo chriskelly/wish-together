@@ -141,7 +141,7 @@ test('a missing credentials variable is named', () => {
   const result = run(['--limit', '1']);
 
   assert.equal(result.status, 2);
-  assert.match(result.stderr, /GOOGLE_APPLICATION_CREDENTIALS/);
+  assert.match(result.stderr, /Set GOOGLE_APPLICATION_CREDENTIALS/);
 });
 
 test("a credentials file from another project is refused, naming both", (t) => {
@@ -250,24 +250,19 @@ test('a claimed legacy item becomes one claim with the same timestamp', () => {
 });
 
 test('an unclaimed legacy item becomes an empty claims map', () => {
-  const plan = planItem({ claimedBy: null, claimedAt: null });
+  for (const data of [{ claimedBy: null, claimedAt: null }, {}]) {
+    const plan = planItem(data);
 
-  assert.deepEqual(plan.claims, {});
-  assert.equal(plan.claimLimit, 1);
-  assert.ok(plan.claimedBy.isEqual(FieldValue.delete()));
-  assert.ok(plan.claimedAt.isEqual(FieldValue.delete()));
+    assert.deepEqual(plan.claims, {});
+    assert.equal(plan.claimLimit, 1);
+    assert.ok(plan.claimedBy.isEqual(FieldValue.delete()));
+    assert.ok(plan.claimedAt.isEqual(FieldValue.delete()));
+  }
 });
 
 test('an already migrated item is skipped', () => {
   assert.equal(planItem({ claims: { 'uid-1': Timestamp.now() }, claimLimit: 1 }), null);
   assert.equal(planItem({ claims: {}, claimLimit: 1 }), null);
-});
-
-test('an item with no legacy keys at all is migrated to an empty map', () => {
-  const plan = planItem({});
-
-  assert.deepEqual(plan.claims, {});
-  assert.equal(plan.claimLimit, 1);
 });
 
 test('a single-claim map without a limit gets one, so a rerun converges', () => {
@@ -278,13 +273,15 @@ test('a single-claim map without a limit gets one, so a rerun converges', () => 
   );
 });
 
-test('a multi-claim map without a limit stops the run', () => {
+test('a multi-claim map without a numeric limit stops the run', () => {
   const claims = { a: Timestamp.now(), b: Timestamp.now() };
 
-  assert.throws(
-    () => planItem({ claims }),
-    /claims map has several claims but no claimLimit/,
-  );
+  for (const claimLimit of [undefined, null, '1']) {
+    assert.throws(
+      () => planItem({ claims, claimLimit }),
+      /claims map has several claims but no claimLimit/,
+    );
+  }
 });
 
 test('an already migrated item with leftover legacy keys is only cleaned up', () => {
@@ -321,12 +318,14 @@ test('a claimedAt of the wrong type is repaired with the run time', () => {
   assert.ok(plan.claims['uid-1'].isEqual(now));
 });
 
-test('a claimed uid without a timestamp is repaired with the run time', () => {
+test('a missing or wrong-typed claim timestamp is repaired with the run time', () => {
   const now = Timestamp.fromDate(new Date('2026-06-07T08:09:10Z'));
 
-  const plan = planItem({ claimedBy: 'uid-1' }, now);
+  for (const claimedAt of [undefined, '2026-01-01']) {
+    const plan = planItem({ claimedBy: 'uid-1', claimedAt }, now);
 
-  assert.ok(plan.claims['uid-1'].isEqual(now));
+    assert.ok(plan.claims['uid-1'].isEqual(now));
+  }
 });
 
 // --- verifyItem -----------------------------------------------------------

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Migrates legacy item claims ({ claimedBy, claimedAt }) to the multi-claim
 // shape ({ claims: { uid: Timestamp }, claimLimit: 1 }) once. Legacy keys are
-// deleted, an item with a claims map is skipped, and a rerun writes only the
-// remainder. Dry run unless --yes; the default target is staging. See
+// deleted, an item with a claims map is skipped (leftover legacy keys on it are
+// cleaned up), and a rerun writes only the remainder. Dry run unless --yes; the default target is staging. See
 // docs/migrations.md for the export, freeze and rollback runbook.
 
 import { readFileSync } from 'node:fs';
@@ -132,6 +132,9 @@ export function parseArgs(argv) {
       '--limit cannot be combined with --verify; a partial check is not a check',
     );
   }
+  if (options.verify && options.yes) {
+    throw new UsageError('--yes cannot be combined with --verify');
+  }
   return options;
 }
 
@@ -194,8 +197,8 @@ function isPlainObject(value) {
 }
 
 /// The fields to write for one legacy item, or null when it is already migrated.
-/// A claimed uid without a timestamp is repaired with [now]; the date is stored
-/// but never displayed.
+/// A claimed uid without a usable timestamp is repaired with [now]; the new UI
+/// stores that date but does not display it.
 export function planItem(data, now = Timestamp.now()) {
   if (isPlainObject(data.claims)) {
     // Already migrated. A map that still carries the legacy keys is cleaned up,
@@ -207,6 +210,13 @@ export function planItem(data, now = Timestamp.now()) {
   }
   if (data.claims !== undefined && data.claims !== null) {
     throw new Error('claims is not a map');
+  }
+  if (
+    data.claimedBy !== undefined &&
+    data.claimedBy !== null &&
+    (typeof data.claimedBy !== 'string' || data.claimedBy === '')
+  ) {
+    throw new Error('claimedBy is not a string');
   }
   const claimedAt = data.claimedAt instanceof Timestamp ? data.claimedAt : now;
   const claims = data.claimedBy ? { [data.claimedBy]: claimedAt } : {};
@@ -267,9 +277,6 @@ export async function runClaims({
 
   if (mode === 'verify') {
     for (const doc of snapshot.docs) {
-      if (limit !== null && result.scanned >= limit) {
-        break;
-      }
       result.scanned += 1;
       for (const problem of verifyItem(doc.data())) {
         result.problems.push(`${doc.ref.path}: ${problem}`);
@@ -335,7 +342,6 @@ export async function main(
     credentials = requireCredentials,
     openDb = openDatabase,
     log = console,
-    now = Timestamp.now(),
   } = {},
 ) {
   let options;
@@ -378,7 +384,6 @@ export async function main(
       mode,
       limit: options.limit,
       log,
-      now,
     });
 
     if (mode === 'verify') {
@@ -391,7 +396,7 @@ export async function main(
       log.log(
         `Scanned ${result.scanned} item(s); ${result.problems.length} problem(s).`,
       );
-      return result.problems.length > 0 ? 1 : 0;
+      return result.problems.length > 0 || result.scanned === 0 ? 1 : 0;
     }
 
     const limited = options.limit === null ? '' : ` (limited to ${options.limit})`;

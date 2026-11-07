@@ -26,14 +26,11 @@ function run(args, env = {}) {
   });
 }
 
-function credentialsFile(t, projectId) {
+function credentialsFile(t, fields) {
   const dir = mkdtempSync(join(tmpdir(), 'wt-claims-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const path = join(dir, 'service-account.json');
-  writeFileSync(
-    path,
-    JSON.stringify({ project_id: projectId, client_email: 'x@example.com' }),
-  );
+  writeFileSync(path, JSON.stringify(fields));
   return path;
 }
 
@@ -90,11 +87,11 @@ function documents(count) {
   );
 }
 
-function deps(db, { log = fakeLog(), now } = {}) {
+function deps(db) {
+  const log = fakeLog();
   return {
     log,
     env: {},
-    now,
     credentials: () => ({ project_id: PROJECT_ID }),
     openDb: () => db,
   };
@@ -148,7 +145,10 @@ test('a missing credentials variable is named', () => {
 });
 
 test("a credentials file from another project is refused, naming both", (t) => {
-  const path = credentialsFile(t, 'some-other-project');
+  const path = credentialsFile(t, {
+    project_id: 'some-other-project',
+    client_email: 'x@example.com',
+  });
 
   const result = run(['--limit', '1'], {
     GOOGLE_APPLICATION_CREDENTIALS: path,
@@ -159,11 +159,14 @@ test("a credentials file from another project is refused, naming both", (t) => {
   assert.match(result.stderr, new RegExp(PROJECT_ID));
 });
 
-test('--limit is refused with --verify', () => {
-  const result = run(['--verify', '--limit', '10']);
+test('--limit and --yes are refused with --verify', () => {
+  const limited = run(['--verify', '--limit', '10']);
+  const apply = run(['--verify', '--yes']);
 
-  assert.equal(result.status, 2);
-  assert.match(result.stderr, /--limit cannot be combined with --verify/);
+  assert.equal(limited.status, 2);
+  assert.match(limited.stderr, /--limit cannot be combined with --verify/);
+  assert.equal(apply.status, 2);
+  assert.match(apply.stderr, /--yes cannot be combined with --verify/);
 });
 
 test('a production run without --yes is a read-only dry run', async () => {
@@ -199,10 +202,7 @@ test('a production verify is allowed and warns', async () => {
 });
 
 test('a credentials file that is not a service-account key is refused', (t) => {
-  const dir = mkdtempSync(join(tmpdir(), 'wt-claims-key-'));
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const path = join(dir, 'not-a-key.json');
-  writeFileSync(path, JSON.stringify({ project_id: PROJECT_ID }));
+  const path = credentialsFile(t, { project_id: PROJECT_ID });
 
   const result = run(['--limit', '1'], {
     GOOGLE_APPLICATION_CREDENTIALS: path,
@@ -282,6 +282,13 @@ test('an already migrated item with leftover legacy keys is only cleaned up', ()
 
 test('a non-map claims value stops the run instead of being skipped', () => {
   assert.throws(() => planItem({ claims: 'nope' }), /claims is not a map/);
+  assert.throws(() => planItem({ claims: Timestamp.now() }), /claims is not a map/);
+  assert.throws(() => planItem({ claims: [Timestamp.now()] }), /claims is not a map/);
+});
+
+test('a claimedBy that is not a non-empty string stops the run', () => {
+  assert.throws(() => planItem({ claimedBy: 123 }), /claimedBy is not a string/);
+  assert.throws(() => planItem({ claimedBy: '' }), /claimedBy is not a string/);
 });
 
 test('a claimedAt of the wrong type is repaired with the run time', () => {
@@ -393,17 +400,19 @@ test('a malformed claims value stops the run with its document path', async () =
   assert.deepEqual(db.batches, []);
 });
 
-test('--yes through the CLI writes, and a failed batch exits 1', async () => {
-  const written = fakeDb([
-    fakeDoc('wishlists/w1/items/a', { claimedBy: 'uid-1' }),
-  ]);
-  const failing = fakeDb([fakeDoc('wishlists/w1/items/b', { claimedBy: null })], {
+test('--yes through the CLI writes', async () => {
+  const db = fakeDb([fakeDoc('wishlists/w1/items/a', { claimedBy: 'uid-1' })]);
+
+  assert.equal(await main(['--yes'], deps(db)), 0);
+  assert.equal(db.batches.flat()[0].fields.claimLimit, 1);
+});
+
+test('a failed batch through the CLI exits 1', async () => {
+  const db = fakeDb([fakeDoc('wishlists/w1/items/b', { claimedBy: null })], {
     failCommit: 1,
   });
 
-  assert.equal(await main(['--yes'], deps(written)), 0);
-  assert.equal(written.batches.flat()[0].fields.claimLimit, 1);
-  assert.equal(await main(['--yes'], deps(failing)), 1);
+  assert.equal(await main(['--yes'], deps(db)), 1);
 });
 
 test('--limit stops after N scanned documents', async () => {
@@ -458,4 +467,8 @@ test('a verify with no problems exits zero and with problems exits one', async (
 
   assert.equal(await main(['--verify'], clean), 0);
   assert.equal(await main(['--verify'], broken), 1);
+});
+
+test('a verify that scans zero items fails', async () => {
+  assert.equal(await main(['--verify'], deps(fakeDb([]))), 1);
 });

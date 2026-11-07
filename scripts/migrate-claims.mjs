@@ -1,0 +1,393 @@
+#!/usr/bin/env node
+// Migrates legacy item claims to the multi-claim shape, once.
+//
+// Before: { claimedBy?: string, claimedAt?: Timestamp }
+// After:  { claims: { [uid]: Timestamp }, claimLimit: 1 }
+//
+// The legacy keys are deleted, not written as null. A document that already has
+// a claims map is skipped, so the run is idempotent and a rerun after a partial
+// failure only writes what is left. The run is a dry run unless --yes is given.
+//
+// Usage (credentials are never stored in the repo):
+//
+//   cd scripts && npm ci
+//   GOOGLE_APPLICATION_CREDENTIALS=~/path/to/service-account.json \
+//     npm run migrate:claims -- --database staging
+//
+// The default target is staging. Production needs the explicit database and
+// --yes. See docs/migrations.md for the export, freeze and rollback runbook.
+
+import { readFileSync } from 'node:fs';
+
+import { cert, initializeApp } from 'firebase-admin/app';
+import {
+  FieldValue,
+  Timestamp,
+  getFirestore,
+} from 'firebase-admin/firestore';
+
+import { isEntryPoint } from './module-entry.mjs';
+import { STAGING_DATABASE, isNamedDatabaseId } from './staging-config.mjs';
+
+export const PROJECT_ID = 'wish-together-project';
+export const DEFAULT_DATABASE_ID = STAGING_DATABASE;
+const PRODUCTION_DATABASE = '(default)';
+const BATCH_SIZE = 400;
+const PREVIEW_COUNT = 10;
+
+export const USAGE = `Usage: npm run migrate:claims -- [options]
+
+  (no flags)          dry run against staging; writes nothing
+  --yes               perform the migration
+  --verify            read again and report problems; exits 1 on any
+  --limit <n>         stop after n items, for a canary run
+  --database <id>     a named database, or "(default)" (default "staging")
+  --print-target      print the resolved database and exit
+  --help              print this message
+
+Requires GOOGLE_APPLICATION_CREDENTIALS for ${PROJECT_ID}. Items that already
+have a claims map are skipped, so a rerun is safe.`;
+
+/// A mistake in how the command was invoked. The CLI maps it to exit 2.
+export class UsageError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'UsageError';
+  }
+}
+
+function splitFlag(arg) {
+  const equals = arg.startsWith('--') ? arg.indexOf('=') : -1;
+  if (equals === -1) {
+    return [arg, null];
+  }
+  return [arg.slice(0, equals), arg.slice(equals + 1)];
+}
+
+function requireValue(argv, index, flag) {
+  const value = argv[index];
+  if (!value || value.startsWith('--')) {
+    throw new UsageError(`${flag} needs a value`);
+  }
+  return value;
+}
+
+export function validateDatabaseId(raw) {
+  const id = String(raw ?? '').trim();
+  if (id === PRODUCTION_DATABASE) {
+    return id;
+  }
+  if (!isNamedDatabaseId(id)) {
+    throw new UsageError(
+      `Invalid --database ${JSON.stringify(id)}: expected a named database id, e.g. "staging", or "${PRODUCTION_DATABASE}".`,
+    );
+  }
+  return id;
+}
+
+function validateLimit(raw) {
+  const value = String(raw ?? '');
+  if (!/^[1-9]\d*$/.test(value)) {
+    throw new UsageError(
+      `Invalid --limit ${JSON.stringify(raw)}: expected a positive integer`,
+    );
+  }
+  return Number(value);
+}
+
+export function parseArgs(argv) {
+  const options = {
+    databaseId: DEFAULT_DATABASE_ID,
+    yes: false,
+    verify: false,
+    printTarget: false,
+    help: false,
+    limit: null,
+  };
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const [name, inline] = splitFlag(argv[index]);
+    if (!name.startsWith('--')) {
+      throw new UsageError(`Unexpected argument ${JSON.stringify(argv[index])}`);
+    }
+    switch (name) {
+      case '--database': {
+        const value =
+          inline === null ? requireValue(argv, (index += 1), name) : inline;
+        options.databaseId = validateDatabaseId(value);
+        break;
+      }
+      case '--limit': {
+        const value =
+          inline === null ? requireValue(argv, (index += 1), name) : inline;
+        options.limit = validateLimit(value);
+        break;
+      }
+      case '--yes':
+      case '--verify':
+      case '--print-target':
+      case '--help':
+        if (inline !== null) {
+          throw new UsageError(`${name} does not take a value`);
+        }
+        if (name === '--yes') options.yes = true;
+        if (name === '--verify') options.verify = true;
+        if (name === '--print-target') options.printTarget = true;
+        if (name === '--help') options.help = true;
+        break;
+      default:
+        throw new UsageError(`Unknown option ${name}`);
+    }
+  }
+
+  if (options.verify && options.limit !== null) {
+    throw new UsageError(
+      '--limit cannot be combined with --verify; a partial check is not a check',
+    );
+  }
+  return options;
+}
+
+function resolveMode(options) {
+  if (options.help) return 'help';
+  if (options.printTarget) return 'print-target';
+  if (options.verify) return 'verify';
+  return options.yes ? 'apply' : 'dry-run';
+}
+
+function isProduction(databaseId) {
+  return databaseId === PRODUCTION_DATABASE;
+}
+
+/// The service-account credentials for this project, or a refusal that names
+/// what is wrong. Nothing is read at import time.
+function requireCredentials(env = process.env) {
+  const path = env.GOOGLE_APPLICATION_CREDENTIALS;
+  if (!path) {
+    throw new UsageError(
+      'Set GOOGLE_APPLICATION_CREDENTIALS to a Firebase service-account JSON.',
+    );
+  }
+  let credentials;
+  try {
+    credentials = JSON.parse(readFileSync(path, 'utf8'));
+  } catch (error) {
+    throw new UsageError(`Cannot read "${path}": ${error.message}`);
+  }
+  if (credentials.project_id !== PROJECT_ID) {
+    throw new UsageError(
+      `Refusing to run: "${path}" belongs to project "${credentials.project_id}", expected "${PROJECT_ID}".`,
+    );
+  }
+  return credentials;
+}
+
+function openDatabase({ credentials, databaseId }) {
+  const app = initializeApp({
+    credential: cert(credentials),
+    projectId: PROJECT_ID,
+  });
+  const db = getFirestore(app, databaseId);
+  db.settings({ ignoreUndefinedProperties: true });
+  return db;
+}
+
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/// The fields to write for one legacy item, or null when it is already migrated.
+/// A claimed uid without a timestamp is repaired with [now]; the date is stored
+/// but never displayed.
+export function planItem(data, now = Timestamp.now()) {
+  if (data.claims !== undefined && data.claims !== null) {
+    return null;
+  }
+  const claims = data.claimedBy ? { [data.claimedBy]: data.claimedAt ?? now } : {};
+  return {
+    claims,
+    claimLimit: 1,
+    claimedBy: FieldValue.delete(),
+    claimedAt: FieldValue.delete(),
+  };
+}
+
+/// The problems that make one item unreadable after the migration. The caller
+/// prefixes each with the document path.
+export function verifyItem(data) {
+  const problems = [];
+  if (data.claims === undefined) {
+    problems.push('missing claims map');
+  } else if (!isPlainObject(data.claims)) {
+    problems.push('claims is not a map');
+  }
+  if (data.claimLimit === undefined) {
+    problems.push('missing claimLimit');
+  } else if (!Number.isInteger(data.claimLimit) || data.claimLimit < 0) {
+    problems.push(`invalid claimLimit ${String(data.claimLimit)}`);
+  }
+  if (Object.hasOwn(data, 'claimedBy')) {
+    problems.push('leftover claimedBy');
+  }
+  if (Object.hasOwn(data, 'claimedAt')) {
+    problems.push('leftover claimedAt');
+  }
+  return problems;
+}
+
+/// Scans every item in every wishlist and applies, verifies or previews the
+/// migration. The db is injectable so the tests need no Firestore.
+export async function runClaims({
+  db,
+  mode,
+  limit = null,
+  log = console,
+  now = Timestamp.now(),
+}) {
+  const result = {
+    scanned: 0,
+    skipped: 0,
+    planned: 0,
+    written: 0,
+    problems: [],
+  };
+  const snapshot = await db.collectionGroup('items').get();
+
+  if (mode === 'verify') {
+    for (const doc of snapshot.docs) {
+      if (limit !== null && result.scanned >= limit) {
+        break;
+      }
+      result.scanned += 1;
+      for (const problem of verifyItem(doc.data())) {
+        result.problems.push(`${doc.ref.path}: ${problem}`);
+      }
+    }
+    return result;
+  }
+
+  const planned = [];
+  let previewed = 0;
+  for (const doc of snapshot.docs) {
+    if (limit !== null && result.scanned >= limit) {
+      break;
+    }
+    result.scanned += 1;
+    const fields = planItem(doc.data(), now);
+    if (fields === null) {
+      result.skipped += 1;
+      continue;
+    }
+    result.planned += 1;
+    planned.push({ ref: doc.ref, fields });
+    if (mode === 'dry-run' && previewed < PREVIEW_COUNT) {
+      log.log(`would update ${doc.ref.path}`);
+      previewed += 1;
+    }
+  }
+
+  if (mode === 'dry-run') {
+    return result;
+  }
+
+  for (let start = 0; start < planned.length; start += BATCH_SIZE) {
+    const chunk = planned.slice(start, start + BATCH_SIZE);
+    try {
+      const batch = db.batch();
+      for (const entry of chunk) {
+        batch.update(entry.ref, entry.fields);
+      }
+      await batch.commit();
+    } catch (error) {
+      log.error(
+        `Batch failed after ${result.written} of ${planned.length} items: ${error.message}`,
+      );
+      return { ...result, failed: true };
+    }
+    result.written += chunk.length;
+  }
+  return result;
+}
+
+/// The command, with its collaborators injectable so the tests need neither
+/// credentials nor a database.
+export async function main(
+  argv = process.argv.slice(2),
+  {
+    env = process.env,
+    credentials = requireCredentials,
+    openDb = openDatabase,
+    log = console,
+    now = Timestamp.now(),
+  } = {},
+) {
+  let options;
+  let mode;
+  try {
+    options = parseArgs(argv);
+    mode = resolveMode(options);
+  } catch (error) {
+    if (error instanceof UsageError) {
+      log.error(error.message);
+      log.error(USAGE);
+      return 2;
+    }
+    throw error;
+  }
+
+  if (mode === 'help') {
+    log.log(USAGE);
+    return 0;
+  }
+  if (mode === 'print-target') {
+    log.log(options.databaseId);
+    return 0;
+  }
+
+  try {
+    log.log(`Target: ${PROJECT_ID}/${options.databaseId} (${mode})`);
+    if (isProduction(options.databaseId)) {
+      log.warn(
+        'Target is the PRODUCTION database. Pass --database staging to rehearse.',
+      );
+    }
+
+    const db = openDb({
+      credentials: credentials(env),
+      databaseId: options.databaseId,
+    });
+    const result = await runClaims({
+      db,
+      mode,
+      limit: options.limit,
+      log,
+      now,
+    });
+
+    if (mode === 'verify') {
+      for (const problem of result.problems) {
+        log.error(problem);
+      }
+      log.log(
+        `Scanned ${result.scanned} item(s); ${result.problems.length} problem(s).`,
+      );
+      return result.problems.length > 0 ? 1 : 0;
+    }
+
+    log.log(
+      `Scanned ${result.scanned} item(s), skipped ${result.skipped}, wrote ${result.written}.`,
+    );
+    return result.failed ? 1 : 0;
+  } catch (error) {
+    if (error instanceof UsageError) {
+      log.error(error.message);
+      return 2;
+    }
+    log.error(error.message ?? String(error));
+    return 1;
+  }
+}
+
+if (isEntryPoint(import.meta.url)) {
+  process.exitCode = await main();
+}

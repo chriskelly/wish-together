@@ -2,7 +2,7 @@
 
 WishTogether is a collaborative wishlist app for families and groups: create wishlists,
 share them with groups, and claim gifts **spoiler-free**. It is a Flutter app on Firebase,
-shipped to web (https://wishtogether.gift) and, in progress, iOS.
+shipped to web (https://wishtogether.gift) and iOS.
 
 Read the `AGENTS.md` beside the code you are touching. Flutter 3 / Dart 3 (Material 3),
 `go_router`, `get_it`; Cloud Firestore in `wish-together-project` (production `(default)`,

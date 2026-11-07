@@ -168,16 +168,16 @@ test('--limit is refused with --verify', () => {
 
 test('a production run without --yes is a read-only dry run', async () => {
   const db = fakeDb(documents(1));
-  const { log, ...injected } = deps(db);
+  const injected = deps(db);
 
   const code = await main(
     ['--database', '(default)', '--limit', '1'],
-    { ...injected, log },
+    injected,
   );
 
   assert.equal(code, 0);
   assert.deepEqual(db.batches, []);
-  assert.ok(log.lines.some((line) => /warn: .*PRODUCTION/.test(line)));
+  assert.ok(injected.log.lines.some((line) => /warn: .*PRODUCTION/.test(line)));
 });
 
 test('a production verify is allowed and warns', async () => {
@@ -187,15 +187,29 @@ test('a production verify is allowed and warns', async () => {
       claimLimit: 1,
     }),
   ]);
-  const { log, ...injected } = deps(db);
+  const injected = deps(db);
 
   const code = await main(
     ['--database', '(default)', '--verify'],
-    { ...injected, log },
+    injected,
   );
 
   assert.equal(code, 0);
-  assert.ok(log.lines.some((line) => /warn: .*PRODUCTION/.test(line)));
+  assert.ok(injected.log.lines.some((line) => /warn: .*PRODUCTION/.test(line)));
+});
+
+test('a credentials file that is not a service-account key is refused', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'wt-claims-key-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const path = join(dir, 'not-a-key.json');
+  writeFileSync(path, JSON.stringify({ project_id: PROJECT_ID }));
+
+  const result = run(['--limit', '1'], {
+    GOOGLE_APPLICATION_CREDENTIALS: path,
+  });
+
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /service-account key/);
 });
 
 // --- parseArgs ------------------------------------------------------------
@@ -246,6 +260,38 @@ test('an already migrated item is skipped', () => {
   assert.equal(planItem({ claims: {}, claimLimit: 1 }), null);
 });
 
+test('an item with no legacy keys at all is migrated to an empty map', () => {
+  const plan = planItem({});
+
+  assert.deepEqual(plan.claims, {});
+  assert.equal(plan.claimLimit, 1);
+});
+
+test('an already migrated item with leftover legacy keys is only cleaned up', () => {
+  const plan = planItem({
+    claims: {},
+    claimLimit: 1,
+    claimedBy: null,
+    claimedAt: null,
+  });
+
+  assert.deepEqual(Object.keys(plan), ['claimedBy', 'claimedAt']);
+  assert.ok(plan.claimedBy.isEqual(FieldValue.delete()));
+  assert.ok(plan.claimedAt.isEqual(FieldValue.delete()));
+});
+
+test('a non-map claims value stops the run instead of being skipped', () => {
+  assert.throws(() => planItem({ claims: 'nope' }), /claims is not a map/);
+});
+
+test('a claimedAt of the wrong type is repaired with the run time', () => {
+  const now = Timestamp.fromDate(new Date('2026-06-07T08:09:10Z'));
+
+  const plan = planItem({ claimedBy: 'uid-1', claimedAt: '2026-01-01' }, now);
+
+  assert.ok(plan.claims['uid-1'].isEqual(now));
+});
+
 test('a claimed uid without a timestamp is repaired with the run time', () => {
   const now = Timestamp.fromDate(new Date('2026-06-07T08:09:10Z'));
 
@@ -265,11 +311,15 @@ test('verifyItem names every malformed field', () => {
   assert.deepEqual(verifyItem({ claims: 'nope', claimLimit: 1 }), [
     'claims is not a map',
   ]);
+  assert.deepEqual(verifyItem({ claims: {} }), ['missing claimLimit']);
   assert.deepEqual(verifyItem({ claims: {}, claimLimit: -1 }), [
     'invalid claimLimit -1',
   ]);
   assert.deepEqual(verifyItem({ claims: {}, claimLimit: 1.5 }), [
     'invalid claimLimit 1.5',
+  ]);
+  assert.deepEqual(verifyItem({ claims: { 'uid-1': 'yesterday' }, claimLimit: 1 }), [
+    'invalid claim timestamp for uid-1',
   ]);
   assert.deepEqual(
     verifyItem({ claims: {}, claimLimit: 1, claimedBy: null, claimedAt: null }),
@@ -295,17 +345,65 @@ test('a dry run reports counts and writes nothing', async () => {
 });
 
 test('apply writes only planned items in batches of 400', async () => {
-  const db = fakeDb(documents(401));
+  const migrated = fakeDoc('wishlists/w1/items/migrated', {
+    claims: {},
+    claimLimit: 1,
+  });
+  const db = fakeDb([migrated, ...documents(401)]);
   const log = fakeLog();
 
   const result = await runClaims({ db, mode: 'apply', log });
 
+  assert.equal(result.scanned, 402);
+  assert.equal(result.skipped, 1);
   assert.equal(result.planned, 401);
   assert.equal(result.written, 401);
   assert.deepEqual(
     db.batches.map((ops) => ops.length),
     [400, 1],
   );
+  assert.equal(
+    db.batches.flat().some((op) => op.path === migrated.ref.path),
+    false,
+  );
+});
+
+test('apply writes the migrated fields', async () => {
+  const db = fakeDb([
+    fakeDoc('wishlists/w1/items/a', { claimedBy: 'uid-1' }),
+  ]);
+
+  await runClaims({ db, mode: 'apply', log: fakeLog() });
+
+  const [op] = db.batches.flat();
+  assert.equal(op.path, 'wishlists/w1/items/a');
+  assert.deepEqual(Object.keys(op.fields.claims), ['uid-1']);
+  assert.equal(op.fields.claimLimit, 1);
+  assert.ok(op.fields.claimedBy.isEqual(FieldValue.delete()));
+  assert.ok(op.fields.claimedAt.isEqual(FieldValue.delete()));
+});
+
+test('a malformed claims value stops the run with its document path', async () => {
+  const db = fakeDb([fakeDoc('wishlists/w1/items/a', { claims: 'nope' })]);
+
+  await assert.rejects(
+    runClaims({ db, mode: 'dry-run', log: fakeLog() }),
+    /wishlists\/w1\/items\/a: claims is not a map/,
+  );
+  assert.deepEqual(db.batches, []);
+});
+
+test('--yes through the CLI writes, and a failed batch exits 1', async () => {
+  const written = fakeDb([
+    fakeDoc('wishlists/w1/items/a', { claimedBy: 'uid-1' }),
+  ]);
+  const failing = fakeDb([fakeDoc('wishlists/w1/items/b', { claimedBy: null })], {
+    failCommit: 1,
+  });
+
+  assert.equal(await main(['--yes'], deps(written)), 0);
+  assert.equal(written.batches.flat()[0].fields.claimLimit, 1);
+  assert.equal(await main(['--yes'], deps(failing)), 1);
 });
 
 test('--limit stops after N scanned documents', async () => {

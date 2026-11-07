@@ -1,21 +1,9 @@
 #!/usr/bin/env node
-// Migrates legacy item claims to the multi-claim shape, once.
-//
-// Before: { claimedBy?: string, claimedAt?: Timestamp }
-// After:  { claims: { [uid]: Timestamp }, claimLimit: 1 }
-//
-// The legacy keys are deleted, not written as null. A document that already has
-// a claims map is skipped, so the run is idempotent and a rerun after a partial
-// failure only writes what is left. The run is a dry run unless --yes is given.
-//
-// Usage (credentials are never stored in the repo):
-//
-//   cd scripts && npm ci
-//   GOOGLE_APPLICATION_CREDENTIALS=~/path/to/service-account.json \
-//     npm run migrate:claims -- --database staging
-//
-// The default target is staging. Production needs the explicit database and
-// --yes. See docs/migrations.md for the export, freeze and rollback runbook.
+// Migrates legacy item claims ({ claimedBy, claimedAt }) to the multi-claim
+// shape ({ claims: { uid: Timestamp }, claimLimit: 1 }) once. Legacy keys are
+// deleted, an item with a claims map is skipped, and a rerun writes only the
+// remainder. Dry run unless --yes; the default target is staging. See
+// docs/migrations.md for the export, freeze and rollback runbook.
 
 import { readFileSync } from 'node:fs';
 
@@ -30,17 +18,16 @@ import { isEntryPoint } from './module-entry.mjs';
 import { STAGING_DATABASE, isNamedDatabaseId } from './staging-config.mjs';
 
 export const PROJECT_ID = 'wish-together-project';
-export const DEFAULT_DATABASE_ID = STAGING_DATABASE;
 const PRODUCTION_DATABASE = '(default)';
 const BATCH_SIZE = 400;
 const PREVIEW_COUNT = 10;
 
-export const USAGE = `Usage: npm run migrate:claims -- [options]
+const USAGE = `Usage: npm run migrate:claims -- [options]
 
   (no flags)          dry run against staging; writes nothing
   --yes               perform the migration
   --verify            read again and report problems; exits 1 on any
-  --limit <n>         stop after n items, for a canary run
+  --limit <n>         stop after n scanned items, for a canary run
   --database <id>     a named database, or "(default)" (default "staging")
   --print-target      print the resolved database and exit
   --help              print this message
@@ -49,7 +36,7 @@ Requires GOOGLE_APPLICATION_CREDENTIALS for ${PROJECT_ID}. Items that already
 have a claims map are skipped, so a rerun is safe.`;
 
 /// A mistake in how the command was invoked. The CLI maps it to exit 2.
-export class UsageError extends Error {
+class UsageError extends Error {
   constructor(message) {
     super(message);
     this.name = 'UsageError';
@@ -72,7 +59,7 @@ function requireValue(argv, index, flag) {
   return value;
 }
 
-export function validateDatabaseId(raw) {
+function validateDatabaseId(raw) {
   const id = String(raw ?? '').trim();
   if (id === PRODUCTION_DATABASE) {
     return id;
@@ -97,7 +84,7 @@ function validateLimit(raw) {
 
 export function parseArgs(argv) {
   const options = {
-    databaseId: DEFAULT_DATABASE_ID,
+    databaseId: STAGING_DATABASE,
     yes: false,
     verify: false,
     printTarget: false,
@@ -179,6 +166,12 @@ function requireCredentials(env = process.env) {
       `Refusing to run: "${path}" belongs to project "${credentials.project_id}", expected "${PROJECT_ID}".`,
     );
   }
+  if (
+    typeof credentials.private_key !== 'string' ||
+    typeof credentials.client_email !== 'string'
+  ) {
+    throw new UsageError(`"${path}" is not a service-account key.`);
+  }
   return credentials;
 }
 
@@ -193,17 +186,30 @@ function openDatabase({ credentials, databaseId }) {
 }
 
 function isPlainObject(value) {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
+  if (value === null || typeof value !== 'object') {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
 }
 
 /// The fields to write for one legacy item, or null when it is already migrated.
 /// A claimed uid without a timestamp is repaired with [now]; the date is stored
 /// but never displayed.
 export function planItem(data, now = Timestamp.now()) {
-  if (data.claims !== undefined && data.claims !== null) {
-    return null;
+  if (isPlainObject(data.claims)) {
+    // Already migrated. A map that still carries the legacy keys is cleaned up,
+    // so a rerun converges instead of leaving verify to report them forever.
+    if (!Object.hasOwn(data, 'claimedBy') && !Object.hasOwn(data, 'claimedAt')) {
+      return null;
+    }
+    return { claimedBy: FieldValue.delete(), claimedAt: FieldValue.delete() };
   }
-  const claims = data.claimedBy ? { [data.claimedBy]: data.claimedAt ?? now } : {};
+  if (data.claims !== undefined && data.claims !== null) {
+    throw new Error('claims is not a map');
+  }
+  const claimedAt = data.claimedAt instanceof Timestamp ? data.claimedAt : now;
+  const claims = data.claimedBy ? { [data.claimedBy]: claimedAt } : {};
   return {
     claims,
     claimLimit: 1,
@@ -220,6 +226,12 @@ export function verifyItem(data) {
     problems.push('missing claims map');
   } else if (!isPlainObject(data.claims)) {
     problems.push('claims is not a map');
+  } else {
+    for (const [uid, value] of Object.entries(data.claims)) {
+      if (!(value instanceof Timestamp)) {
+        problems.push(`invalid claim timestamp for ${uid}`);
+      }
+    }
   }
   if (data.claimLimit === undefined) {
     problems.push('missing claimLimit');
@@ -273,7 +285,12 @@ export async function runClaims({
       break;
     }
     result.scanned += 1;
-    const fields = planItem(doc.data(), now);
+    let fields;
+    try {
+      fields = planItem(doc.data(), now);
+    } catch (error) {
+      throw new Error(`${doc.ref.path}: ${error.message}`);
+    }
     if (fields === null) {
       result.skipped += 1;
       continue;
@@ -368,14 +385,18 @@ export async function main(
       for (const problem of result.problems) {
         log.error(problem);
       }
+      if (result.scanned === 0) {
+        log.warn('No items found; check --database and the items collection.');
+      }
       log.log(
         `Scanned ${result.scanned} item(s); ${result.problems.length} problem(s).`,
       );
       return result.problems.length > 0 ? 1 : 0;
     }
 
+    const limited = options.limit === null ? '' : ` (limited to ${options.limit})`;
     log.log(
-      `Scanned ${result.scanned} item(s), skipped ${result.skipped}, wrote ${result.written}.`,
+      `Scanned ${result.scanned} item(s), planned ${result.planned}, skipped ${result.skipped}, wrote ${result.written}${limited}.`,
     );
     return result.failed ? 1 : 0;
   } catch (error) {

@@ -33,8 +33,8 @@ const USAGE = `Usage: npm run migrate:claims -- [options]
   --help              print this message
 
 Requires GOOGLE_APPLICATION_CREDENTIALS for ${PROJECT_ID}. An item that already
-has a claims map is not re-claimed; a multi-claim map without a limit stops the
-run.`;
+has a claims map is not re-claimed; a multi-claim map without an integer limit
+stops the run.`;
 
 /// A mistake in how the command was invoked. The CLI maps it to exit 2.
 class UsageError extends Error {}
@@ -154,6 +154,9 @@ function requireCredentials(env = process.env) {
   } catch (error) {
     throw new UsageError(`Cannot read "${path}": ${error.message}`);
   }
+  if (!isPlainObject(credentials)) {
+    throw new UsageError(`"${path}" is not a service-account key.`);
+  }
   if (credentials.project_id !== PROJECT_ID) {
     throw new UsageError(
       `Refusing to run: "${path}" belongs to project "${credentials.project_id}", expected "${PROJECT_ID}".`,
@@ -188,8 +191,8 @@ function isPlainObject(value) {
 }
 
 /// The fields to write for one legacy item, or null when there is nothing to
-/// write. A claimed uid without a usable timestamp is repaired with [now]; the
-/// new UI stores that date but does not display it.
+/// write. A missing or invalid limit is repaired to 1 and an existing valid one
+/// is kept. A claimed uid without a usable timestamp is repaired with [now].
 export function planItem(data, now = Timestamp.now()) {
   if (isPlainObject(data.claims)) {
     // Already migrated. A missing limit or leftover legacy keys are written so a
@@ -224,9 +227,10 @@ export function planItem(data, now = Timestamp.now()) {
   }
   const claimedAt = data.claimedAt instanceof Timestamp ? data.claimedAt : now;
   const claims = data.claimedBy ? { [data.claimedBy]: claimedAt } : {};
+  const validLimit = Number.isInteger(data.claimLimit) && data.claimLimit >= 0;
   return {
     claims,
-    claimLimit: 1,
+    claimLimit: validLimit ? data.claimLimit : 1,
     claimedBy: FieldValue.delete(),
     claimedAt: FieldValue.delete(),
   };
@@ -276,6 +280,9 @@ export async function runClaims({
   log = console,
   now = Timestamp.now(),
 }) {
+  if (!['dry-run', 'apply', 'verify'].includes(mode)) {
+    throw new Error(`Unknown mode ${JSON.stringify(mode)}`);
+  }
   const result = {
     scanned: 0,
     skipped: 0,
@@ -415,7 +422,7 @@ export async function main(
     log.log(
       `Scanned ${result.scanned} item(s), planned ${result.planned}, skipped ${result.skipped}, wrote ${result.written}${limited}.`,
     );
-    return result.failed ? 1 : 0;
+    return result.failed || result.scanned === 0 ? 1 : 0;
   } catch (error) {
     if (error instanceof UsageError) {
       log.error(error.message);

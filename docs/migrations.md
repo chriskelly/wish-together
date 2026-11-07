@@ -25,6 +25,8 @@ After:
 ```
 
 - `claimedBy`/`claimedAt` are deleted, not written as `null`.
+- A document with `claimLimit` but no `claims` map is new-shape and keeps its
+  limit; only a missing or invalid limit becomes `1`.
 - A claimed uid without a usable `claimedAt` is repaired with the run time.
 - An item with a claims map is not re-claimed. A missing or invalid
   `claimLimit` and leftover legacy keys are the only things written for it
@@ -92,10 +94,12 @@ gcloud firestore import "gs://<backup-bucket>/claims-<database>-<timestamp>" \
 
 ## Freeze
 
-Deploy temporary rules that deny item creates, updates and deletes, and wishlist
-deletes; reads stay available. Without the freeze an old client can write the
-legacy fields after its item was migrated, an item created during the run is
-missed, and a deleted item aborts a batch.
+Deploy temporary rules that set the wishlist `allow delete` and the nested item
+`allow create`, `allow update` and `allow delete` to `if false`, leaving reads
+as they are. Firestore has no deny rule: adding one beside an existing allow
+changes nothing. Without the freeze an old client can write the legacy fields
+after its item was migrated, an item created during the run is missed, and a
+deleted item aborts a batch.
 
 The freeze lasts from here until the rules job publishes after the merge,
 typically 20-40 minutes: item creates, edits and claims are refused, not an
@@ -119,7 +123,15 @@ firebase deploy --only firestore:rules --project wish-together-project
 ```
 
 After the deploy, confirm the upload landed (firebase-tools can skip it):
-`npm run rules:release -- check --database "(default)" --source firestore.rules`.
+
+```sh
+cd scripts && ACCESS_TOKEN=$(gcloud auth print-access-token) \
+  npm run rules:release -- check --database "(default)" --source ../firestore.rules
+```
+
+The freeze is a local edit, not a commit. Once the upload is confirmed, run
+`git checkout -- firestore.rules` so the next deploy cannot republish it; the
+deployed freeze is unaffected.
 
 CI publishes `master`'s rules whenever a push touches `firestore.rules`,
 `firebase.json`, `rules_tests/` or the rules workflow, and the web build
@@ -138,19 +150,21 @@ test.
 4. Run `--verify`; zero problems, or stop and investigate.
 5. Run the import once to prove the rollback, then repeat the migration and
    `--verify`.
-6. Redeploy the previous staging rules and reseed staging: it now holds
-   claims-shaped data, and a later claim from the old app under the old rules
-   would be written in the legacy shape and dropped by the next migration.
+6. Discard the local freeze edit (`git checkout -- firestore.rules`), redeploy
+   the previous staging rules, and reseed staging: it now holds claims-shaped
+   data, and a later claim from the old app under the old rules would be written
+   in the legacy shape and dropped by the next migration.
 
 ## Production order
 
 The iOS app is live, so the release window includes an App Store build.
 
 1. Rehearse on `staging`, including the restore, and verify the counts.
-2. Submit the claims-aware build, then immediately switch Version Release to
-   "Manually release this version" in App Store Connect: the `app_store_release`
-   lane requests automatic release. Confirm it shows "Pending Developer
-   Release" before continuing. Do not release it until later in this window.
+2. Submit the claims-aware build for the exact commit that step 8 merges, then
+   immediately switch Version Release to "Manually release this version" in App
+   Store Connect: the `app_store_release` lane requests automatic release.
+   Confirm it shows "Pending Developer Release" before continuing. Do not
+   release it until later in this window.
 3. Deploy the production freeze (above) and record the prior ruleset id.
 4. Export production to the backup bucket, with `--database="(default)"`.
 5. Run the dry run against production and read the counts:
@@ -168,12 +182,14 @@ The iOS app is live, so the release window includes an App Store build.
    npm run migrate:claims -- --database "(default)" --verify
    ```
 
-   If it is not clean, import the export and stop: do not deploy the final
-   rules or release iOS.
+   If it is not clean, import the export, restore the pre-freeze rules (see
+   Rollback, before the merge), and stop: do not deploy the final rules or
+   release iOS.
 
-8. Merge the claims PRs; CI deploys the final rules and the web build. Confirm
-   the rules release id. If the rules job fails, the freeze stays live: fix and
-   push before releasing iOS.
+8. From a clean tree, merge the claims PRs; CI deploys the final rules and the
+   web build. Confirm the rules release id. If the rules job fails, the freeze
+   stays live: fix and push before releasing iOS. If the web job fails, the old
+   web build stays served under the new rules: re-run it before the smoke test.
 9. Smoke test on web: a reader claims, unclaims, a full item shows unavailable,
    and the owner edits an item without dropping a claim.
 10. Release the iOS build in the same window.

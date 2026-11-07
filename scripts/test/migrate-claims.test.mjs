@@ -277,7 +277,12 @@ test('an unclaimed legacy item becomes an empty claims map', () => {
 });
 
 test('an already migrated item is skipped', () => {
-  assert.equal(planItem({ claims: { 'uid-1': Timestamp.now() }, claimLimit: 1 }), null);
+  for (const claimLimit of [0, 1, 5]) {
+    assert.equal(
+      planItem({ claims: { 'uid-1': Timestamp.now() }, claimLimit }),
+      null,
+    );
+  }
   assert.equal(planItem({ claims: {}, claimLimit: 1 }), null);
 });
 
@@ -296,6 +301,16 @@ test('a multi-claim map without a numeric limit stops the run', () => {
     assert.throws(
       () => planItem({ claims, claimLimit }),
       /claims map has several claims but needs an integer claimLimit/,
+    );
+  }
+});
+
+test('a document without a claims map keeps its valid limit', () => {
+  for (const claimLimit of [0, 5]) {
+    assert.equal(planItem({ claimLimit }).claimLimit, claimLimit);
+    assert.equal(
+      planItem({ claimedBy: 'uid-1', claimLimit }).claimLimit,
+      claimLimit,
     );
   }
 });
@@ -530,4 +545,8 @@ test('a malformed document through the CLI exits 1', async () => {
 
   assert.equal(await main(['--yes'], deps(db)), 1);
   assert.deepEqual(db.batches, []);
+});
+
+test('an empty target exits 1 instead of looking like success', async () => {
+  assert.equal(await main([], deps(fakeDb([]))), 1);
 });

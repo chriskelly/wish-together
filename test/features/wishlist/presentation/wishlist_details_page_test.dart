@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:wishtogether/common/widgets/brand_card.dart';
 import 'package:wishtogether/common/widgets/status_pill.dart';
+import 'package:wishtogether/core/design_tokens.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/core/theme.dart';
 import 'package:wishtogether/features/auth/domain/auth_session.dart';
@@ -66,13 +67,23 @@ void main() {
     tearDown(getIt.reset);
 
     /// Pumps the page for an item stream that has already emitted [items].
-    Future<void> pumpPage(WidgetTester tester, List<Item> items) async {
+    Future<void> pumpPage(
+      WidgetTester tester,
+      List<Item> items, {
+      ThemeData? theme,
+      bool asOwner = false,
+    }) async {
+      if (asOwner) {
+        when(
+          () => wishlistRepository.streamOne(wishlistId),
+        ).thenAnswer((_) => Stream.value(wishlist.copyWith(ownerId: viewerId)));
+      }
       when(() => itemRepository.streamAll())
           .thenAnswer((_) => Stream.value(items));
 
       await tester.pumpWidget(
         MaterialApp(
-          theme: lightTheme,
+          theme: theme ?? lightTheme,
           home: const WishlistDetailsPage(wishlistId: wishlistId),
         ),
       );
@@ -81,6 +92,24 @@ void main() {
 
     /// The margin the page gives every item row.
     const itemMargin = EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0);
+
+    /// The Material card that carries the item row's fill.
+    Finder cardFinderOf(String name) => find.descendant(
+      of: find.ancestor(of: find.text(name), matching: find.byType(BrandCard)),
+      matching: find.byType(Card),
+    );
+
+    Card cardOf(WidgetTester tester, String name) =>
+        tester.widget<Card>(cardFinderOf(name));
+
+    Text titleOf(WidgetTester tester, String name) =>
+        tester.widget<Text>(find.text(name));
+
+    Finder claimedEdgeOf(String itemId) =>
+        find.byKey(ValueKey('claimed-edge-$itemId'));
+
+    ColoredBox edgeOf(WidgetTester tester, String itemId) =>
+        tester.widget<ColoredBox>(claimedEdgeOf(itemId));
 
     StatusPillTone toneOf(WidgetTester tester, String label) =>
         tester.widget<StatusPill>(find.widgetWithText(StatusPill, label)).tone;
@@ -176,6 +205,257 @@ void main() {
 
       expect(find.text('Claim'), findsOneWidget);
       expect(find.byType(StatusPill), findsNothing);
+    });
+
+    group('claimed card treatment for readers', () {
+      const claimedItemId = 'item-1';
+
+      testWidgets("mutes a claimed item's card fill for a reader", (
+        tester,
+      ) async {
+        await pumpPage(tester, [
+          Item(
+            id: claimedItemId,
+            name: itemName,
+            claimedBy: otherReaderId,
+            claimedAt: DateTime.utc(2026, 11, 1),
+          ),
+        ]);
+
+        expect(
+          cardOf(tester, itemName).color,
+          lightTheme.colorScheme.surfaceContainerHighest,
+        );
+      });
+
+      testWidgets("mutes and strikes a claimed item's title for a reader", (
+        tester,
+      ) async {
+        await pumpPage(tester, [
+          Item(
+            id: claimedItemId,
+            name: itemName,
+            claimedBy: otherReaderId,
+            claimedAt: DateTime.utc(2026, 11, 1),
+          ),
+        ]);
+
+        final scheme = lightTheme.colorScheme;
+        expect(titleOf(tester, itemName).style?.color, scheme.onSurfaceVariant);
+        expect(
+          titleOf(tester, itemName).style?.decoration,
+          TextDecoration.lineThrough,
+        );
+      });
+
+      testWidgets("mutes a claimed item's description for a reader", (
+        tester,
+      ) async {
+        const description = 'Handmade ceramic mug';
+        await pumpPage(tester, [
+          Item(
+            id: claimedItemId,
+            name: itemName,
+            description: description,
+            claimedBy: otherReaderId,
+            claimedAt: DateTime.utc(2026, 11, 1),
+          ),
+        ]);
+
+        expect(
+          tester.widget<Text>(find.text(description)).style?.color,
+          lightTheme.colorScheme.onSurfaceVariant,
+        );
+      });
+
+      testWidgets("leaves an unclaimed item's description un-muted", (
+        tester,
+      ) async {
+        const description = 'Handmade ceramic mug';
+        await pumpPage(tester, [
+          Item(id: claimedItemId, name: itemName, description: description),
+        ]);
+
+        expect(tester.widget<Text>(find.text(description)).style, isNull);
+      });
+
+      testWidgets("leaves the owner's description un-muted", (tester) async {
+        const description = 'Handmade ceramic mug';
+        await pumpPage(tester, [
+          Item(
+            id: claimedItemId,
+            name: itemName,
+            description: description,
+            claimedBy: otherReaderId,
+            claimedAt: DateTime.utc(2026, 11, 1),
+          ),
+        ], asOwner: true);
+
+        expect(tester.widget<Text>(find.text(description)).style, isNull);
+      });
+
+      testWidgets("marks a claimed item's edge for another member's claim", (
+        tester,
+      ) async {
+        await pumpPage(tester, [
+          Item(
+            id: claimedItemId,
+            name: itemName,
+            claimedBy: otherReaderId,
+            claimedAt: DateTime.utc(2026, 11, 1),
+          ),
+        ]);
+
+        expect(claimedEdgeOf(claimedItemId), findsOneWidget);
+        expect(
+          edgeOf(tester, claimedItemId).color,
+          lightTheme.colorScheme.onSurfaceVariant,
+        );
+        expect(
+          tester.getRect(claimedEdgeOf(claimedItemId)).width,
+          BrandGeometry.claimedEdgeWidth,
+        );
+        expect(
+          tester.getRect(claimedEdgeOf(claimedItemId)).left,
+          tester.getRect(cardFinderOf(itemName)).left +
+              BrandGeometry.borderWidth,
+          reason: 'the Card outline must not cover the rule',
+        );
+        expect(
+          tester.getRect(find.text(itemName)).left,
+          tester.getRect(cardFinderOf(itemName)).left + BrandGeometry.spacingMd,
+          reason: 'the edge must not shift the card content',
+        );
+      });
+
+      testWidgets("leaves a reader's unclaimed item unchanged", (tester) async {
+        await pumpPage(tester, [Item(id: claimedItemId, name: itemName)]);
+
+        final scheme = lightTheme.colorScheme;
+        expect(cardOf(tester, itemName).color, scheme.surfaceContainerLow);
+        expect(
+          titleOf(tester, itemName).style?.decoration,
+          isNot(TextDecoration.lineThrough),
+        );
+        expect(claimedEdgeOf(claimedItemId), findsNothing);
+        expect(find.text('Claim'), findsOneWidget);
+      });
+
+      testWidgets("uses the brass edge for the reader's own claim", (
+        tester,
+      ) async {
+        await pumpPage(tester, [
+          Item(
+            id: claimedItemId,
+            name: itemName,
+            claimedBy: viewerId,
+            claimedAt: DateTime.utc(2026, 11, 1),
+          ),
+        ]);
+
+        expect(
+          edgeOf(tester, claimedItemId).color,
+          lightTheme.colorScheme.secondary,
+        );
+        expect(
+          tester.getRect(claimedEdgeOf(claimedItemId)).width,
+          BrandGeometry.claimedEdgeWidth,
+        );
+      });
+
+      testWidgets('uses the dark palette for a claimed reader item', (
+        tester,
+      ) async {
+        await pumpPage(tester, [
+          Item(
+            id: claimedItemId,
+            name: itemName,
+            claimedBy: otherReaderId,
+            claimedAt: DateTime.utc(2026, 11, 1),
+          ),
+        ], theme: darkTheme);
+
+        final scheme = darkTheme.colorScheme;
+        expect(cardOf(tester, itemName).color, scheme.surfaceContainerHighest);
+        expect(titleOf(tester, itemName).style?.color, scheme.onSurfaceVariant);
+        expect(claimedEdgeOf(claimedItemId), findsOneWidget);
+      });
+
+      testWidgets(
+        'keeps a claimed reader card inside a 320 px phone at a raised text scale',
+        (tester) async {
+          tester.view.devicePixelRatio = 1.0;
+          tester.view.physicalSize = const Size(320, 640);
+          addTearDown(tester.view.reset);
+          tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+          addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+          const longName =
+              'A very long claimed item name that must wrap cleanly';
+          await pumpPage(tester, [
+            Item(
+              id: claimedItemId,
+              name: longName,
+              claimedBy: otherReaderId,
+              claimedAt: DateTime.utc(2026, 11, 1),
+            ),
+          ]);
+
+          expect(tester.takeException(), isNull);
+          expect(claimedEdgeOf(claimedItemId), findsOneWidget);
+        },
+      );
+    });
+
+    testWidgets("does not restyle the owner's card when claims are revealed", (
+      tester,
+    ) async {
+      await pumpPage(tester, [
+        Item(
+          id: 'item-1',
+          name: itemName,
+          claimedBy: otherReaderId,
+          claimedAt: DateTime.utc(2026, 11, 1),
+        ),
+      ], asOwner: true);
+
+      await tester.tap(find.byTooltip('Show claimed status'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Claimed on'), findsOneWidget);
+      expect(
+        cardOf(tester, itemName).color,
+        lightTheme.colorScheme.surfaceContainerLow,
+      );
+      expect(
+        titleOf(tester, itemName).style?.decoration,
+        isNot(TextDecoration.lineThrough),
+      );
+      expect(claimedEdgeOf('item-1'), findsNothing);
+    });
+
+    testWidgets("does not restyle the owner's card in the spoiler-free view", (
+      tester,
+    ) async {
+      await pumpPage(tester, [
+        Item(
+          id: 'item-1',
+          name: itemName,
+          claimedBy: otherReaderId,
+          claimedAt: DateTime.utc(2026, 11, 1),
+        ),
+      ], asOwner: true);
+
+      expect(find.textContaining('Claimed on'), findsNothing);
+      expect(
+        cardOf(tester, itemName).color,
+        lightTheme.colorScheme.surfaceContainerLow,
+      );
+      expect(
+        titleOf(tester, itemName).style?.decoration,
+        isNot(TextDecoration.lineThrough),
+      );
+      expect(claimedEdgeOf('item-1'), findsNothing);
     });
 
     testWidgets('keeps the claim row inside the card at a raised text scale', (

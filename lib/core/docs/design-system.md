@@ -21,10 +21,10 @@ one palette each; `lib/main.dart`, the update gate and the dev notice pages pass
 | `canvas` | `surfaceContainerLowest`, `scaffoldBackgroundColor` | scaffold and app-bar ground |
 | `surface` | `surface`, `surfaceContainerLow`, `surfaceContainer`, `surfaceContainerHigh` | cards, dialogs, sheets |
 | `ink` | `onSurface` | body text, card outline, shadow |
-| `inkMuted` | `onSurfaceVariant` | subtitles, available, claimed by someone else, enabled input borders |
+| `inkMuted` | `onSurfaceVariant` | subtitles, available, claimed by someone else, a reader's claimed card text and the other member's claim edge, enabled input borders |
 | `primary` | `primary` | hero block, filled buttons, links, progress spinners |
 | `onPrimary` | `onPrimary` | text on primary |
-| `secondary` | `secondary` | claimed-by-you fill, FAB |
+| `secondary` | `secondary` | claimed-by-you fill and card edge, FAB |
 | `onSecondary` | `onSecondary` | text on secondary |
 | `outline` | `outline` | the 2px card border |
 | `outlineVariant` | `outlineVariant` | dividers, the empty placeholder |
@@ -94,10 +94,12 @@ Three of the shared widgets are the primitives — `lib/common/widgets/brand_car
 `lib/common/widgets/brand_hero.dart` and `lib/common/widgets/status_pill.dart` — because a theme cannot express them;
 a fourth needs a screen that genuinely cannot be themed.
 
-- `BrandCard(child, margin)` — a shadow container wrapping a `Card` with
-  elevation 0, the surface colour, a 6dp radius and the 2px `outline`. The inner
-  `Card` keeps ink on a Material surface; a bare decorated container would lose
-  `ListTile`'s ink.
+- `BrandCard(child, margin, backgroundColor)` — a shadow container wrapping a
+  `Card` with elevation 0, a 6dp radius and the 2px `outline`. The fill defaults
+  to `surfaceContainerLow`; a state that needs another surface step passes
+  `backgroundColor` (the wishlist details page uses `surfaceContainerHighest` for
+  a reader's claimed item). The inner `Card` keeps ink on a Material surface; a
+  bare decorated container would lose `ListTile`'s ink.
 - `BrandHero(title, actions, titleStyle)` — the primary block Home and Login use
   in place of an app bar. The title is split on `\n` into explicit lines, each
   scaled down with `FittedBox`, so a long name or a high text scale shrinks the

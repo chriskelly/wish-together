@@ -6,9 +6,15 @@ import 'package:wishtogether/core/theme.dart';
 
 const childText = 'Beach trip';
 
-Widget host(ThemeData theme) => MaterialApp(
+Widget host(ThemeData theme, {Color? fill}) => MaterialApp(
   theme: theme,
-  home: const Scaffold(body: BrandCard(child: Text(childText))),
+  home: Scaffold(
+    body: BrandCard(backgroundColor: fill, child: const Text(childText)),
+  ),
+);
+
+Card cardOf(WidgetTester tester) => tester.widget<Card>(
+  find.descendant(of: find.byType(BrandCard), matching: find.byType(Card)),
 );
 
 BoxDecoration decorationOf(WidgetTester tester) {
@@ -70,6 +76,23 @@ void main() {
     expect(
       container.margin,
       const EdgeInsets.symmetric(vertical: BrandGeometry.cardMarginVertical),
+    );
+  });
+
+  testWidgets('uses the surface fill by default', (tester) async {
+    await tester.pumpWidget(host(lightTheme));
+
+    expect(cardOf(tester).color, lightTheme.colorScheme.surfaceContainerLow);
+  });
+
+  testWidgets('uses an explicit fill when given', (tester) async {
+    await tester.pumpWidget(
+      host(lightTheme, fill: lightTheme.colorScheme.surfaceContainerHighest),
+    );
+
+    expect(
+      cardOf(tester).color,
+      lightTheme.colorScheme.surfaceContainerHighest,
     );
   });
 }

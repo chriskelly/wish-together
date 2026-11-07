@@ -1,9 +1,9 @@
 name: Lint
 
-# Fast, narrow gate for the CI plumbing itself: lints every workflow file, runs
-# the dev-script tests, and loads the Fastlane/Bundler setup (which validates
-# Gemfile/Gemfile.lock bumps, e.g. Dependabot PRs). Scoped by `paths` so it is
-# skipped for app-only changes.
+# Fast, narrow gate for the CI plumbing itself: lints every workflow file and
+# every tracked `.sh` script, runs the preview-auth and dev-script tests, and
+# loads the Fastlane/Bundler setup (which validates Gemfile/Gemfile.lock bumps,
+# e.g. Dependabot PRs). Scoped by `paths` so it is skipped for app-only changes.
 
 on:
   pull_request:
@@ -11,6 +11,8 @@ on:
     paths:
       - '.github/workflows/**'
       - '.github/actionlint.yaml'
+      - '*.sh'
+      - '**/*.sh'
       - 'fastlane/**'
       - 'Gemfile'
       - 'Gemfile.lock'
@@ -23,6 +25,8 @@ on:
     paths:
       - '.github/workflows/**'
       - '.github/actionlint.yaml'
+      - '*.sh'
+      - '**/*.sh'
       - 'fastlane/**'
       - 'Gemfile'
       - 'Gemfile.lock'
@@ -42,6 +46,8 @@ concurrency:
 env:
   # Pinned; bump together with the download script's tag below.
   ACTIONLINT_VERSION: "1.7.12"
+  # Pinned so a runner-image change cannot silently change the shell lint.
+  SHELLCHECK_VERSION: "0.11.0"
 
 jobs:
   lint:
@@ -60,8 +66,29 @@ jobs:
             "$ACTIONLINT_VERSION" "$RUNNER_TEMP/bin"
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
+      - name: Install shellcheck
+        # Pinned release tarball, so the version here, not the runner image,
+        # decides what passes.
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl -sSfL "https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK_VERSION}/shellcheck-v${SHELLCHECK_VERSION}.linux.x86_64.tar.xz" \
+            | tar -xJ -C "$RUNNER_TEMP"
+          mv "$RUNNER_TEMP/shellcheck-v${SHELLCHECK_VERSION}/shellcheck" "$RUNNER_TEMP/bin/"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
       - name: Lint workflows
         run: actionlint .github/workflows/*.yml
+
+      - name: Lint shell scripts
+        # Every tracked `*.sh` script, so a new shell file is covered without
+        # editing this list; includes the preview-auth helper and its tests.
+        run: git ls-files -z '*.sh' | xargs -0 -r shellcheck
+
+      - name: Test the preview-auth skill script
+        # preview-auth changes the browser API key's HTTP referrers and the
+        # Auth authorized domains, so its logic is covered here rather than
+        # only by hand. No network: the test stubs curl and gcloud.
+        run: bash .agents/skills/preview-auth/scripts/preview-auth.test.sh
 
       - name: Set up Node
         uses: actions/setup-node@v7

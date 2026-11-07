@@ -81,6 +81,9 @@ The pure logic (set math, the host guard, and URL construction) is covered by
 bash .agents/skills/preview-auth/scripts/preview-auth.test.sh
 ```
 
+The `Lint` workflow runs that test and `shellcheck` over the tracked `.sh` scripts, so a
+regression fails CI.
+
 ## Validating the preview
 
 - **Flutter web renders to a canvas.** Enable the semantics tree (for example

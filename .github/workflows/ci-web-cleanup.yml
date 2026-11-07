@@ -16,7 +16,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  FIREBASE_TOOLS_VERSION: "15.34.0"
+  # Match `rules_tests/package.json`; bump both together.
+  FIREBASE_TOOLS_VERSION: "15.34.2"
   CHANNEL_ID: pr-${{ github.event.pull_request.number }}
 
 jobs:

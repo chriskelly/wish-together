@@ -10,14 +10,18 @@ secret, or a lane.
 (`dart format --output=none --set-exit-if-changed .`), `flutter analyze`,
 `flutter test --coverage`, `flutter build web` — then deploys a Firebase Hosting **preview
 channel** (`pr-<number>`, commented on the PR). Pushes to `master` run the same checks and
-**deploy live** to `https://wishtogether.gift`. `.github/workflows/ci-web-cleanup.yml`
-deletes the preview channel when the PR closes. Both authenticate with the
-`FIREBASE_SERVICE_ACCOUNT` repository secret (a service-account JSON) via
+**deploy live** to `https://wishtogether.gift`. Web builds pass `--no-wasm-dry-run`, which
+suppresses the dry run's advisory to switch to `--wasm`. The pipeline stays on JavaScript
+because the upload sends `main.dart.js.map` and the guards read `main.dart.js`; a `--wasm`
+build executes `main.dart.wasm`, whose DWARF symbols this pipeline does not upload.
+`.github/workflows/ci-web-cleanup.yml` deletes the preview channel when the PR closes. Both
+authenticate with the `FIREBASE_SERVICE_ACCOUNT` repository secret (a service-account JSON) via
 `google-github-actions/auth`; `.github/workflows/ci-web.yml` additionally pins the Flutter version, and both
 pin firebase-tools. Coverage is uploaded as the `coverage-lcov` artifact and is **report-only**
 (no threshold). Preview deploys are skipped for pull requests from forks and Dependabot,
 which do not receive repository secrets. `.github/workflows/lint.yml` separately runs
-actionlint, the dev-script tests and the Fastlane gates.
+actionlint, shellcheck over every tracked `.sh` script, the preview-auth script's test suite,
+the dev-script tests and the Fastlane gates.
 
 ## iOS
 

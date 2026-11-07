@@ -26,10 +26,12 @@ After:
 
 - `claimedBy`/`claimedAt` are deleted, not written as `null`.
 - A claimed uid without a usable `claimedAt` is repaired with the run time.
-- An item with a claims map is not re-claimed. A missing `claimLimit` or
-  leftover legacy keys are the only things written for it (counted as planned,
-  not skipped), so a rerun converges. A map with several claims but no limit
-  stops the run, because no safe limit can be guessed.
+- An item with a claims map is not re-claimed. A missing or invalid
+  `claimLimit` and leftover legacy keys are the only things written for it
+  (counted as planned, not skipped), so a rerun converges on those. An invalid
+  claim timestamp is left for `--verify` to report and must be fixed by hand.
+  A map with several claims but no integer limit stops the run, because no safe
+  limit can be guessed.
 - A non-null, non-map `claims` value, or a `claimedBy` that is not a non-empty
   string, stops the run and names the document; no later run could repair it.
 - Writes are 400-document batches committed in order. The first failed batch
@@ -37,8 +39,8 @@ After:
 
 The new UI does not display claim dates, so a repaired timestamp is not
 user-visible. Until the new web build is deployed and any open tab reloads, the
-old build reads the deleted `claimedBy` as unclaimed: it shows migrated claimed
-items as available, and a claim from it fails.
+old web and iOS builds read the deleted `claimedBy` as unclaimed: they show
+migrated claimed items as available, and a claim from them fails.
 
 Run the script from `scripts/`:
 
@@ -95,9 +97,17 @@ deletes; reads stay available. Without the freeze an old client can write the
 legacy fields after its item was migrated, an item created during the run is
 missed, and a deleted item aborts a batch.
 
-The freeze is a few minutes of item creates, edits and claims being refused,
-not an outage. Record the previous ruleset id so the rollback can redeploy it.
-Deploy it as an uncommitted edit to `firestore.rules`:
+The freeze lasts from here until the rules job publishes after the merge,
+typically 20-40 minutes: item creates, edits and claims are refused, not an
+outage. Record the previous ruleset id with the rules-release script so the
+rollback can redeploy it:
+
+```sh
+ACCESS_TOKEN=$(gcloud auth print-access-token) \
+  npm run rules:release -- show --database "(default)"   # or staging
+```
+
+Deploy the freeze as an uncommitted edit to `firestore.rules`:
 
 ```sh
 # staging
@@ -108,10 +118,15 @@ firebase deploy --only firestore:rules --config firebase.staging.json \
 firebase deploy --only firestore:rules --project wish-together-project
 ```
 
+After the deploy, confirm the upload landed (firebase-tools can skip it):
+`npm run rules:release -- check --database "(default)" --source firestore.rules`.
+
 CI publishes `master`'s rules whenever a push touches `firestore.rules`,
 `firebase.json`, `rules_tests/` or the rules workflow, and the web build
 publishes on merge. Merging the rules/app PRs (PR 2 onward) is therefore the
 deploy: hold them until `--verify` is clean and merge inside the freeze window.
+The rules job and the web job are independent; wait for both before the smoke
+test.
 
 ## Staging rehearsal
 
@@ -132,9 +147,11 @@ deploy: hold them until `--verify` is clean and merge inside the freeze window.
 The iOS app is live, so the release window includes an App Store build.
 
 1. Rehearse on `staging`, including the restore, and verify the counts.
-2. Confirm the claims-aware build is approved and set to manual release in App
-   Store Connect. Do not release it until the data and rules are in place.
-3. Deploy the production freeze (above); record the prior ruleset id.
+2. Submit the claims-aware build, then immediately switch Version Release to
+   "Manually release this version" in App Store Connect: the `app_store_release`
+   lane requests automatic release. Confirm it shows "Pending Developer
+   Release" before continuing. Do not release it until later in this window.
+3. Deploy the production freeze (above) and record the prior ruleset id.
 4. Export production to the backup bucket, with `--database="(default)"`.
 5. Run the dry run against production and read the counts:
    `npm run migrate:claims -- --database "(default)"`.
@@ -151,16 +168,19 @@ The iOS app is live, so the release window includes an App Store build.
    npm run migrate:claims -- --database "(default)" --verify
    ```
 
+   If it is not clean, import the export and stop: do not deploy the final
+   rules or release iOS.
+
 8. Merge the claims PRs; CI deploys the final rules and the web build. Confirm
    the rules release id. If the rules job fails, the freeze stays live: fix and
    push before releasing iOS.
 9. Smoke test on web: a reader claims, unclaims, a full item shows unavailable,
    and the owner edits an item without dropping a claim.
 10. Release the iOS build in the same window.
-11. Only after the build is available in the App Store, set
-    `min_supported_build` and publish Remote Config with the App Store
-    `update_url`; confirm a build below the minimum shows the update screen on
-    its next launch.
+11. Note the current Remote Config values, then set `min_supported_build`,
+    `update_url` and `update_message` only after the build is available in the
+    App Store. Confirm a build below the minimum shows the update screen on its
+    next launch.
 12. Keep the export for a few days, then delete it.
 
 The minimum-build gate is iOS-only, runs at startup only, fails open (no
@@ -170,13 +190,16 @@ already-open web tab is not gated and must reload for the new build.
 
 ## Rollback
 
-While frozen: import the export, then `git fetch && git checkout origin/master --
-firestore.rules` (master still holds the pre-freeze rules because rules merges
-are held) and deploy it, or restore the recorded ruleset id in the console. Nothing has shipped yet, so
+Before the merge (the freeze is live): import the export, then
+`git fetch && git checkout origin/master -- firestore.rules` (master still holds
+the pre-freeze rules because rules merges are held) and deploy it, or restore
+the recorded pre-freeze ruleset id in the console. Nothing has shipped yet, so
 the old app still reads the legacy fields.
 
-After the release: import the export, restore the recorded pre-freeze ruleset id
-in the console, redeploy the previous hosting release, and restore the previous
-`min_supported_build` value (publish Remote Config) so the older build can read
-the legacy fields. Once the claims-aware iOS build is live, a data rollback
-needs a follow-up build, so release iOS only after `--verify` is clean.
+After the merge (the final rules and web are live, whether or not iOS has
+shipped): import the export, restore the recorded pre-freeze ruleset id in the
+console, redeploy the previous hosting release, and restore the previous
+`min_supported_build` value if it was raised (publish Remote Config). The git
+checkout now restores the claims rules, so do not use it here. Once the
+claims-aware iOS build is live, a data rollback needs a follow-up build, so
+release iOS only after `--verify` is clean.

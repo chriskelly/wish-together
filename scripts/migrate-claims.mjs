@@ -160,6 +160,7 @@ function requireCredentials(env = process.env) {
     );
   }
   if (
+    credentials.type !== 'service_account' ||
     typeof credentials.private_key !== 'string' ||
     typeof credentials.client_email !== 'string'
   ) {
@@ -194,11 +195,13 @@ export function planItem(data, now = Timestamp.now()) {
     // Already migrated. A missing limit or leftover legacy keys are written so a
     // rerun converges instead of leaving verify to report them forever.
     const claimCount = Object.keys(data.claims).length;
-    if (!Number.isInteger(data.claimLimit) && claimCount > 1) {
-      throw new Error('claims map has several claims but no claimLimit');
+    const validLimit =
+      Number.isInteger(data.claimLimit) && data.claimLimit >= 0;
+    if (!validLimit && claimCount > 1) {
+      throw new Error('claims map has several claims but needs an integer claimLimit');
     }
     const cleanup = {};
-    if (!Object.hasOwn(data, 'claimLimit')) {
+    if (!validLimit) {
       cleanup.claimLimit = 1;
     }
     if (Object.hasOwn(data, 'claimedBy')) {
@@ -395,12 +398,12 @@ export async function main(
       log,
     });
 
+    if (result.scanned === 0) {
+      log.warn('No items found; check --database and the items collection.');
+    }
     if (mode === 'verify') {
       for (const problem of result.problems) {
         log.error(problem);
-      }
-      if (result.scanned === 0) {
-        log.warn('No items found; check --database and the items collection.');
       }
       log.log(
         `Scanned ${result.scanned} item(s); ${result.problems.length} problem(s).`,

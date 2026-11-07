@@ -215,6 +215,22 @@ test('a credentials file that is not a service-account key is refused', (t) => {
   assert.match(result.stderr, /service-account key/);
 });
 
+test('a credentials file with the wrong type is refused', (t) => {
+  const path = credentialsFile(t, {
+    type: 'authorized_user',
+    project_id: PROJECT_ID,
+    private_key: 'key',
+    client_email: 'x@example.com',
+  });
+
+  const result = run(['--limit', '1'], {
+    GOOGLE_APPLICATION_CREDENTIALS: path,
+  });
+
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /service-account key/);
+});
+
 // --- parseArgs ------------------------------------------------------------
 
 test('parseArgs defaults to a staging dry run', () => {
@@ -279,7 +295,16 @@ test('a multi-claim map without a numeric limit stops the run', () => {
   for (const claimLimit of [undefined, null, '1']) {
     assert.throws(
       () => planItem({ claims, claimLimit }),
-      /claims map has several claims but no claimLimit/,
+      /claims map has several claims but needs an integer claimLimit/,
+    );
+  }
+});
+
+test('a single-claim map with an invalid limit is repaired', () => {
+  for (const claimLimit of [null, '1', 1.5, -1]) {
+    assert.deepEqual(
+      planItem({ claims: { a: Timestamp.now() }, claimLimit }),
+      { claimLimit: 1 },
     );
   }
 });
@@ -308,14 +333,6 @@ test('a claimedBy that is not a non-empty string stops the run', () => {
   assert.throws(() => planItem({ claimedBy: 123 }), /claimedBy is not a string/);
   assert.throws(() => planItem({ claimedBy: {} }), /claimedBy is not a string/);
   assert.throws(() => planItem({ claimedBy: '' }), /claimedBy is not a string/);
-});
-
-test('a claimedAt of the wrong type is repaired with the run time', () => {
-  const now = Timestamp.fromDate(new Date('2026-06-07T08:09:10Z'));
-
-  const plan = planItem({ claimedBy: 'uid-1', claimedAt: '2026-01-01' }, now);
-
-  assert.ok(plan.claims['uid-1'].isEqual(now));
 });
 
 test('a missing or wrong-typed claim timestamp is repaired with the run time', () => {

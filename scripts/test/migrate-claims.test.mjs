@@ -159,14 +159,17 @@ test("a credentials file from another project is refused, naming both", (t) => {
   assert.match(result.stderr, new RegExp(PROJECT_ID));
 });
 
-test('--limit and --yes are refused with --verify', () => {
+test('--limit, --yes and --print-target are refused with --verify', () => {
   const limited = run(['--verify', '--limit', '10']);
   const apply = run(['--verify', '--yes']);
+  const target = run(['--verify', '--print-target']);
 
   assert.equal(limited.status, 2);
   assert.match(limited.stderr, /--limit cannot be combined with --verify/);
   assert.equal(apply.status, 2);
   assert.match(apply.stderr, /--yes cannot be combined with --verify/);
+  assert.equal(target.status, 2);
+  assert.match(target.stderr, /--print-target cannot be combined with --verify/);
 });
 
 test('a production run without --yes is a read-only dry run', async () => {
@@ -267,11 +270,20 @@ test('an item with no legacy keys at all is migrated to an empty map', () => {
   assert.equal(plan.claimLimit, 1);
 });
 
-test('a claims map without a limit gets one, so a rerun converges', () => {
+test('a single-claim map without a limit gets one, so a rerun converges', () => {
   assert.deepEqual(planItem({ claims: {} }), { claimLimit: 1 });
   assert.deepEqual(
     Object.keys(planItem({ claims: {}, claimedBy: null })),
     ['claimLimit', 'claimedBy'],
+  );
+});
+
+test('a multi-claim map without a limit stops the run', () => {
+  const claims = { a: Timestamp.now(), b: Timestamp.now() };
+
+  assert.throws(
+    () => planItem({ claims }),
+    /claims map has several claims but no claimLimit/,
   );
 });
 
@@ -495,4 +507,11 @@ test('a limited apply writes at most the limit', async () => {
 
   assert.equal(await main(['--yes', '--limit', '2'], deps(db)), 0);
   assert.equal(db.batches.flat().length, 2);
+});
+
+test('a malformed document through the CLI exits 1', async () => {
+  const db = fakeDb([fakeDoc('wishlists/w1/items/a', { claims: 'nope' })]);
+
+  assert.equal(await main(['--yes'], deps(db)), 1);
+  assert.deepEqual(db.batches, []);
 });

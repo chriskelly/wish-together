@@ -28,7 +28,8 @@ After:
 - A claimed uid without a usable `claimedAt` is repaired with the run time.
 - An item with a claims map is not re-claimed. A missing `claimLimit` or
   leftover legacy keys are the only things written for it (counted as planned,
-  not skipped), so a rerun converges.
+  not skipped), so a rerun converges. A map with several claims but no limit
+  stops the run, because no safe limit can be guessed.
 - A non-null, non-map `claims` value stops the run and names the document,
   because no later run could repair it.
 - Writes are 400-document batches committed in order. The first failed batch
@@ -96,28 +97,35 @@ missed, and a deleted item aborts a batch.
 
 The freeze is a few minutes of item edits and claims being read-only, not an
 outage. Record the previous ruleset id so the rollback can redeploy it. Deploy
-it as an uncommitted edit to `firestore.rules`; production uses the default
-config and staging its own:
+it as an uncommitted edit to `firestore.rules`:
 
 ```sh
-firebase deploy --only firestore:rules --project wish-together-project
+# staging
 firebase deploy --only firestore:rules --config firebase.staging.json \
   --project wish-together-project
+
+# production
+firebase deploy --only firestore:rules --project wish-together-project
 ```
 
 CI publishes `master`'s rules whenever a push touches `firestore.rules`,
-`firebase.json`, `rules_tests/` or the rules workflow, so hold those merges
-until the freeze is lifted.
+`firebase.json`, `rules_tests/` or the rules workflow, and the web build
+publishes on merge. Merging the claims PRs is therefore the deploy: hold those
+merges until `--verify` is clean, and merge only inside the freeze window.
 
 ## Staging rehearsal
 
-1. Seed demo data on `staging`, deploy the freeze, and take the export.
+1. Seed demo data on `staging`, deploy the staging freeze (above), and take the
+   export.
 2. Run the dry run and read the counts.
-3. Run `--limit 10 --yes` as a canary, then the full `--yes`.
+3. Run `--limit 10 --yes` as a canary; stop if it exits non-zero. Then run the
+   full `--yes`.
 4. Run `--verify`; zero problems, or stop and investigate.
 5. Run the import once to prove the rollback, then repeat the migration and
    `--verify`.
-6. Redeploy the previous staging rules.
+6. Redeploy the previous staging rules and reseed staging: it now holds
+   claims-shaped data, and a later claim under the old rules would be written in
+   the legacy shape and dropped by the next migration.
 
 ## Production order
 
@@ -126,11 +134,11 @@ The iOS app is live, so the release window includes an App Store build.
 1. Rehearse on `staging`, including the restore, and verify the counts.
 2. Confirm the claims-aware build is approved and set to manual release in App
    Store Connect. Do not release it until the data and rules are in place.
-3. Deploy the freeze to production; record the prior ruleset id.
+3. Deploy the production freeze (above); record the prior ruleset id.
 4. Export production to the backup bucket, with `--database="(default)"`.
 5. Run the dry run against production and read the counts:
    `npm run migrate:claims -- --database "(default)"`.
-6. Run the canary, then the full migration:
+6. Run the canary, stop if it exits non-zero, then the full migration:
 
    ```sh
    npm run migrate:claims -- --database "(default)" --limit 10 --yes
@@ -143,8 +151,8 @@ The iOS app is live, so the release window includes an App Store build.
    npm run migrate:claims -- --database "(default)" --verify
    ```
 
-8. Restore `firestore.rules` from git, then deploy the final rules, then the web
-   build.
+8. Merge the claims PRs; CI deploys the final rules and the web build. Confirm
+   the deployed rules release id.
 9. Smoke test on web: a reader claims, unclaims, a full item shows unavailable,
    and the owner edits an item without dropping a claim.
 10. Release the iOS build in the same window.
@@ -161,11 +169,13 @@ already-open web tab is not gated and must reload for the new build.
 
 ## Rollback
 
-While frozen: import the export, then redeploy the previous rules. Nothing has
-shipped yet, so the old app still reads the legacy fields.
+While frozen: import the export, then `git checkout -- firestore.rules` (master
+still holds the pre-freeze rules because rules merges are held) and deploy it,
+or restore the recorded ruleset id in the console. Nothing has shipped yet, so
+the old app still reads the legacy fields.
 
-After the release: import the export, redeploy the previous rules and hosting
-release, and restore the previous `min_supported_build` value (publish Remote
-Config) so the older build can read the legacy fields. Once the claims-aware iOS
-build is live, a data rollback needs a follow-up build, so release iOS only
-after `--verify` is clean.
+After the release: import the export, restore the recorded pre-freeze ruleset id
+in the console, redeploy the previous hosting release, and restore the previous
+`min_supported_build` value (publish Remote Config) so the older build can read
+the legacy fields. Once the claims-aware iOS build is live, a data rollback
+needs a follow-up build, so release iOS only after `--verify` is clean.

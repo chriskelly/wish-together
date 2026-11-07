@@ -130,6 +130,9 @@ export function parseArgs(argv) {
   if (options.verify && options.yes) {
     throw new UsageError('--yes cannot be combined with --verify');
   }
+  if (options.verify && options.printTarget) {
+    throw new UsageError('--print-target cannot be combined with --verify');
+  }
   return options;
 }
 
@@ -196,6 +199,9 @@ export function planItem(data, now = Timestamp.now()) {
     // rerun converges instead of leaving verify to report them forever.
     const cleanup = {};
     if (!Object.hasOwn(data, 'claimLimit')) {
+      if (Object.keys(data.claims).length > 1) {
+        throw new Error('claims map has several claims but no claimLimit');
+      }
       cleanup.claimLimit = 1;
     }
     if (Object.hasOwn(data, 'claimedBy')) {

@@ -215,22 +215,6 @@ test('a credentials file that is not a service-account key is refused', (t) => {
   assert.match(result.stderr, /service-account key/);
 });
 
-test('a credentials file with the wrong type is refused', (t) => {
-  const path = credentialsFile(t, {
-    type: 'authorized_user',
-    project_id: PROJECT_ID,
-    private_key: 'key',
-    client_email: 'x@example.com',
-  });
-
-  const result = run(['--limit', '1'], {
-    GOOGLE_APPLICATION_CREDENTIALS: path,
-  });
-
-  assert.equal(result.status, 2);
-  assert.match(result.stderr, /service-account key/);
-});
-
 // --- parseArgs ------------------------------------------------------------
 
 test('parseArgs defaults to a staging dry run', () => {

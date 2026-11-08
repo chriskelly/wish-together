@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Migrates legacy item claims ({ claimedBy, claimedAt }) to the multi-claim
 // shape ({ claims: { uid: Timestamp }, claimLimit: 1 }) once. Legacy keys are
-// deleted, an item with a claims map is skipped (leftover legacy keys on it are
-// cleaned up), and a rerun writes only the remainder. Dry run unless --yes; the default target is staging. See
+// deleted; an item with a claims map is never re-claimed, and only a missing
+// limit or leftover legacy keys are written for it. A rerun writes only the
+// remainder. Dry run unless --yes; the default target is staging. See
 // docs/migrations.md for the export, freeze and rollback runbook.
 
 import { readFileSync } from 'node:fs';
@@ -278,8 +279,8 @@ export async function runClaims({
   mode,
   limit = null,
   log = console,
-  now = Timestamp.now(),
 }) {
+  const now = Timestamp.now();
   if (!['dry-run', 'apply', 'verify'].includes(mode)) {
     throw new Error(`Unknown mode ${JSON.stringify(mode)}`);
   }

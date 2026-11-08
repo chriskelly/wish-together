@@ -1,8 +1,8 @@
 # Migrating Firestore data
 
 One-off admin scripts in `scripts/` change stored data outside the app. They run
-with a service account, bypass security rules, and their tests use a fake
-Firestore, so the runbook below is part of the change.
+with a service account and bypass security rules; their tests use a fake
+Firestore, so this runbook carries the operational checks.
 
 Use a one-off script when the change is a single rewrite, it is idempotent, and
 an export taken just before is a sufficient rollback. Revisit a shared kit only

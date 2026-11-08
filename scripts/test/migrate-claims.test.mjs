@@ -534,3 +534,19 @@ test('a malformed document through the CLI exits 1', async () => {
 test('an empty target exits 1 instead of looking like success', async () => {
   assert.equal(await main([], deps(fakeDb([]))), 1);
 });
+
+test('a credentials file with the wrong type is refused', (t) => {
+  const path = credentialsFile(t, {
+    type: 'authorized_user',
+    project_id: PROJECT_ID,
+    private_key: 'key',
+    client_email: 'x@example.com',
+  });
+
+  const result = run(['--limit', '1'], {
+    GOOGLE_APPLICATION_CREDENTIALS: path,
+  });
+
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /service-account key/);
+});

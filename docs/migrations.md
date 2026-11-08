@@ -31,7 +31,8 @@ After:
 - An item with a claims map is not re-claimed. A missing or invalid
   `claimLimit` and leftover legacy keys are the only things written for it
   (counted as planned, not skipped), so a rerun converges on those. An invalid
-  claim timestamp is left for `--verify` to report and must be fixed by hand.
+  claim timestamp, or more claims than a valid limit, is left for `--verify` to
+  report and must be fixed by hand.
   A map with several claims but no integer limit stops the run, because no safe
   limit can be guessed.
 - A non-null, non-map `claims` value, or a `claimedBy` that is not a non-empty
@@ -126,7 +127,8 @@ After the deploy, confirm the upload landed (firebase-tools can skip it):
 
 ```sh
 cd scripts && ACCESS_TOKEN=$(gcloud auth print-access-token) \
-  npm run rules:release -- check --database "(default)" --source ../firestore.rules
+  npm run rules:release -- check --database "(default)" \
+  --source ../firestore.rules   # or --database staging
 ```
 
 The freeze is a local edit, not a commit. Once the upload is confirmed, run
@@ -135,15 +137,18 @@ deployed freeze is unaffected.
 
 CI publishes `master`'s rules whenever a push touches `firestore.rules`,
 `firebase.json`, `rules_tests/` or the rules workflow, and the web build
-publishes on merge. Merging the rules/app PRs (PR 2 onward) is therefore the
+publishes on merge. Hold every other merge until the final rules are live: an
+unrelated push touching those paths republishes master's rules and lifts the
+freeze. Merging the rules/app PRs (PR 2 onward) is therefore the
 deploy: hold them until `--verify` is clean and merge inside the freeze window.
 The rules job and the web job are independent; wait for both before the smoke
 test.
 
 ## Staging rehearsal
 
-1. Seed demo data on `staging`, deploy the staging freeze (above), and take the
-   export.
+1. Seed from a pre-claims `seed-demo.mjs`, or import a legacy export: after PR 2
+   the seeder writes the new shape, and the dry run would plan nothing. Deploy
+   the staging freeze (above), take the export, and require a non-zero plan.
 2. Run the dry run and read the counts.
 3. Run `--limit 10 --yes` as a canary; stop if it exits non-zero. Then run the
    full `--yes`.
@@ -160,12 +165,13 @@ test.
 The iOS app is live, so the release window includes an App Store build.
 
 1. Rehearse on `staging`, including the restore, and verify the counts.
-2. Submit the claims-aware build for the exact commit that step 8 merges, then
-   immediately switch Version Release to "Manually release this version" in App
-   Store Connect: the `app_store_release` lane requests automatic release.
+2. Submit the claims-aware build from the final claims PR head (PR 3, which
+   contains PR 2; a squash merge keeps the tree identical), then immediately
+   switch Version Release to "Manually release this version" in App Store
+   Connect: the `app_store_release` lane requests automatic release.
    Confirm it shows "Pending Developer Release" before continuing. Do not
    release it until later in this window.
-3. Deploy the production freeze (above) and record the prior ruleset id.
+3. Record the prior ruleset id, then deploy the production freeze (above).
 4. Export production to the backup bucket, with `--database="(default)"`.
 5. Run the dry run against production and read the counts:
    `npm run migrate:claims -- --database "(default)"`.
@@ -214,7 +220,9 @@ the old app still reads the legacy fields.
 
 After the merge (the final rules and web are live, whether or not iOS has
 shipped): import the export, restore the recorded pre-freeze ruleset id in the
-console, redeploy the previous hosting release, and restore the previous
+console, redeploy the last Hosting release published before the claims PRs
+merged (the pre-claims build; after two merges `firebase hosting:rollback` goes
+back only one step, to the PR 2 build), and restore the previous
 `min_supported_build` value if it was raised (publish Remote Config). The git
 checkout now restores the claims rules, so do not use it here. Once the
 claims-aware iOS build is live, a data rollback needs a follow-up build, so

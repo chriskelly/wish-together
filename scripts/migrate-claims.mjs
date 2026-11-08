@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Migrates legacy item claims ({ claimedBy, claimedAt }) to the multi-claim
 // shape ({ claims: { uid: Timestamp }, claimLimit: 1 }) once. Legacy keys are
-// deleted; an item with a claims map is never re-claimed, and only a missing
-// limit or leftover legacy keys are written for it. A rerun writes only the
+// deleted; an item with a claims map is never re-claimed. Only a missing or
+// invalid limit and leftover legacy keys are written for it, and a map with
+// several claims and no integer limit stops the run. A rerun writes only the
 // remainder. Dry run unless --yes; the default target is staging. See
 // docs/migrations.md for the export, freeze and rollback runbook.
 

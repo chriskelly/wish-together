@@ -32,7 +32,15 @@ class WishlistRepository extends FirebaseRepository<Wishlist> {
     if (item.id == null) {
       throw ArgumentError('Item must have an ID to be updated.');
     }
-    return items(wishlistId).update(item.id!, item);
+    // Field-scoped: a stale item copy must not be able to overwrite `claims`
+    // with the map it happened to carry.
+    return items(wishlistId).updateContent(
+      item.id!,
+      name: item.name,
+      description: item.description,
+      url: item.url,
+      claimLimit: item.claimLimit,
+    );
   }
 
   Future<void> removeWishlistFromGroup(

@@ -12,7 +12,7 @@ class UnclaimItemUseCase {
 
     log?.event(const ClaimActionEvent(phase: ClaimPhase.started));
     try {
-      await itemRepository.unclaim(itemId);
+      await itemRepository.unclaim(itemId, claimedBy: '');
     } catch (error) {
       log?.event(
         ClaimActionEvent(phase: ClaimPhase.denied, code: readErrorCode(error)),

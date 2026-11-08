@@ -80,31 +80,48 @@ void main() {
     );
 
     test(
-      'updateItemInWishlist should update an item in the sub-collection',
+      'updateItemInWishlist updates content without writing a stale claim map',
       () async {
-        // ARRANGE: Add an initial item to the sub-collection.
-        final initialItem = Item(name: 'Initial Item Name');
+        // ARRANGE: a stored item with a claim, and a stale copy whose claims
+        // map is empty (the state that would drop the claim on a whole write).
+        final claimedAt = DateTime.utc(2026, 11, 1);
+        final initialItem = Item(
+          name: 'Initial Item Name',
+          claims: <String, DateTime>{'reader-1': claimedAt},
+          claimLimit: 2,
+        );
         final docRef = await fakeFirestore
             .collection(itemsCollectionPath)
             .add(
               wishlistRepository.items(testWishlistId).toFirestore(initialItem),
             );
-
-        // Create an updated version of the item with a new name.
-        final updatedItem = Item(id: docRef.id, name: 'Updated Item Name');
-
-        // ACT: Update the item in the wishlist.
-        await wishlistRepository.updateItemInWishlist(
-          testWishlistId,
-          updatedItem,
+        final staleItem = Item(
+          id: docRef.id,
+          name: 'Updated Item Name',
+          description: 'Updated description',
+          url: 'https://example.com/updated',
+          claimLimit: 2,
         );
 
-        // ASSERT: Verify that the item's name has been updated in Firestore.
-        final doc = await fakeFirestore
-            .collection(itemsCollectionPath)
-            .doc(docRef.id)
-            .get();
-        expect(doc.data()?['name'], equals(updatedItem.name));
+        // ACT
+        await wishlistRepository.updateItemInWishlist(
+          testWishlistId,
+          staleItem,
+        );
+
+        // ASSERT: content changed, the stored claim survived.
+        final data = (await fakeFirestore
+                .collection(itemsCollectionPath)
+                .doc(docRef.id)
+                .get())
+            .data()!;
+        expect(data['name'], 'Updated Item Name');
+        expect(data['description'], 'Updated description');
+        expect(data['url'], 'https://example.com/updated');
+        expect(data['claimLimit'], 2);
+        final claims = data['claims'] as Map<String, dynamic>;
+        expect(claims.keys, orderedEquals(<String>['reader-1']));
+        expect(claims['reader-1'], Timestamp.fromDate(claimedAt));
       },
     );
 

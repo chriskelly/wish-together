@@ -95,7 +95,10 @@ const seedWishlistWithItem = async (
   store,
   wishlistId,
   itemId,
-  { sharedWithGroups = [], item = { name: 'Gift' } } = {},
+  {
+    sharedWithGroups = [],
+    item = { name: 'Gift', claims: {}, claimLimit: 1 },
+  } = {},
 ) => {
   await seedWishlist(store, wishlistId, { sharedWithGroups });
   await seedItem(store, wishlistId, itemId, item);
@@ -759,6 +762,49 @@ test('a reader removes only their own claim', async () => {
   assert.ok(claims[MEMBER]);
 });
 
+test('a reader can unclaim from a full item', async () => {
+  const wishlistId = 'wishlist-unclaim-full';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      sharedWithGroups: ['group-1'],
+      item: {
+        name: 'Gift',
+        claims: { [OUTSIDER]: claimAt(), [MEMBER]: claimAt() },
+        claimLimit: 2,
+      },
+    }),
+  );
+
+  await assertSucceeds(
+    itemRef(OUTSIDER, wishlistId, itemId).update({
+      [`claims.${OUTSIDER}`]: deleteField(),
+    }),
+  );
+});
+
+test('a reader cannot add a key while removing another', async () => {
+  const wishlistId = 'wishlist-claim-add-and-remove';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      sharedWithGroups: ['group-1'],
+      item: {
+        name: 'Gift',
+        claims: { [MEMBER]: claimAt() },
+        claimLimit: 2,
+      },
+    }),
+  );
+
+  await assertFails(
+    itemRef(OUTSIDER, wishlistId, itemId).update({
+      [`claims.${MEMBER}`]: deleteField(),
+      [`claims.${OUTSIDER}`]: claimAt(),
+    }),
+  );
+});
+
 test("a reader cannot remove another user's claim", async () => {
   const wishlistId = 'wishlist-unclaim-another';
   const itemId = 'item';
@@ -926,6 +972,27 @@ test('the owner cannot drop a claim with a whole-document write', async () => {
   );
 });
 
+test('the owner cannot set a non-integer or negative limit', async () => {
+  const wishlistId = 'wishlist-owner-bad-limit';
+  const itemId = 'item';
+  await seed((s) => seedWishlistWithItem(s, wishlistId, itemId));
+
+  const item = itemRef(OWNER, wishlistId, itemId);
+  await assertFails(item.update({ claimLimit: '3' }));
+  await assertFails(item.update({ claimLimit: 1.5 }));
+  await assertFails(item.update({ claimLimit: -1 }));
+});
+
+test('the owner can resend identical content', async () => {
+  const wishlistId = 'wishlist-owner-noop';
+  const itemId = 'item';
+  await seed((s) => seedWishlistWithItem(s, wishlistId, itemId));
+
+  await assertSucceeds(
+    itemRef(OWNER, wishlistId, itemId).update({ name: 'Gift' }),
+  );
+});
+
 test('the owner cannot lower a finite limit below the claims', async () => {
   const wishlistId = 'wishlist-owner-lower-limit';
   const itemId = 'item';
@@ -1013,6 +1080,20 @@ test('creating an item with a non-map claims value is denied', async () => {
   );
 });
 
+test('creating an item with an empty claims map is allowed', async () => {
+  const wishlistId = 'wishlist-create-empty-claims';
+  const itemId = 'item';
+  await seed((s) => seedWishlist(s, wishlistId));
+
+  await assertSucceeds(
+    itemRef(OWNER, wishlistId, itemId).set({
+      name: 'Gift',
+      claimLimit: 1,
+      claims: {},
+    }),
+  );
+});
+
 test('an item created without a claims map can be claimed', async () => {
   const wishlistId = 'wishlist-create-no-claims';
   const itemId = 'item';
@@ -1050,6 +1131,14 @@ test('a legacy item without a limit is write-denied until migrated', async () =>
   );
   await assertFails(
     itemRef(OWNER, wishlistId, itemId).update({ name: 'Renamed' }),
+  );
+  // The app's own field-scoped payload supplies `claimLimit`, but the stored
+  // document still has no limit, so the owner branch refuses it too.
+  await assertFails(
+    itemRef(OWNER, wishlistId, itemId).update({
+      name: 'Renamed',
+      claimLimit: 1,
+    }),
   );
 });
 

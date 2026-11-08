@@ -45,7 +45,7 @@ void main() {
       expect(failure.code, isNull);
     });
 
-    test('maps a full item before reading a Firestore code', () {
+    test('maps a full item to fullyClaimed without a code', () {
       // Act
       final failure = ClaimFailure.from(const ClaimLimitReachedException());
 

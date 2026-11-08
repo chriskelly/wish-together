@@ -142,7 +142,7 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
           // description. The action row stays outside it, so its buttons keep
           // their own long-press behaviour.
           SelectionArea(child: _buildItemText(item, claimedText: claimedText)),
-          _buildItemActions(item, isOwner, context),
+          _buildItemActions(item, isOwner),
         ],
       ),
     );
@@ -224,7 +224,7 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
     return Text(item.description!, style: style);
   }
 
-  Widget _buildItemActions(Item item, bool isOwner, BuildContext context) {
+  Widget _buildItemActions(Item item, bool isOwner) {
     final bool viewerClaimed = item.isClaimedBy(_currentUserId);
 
     if (isOwner) {
@@ -353,12 +353,7 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
       if (mounted) {
         _showSuccessSnackbar('Item unclaimed.');
       }
-    } catch (error, stackTrace) {
-      if (error is! ClaimFailure) {
-        // No repository seam saw this one, so it would otherwise leave no
-        // trail; a classified failure is already reported by the write itself.
-        appLogOrNull?.error(error, stackTrace);
-      }
+    } catch (error) {
       if (mounted) {
         _showErrorSnackbar(
           error is ClaimFailure

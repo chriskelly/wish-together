@@ -1,10 +1,16 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wishtogether/core/logging/app_event.dart';
+import 'package:wishtogether/core/logging/app_log.dart';
+import 'package:wishtogether/core/logging/log_sink.dart';
+import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/wishlist/data/item_repository.dart';
 import 'package:wishtogether/features/wishlist/domain/claim_limit_reached_exception.dart';
 import 'package:wishtogether/features/wishlist/domain/item.dart';
 import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
+
+import '../../../core/logging/recording_sink.dart';
 
 void main() {
   group('ItemRepository', () {
@@ -40,7 +46,6 @@ void main() {
         final map = itemRepository.toFirestore(item);
 
         expect(map['claims'], isA<Map<String, dynamic>>());
-        expect((map['claims'] as Map<String, dynamic>)['u1'], isA<Timestamp>());
         expect(
           (map['claims'] as Map<String, dynamic>)['u1'],
           Timestamp.fromDate(claimedAt),
@@ -67,7 +72,6 @@ void main() {
         expect(item.claims['u1'], claimedAt);
         expect(item.claimCount, 2);
         expect(item.claimLimit, 3);
-        expect(item.toMap()['claims'], isA<Map<String, dynamic>>());
       });
 
       test('fromFirestore drops a stored claim value that is not a '
@@ -312,5 +316,62 @@ void main() {
         expect(data['url'], isNull);
       });
     });
+  });
+
+  group('ItemRepository diagnostics', () {
+    const String wishlistId = 'diagnostic_wishlist';
+    final String itemsCollectionPath =
+        '${Wishlist.collectionName}/$wishlistId/${Item.collectionName}';
+    final DateTime claimedAt = DateTime.utc(2026, 11, 1, 12);
+
+    late RecordingSink sink;
+    late FakeFirebaseFirestore firestore;
+    late ItemRepository repository;
+
+    setUp(() async {
+      await getIt.reset();
+      sink = RecordingSink();
+      getIt.registerSingleton<AppLog>(
+        AppLog(session: testSession, sinks: <LogSink>[sink]),
+      );
+      firestore = FakeFirebaseFirestore();
+      repository = ItemRepository(wishlistId, firestore: firestore);
+    });
+
+    tearDown(getIt.reset);
+
+    test('a full item is not reported as a Firestore error', () async {
+      // ARRANGE
+      await firestore.collection(itemsCollectionPath).doc('full').set({
+        'name': 'Gift',
+        'claims': <String, dynamic>{
+          'someone-else': Timestamp.fromDate(claimedAt),
+        },
+        'claimLimit': 1,
+      });
+
+      // ACT & ASSERT: an expected outcome, not a write failure.
+      await expectLater(
+        repository.claim('full', claimedBy: 'reader-1'),
+        throwsA(isA<ClaimLimitReachedException>()),
+      );
+      expect(sink.eventsOf<FirestoreErrorEvent>(), isEmpty);
+    });
+
+    test(
+      'a missing item is reported with the claim op and not-found',
+      () async {
+        // ACT
+        await expectLater(
+          repository.claim('missing', claimedBy: 'reader-1'),
+          throwsA(isA<FirebaseException>()),
+        );
+
+        // ASSERT
+        final event = sink.eventsOf<FirestoreErrorEvent>().single;
+        expect(event.op, FirestoreOp.claim);
+        expect(event.code, 'not-found');
+      },
+    );
   });
 }

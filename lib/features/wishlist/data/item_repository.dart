@@ -20,9 +20,10 @@ class ItemRepository extends FirebaseRepository<Item> {
     if (rawClaims is Map) {
       data['claims'] = <String, dynamic>{
         for (final entry in rawClaims.entries)
-          entry.key as String: entry.value is Timestamp
-              ? (entry.value as Timestamp).toDate().toUtc().toIso8601String()
-              : entry.value,
+          if (entry.key is String)
+            entry.key as String: entry.value is Timestamp
+                ? (entry.value as Timestamp).toDate().toUtc().toIso8601String()
+                : entry.value,
       };
     }
     return Item.fromMap(data, doc.id);

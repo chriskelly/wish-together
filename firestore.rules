@@ -121,8 +121,8 @@ service cloud.firestore {
         }
 
         // A claim is one key in `claims`, mapping a uid to the time it was
-        // claimed. The two helpers tolerate a document written before the
-        // migration (no map yet) and a last unclaim that leaves the map empty.
+        // claimed. The helpers tolerate an absent map (a last unclaim, or a
+        // document written before it existed) but not a malformed one.
         function storedClaims() {
           return resource.data.keys().hasAny(['claims'])
                  ? resource.data.claims : {};
@@ -136,6 +136,7 @@ service cloud.firestore {
         // timestamp. A removed key is allowed, which is the unclaim path.
         function ownClaimOnly() {
           return requestClaims() is map
+                 && storedClaims() is map
                  && requestClaims().diff(storedClaims()).affectedKeys()
                       .hasOnly([request.auth.uid])
                  && (!(request.auth.uid in requestClaims())
@@ -152,12 +153,15 @@ service cloud.firestore {
                         <= request.resource.data.claimLimit);
         }
 
+        function limitIsValid() {
+          return request.resource.data.claimLimit is int
+                 && request.resource.data.claimLimit >= 0;
+        }
+
         // The owner may change content and the limit, but never below the
         // people who already claimed.
         function ownerLimitIsValid() {
-          return request.resource.data.claimLimit is int
-                 && request.resource.data.claimLimit >= 0
-                 && claimsFitLimit();
+          return limitIsValid() && claimsFitLimit();
         }
 
         // Narrower than the wishlist read above: an item is readable only by its
@@ -168,8 +172,7 @@ service cloud.firestore {
         // carries a non-negative integer limit. An old client that omits it is
         // refused; the release window updates clients before this deploys.
         allow create: if isParentOwner()
-                      && request.resource.data.claimLimit is int
-                      && request.resource.data.claimLimit >= 0
+                      && limitIsValid()
                       && (!request.resource.data.keys().hasAny(['claims'])
                           || (request.resource.data.claims is map
                               && request.resource.data.claims.size() == 0));
@@ -177,9 +180,10 @@ service cloud.firestore {
         allow delete: if isParentOwner();
 
         // The owner's update is field-scoped so a whole-document write cannot
-        // drop a reader's claim. A reader's update may change only the claims
-        // map, only their own key, and only while the item has room.
+        // drop a reader's claim, and it is refused until the document has a
+        // limit (a legacy document is migrated before these rules deploy).
         allow update: if (isParentOwner()
+                          && resource.data.keys().hasAny(['claimLimit'])
                           && changed().hasOnly(
                                ['name', 'description', 'url', 'claimLimit'])
                           && ownerLimitIsValid())

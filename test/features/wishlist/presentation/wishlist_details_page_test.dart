@@ -349,6 +349,31 @@ void main() {
         expect(find.text('Claim'), findsOneWidget);
       });
 
+      testWidgets('leaves a partially claimed multi-claim card available', (
+        tester,
+      ) async {
+        await pumpPage(tester, [
+          Item(
+            id: claimedItemId,
+            name: itemName,
+            claims: <String, DateTime>{
+              otherReaderId: DateTime.utc(2026, 11, 1),
+            },
+            claimLimit: 3,
+          ),
+        ]);
+
+        final scheme = lightTheme.colorScheme;
+        expect(cardOf(tester, itemName).color, scheme.surfaceContainerLow);
+        expect(titleOf(tester, itemName).style?.color, scheme.onSurface);
+        expect(
+          titleOf(tester, itemName).style?.decoration,
+          isNot(TextDecoration.lineThrough),
+        );
+        expect(find.text('Claim'), findsOneWidget);
+        expect(find.byType(StatusPill), findsNothing);
+      });
+
       testWidgets('uses the dark palette for a claimed reader item', (
         tester,
       ) async {

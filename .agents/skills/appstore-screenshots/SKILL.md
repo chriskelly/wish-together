@@ -134,7 +134,7 @@ WT_TOKEN_FILE=/tmp/wt-token .agents/skills/appstore-screenshots/capture.sh \
 | `02-the-knowles-family.png` | `/group/demo-group-knowles` | a group the viewer joined, not owns |
 | `03-home.png` | `/` | both home sections |
 | `04-sasha-birthday.png` | `/wishlist/demo-wishlist-sasha-birthday` | the viewer's claim on `Perfume: oud`; scroll to it |
-| `05-shawns-birthday.png` | `/wishlist/demo-wishlist-viewer-birthday` | claim status **shown** (`Available`, `Claimed on`) |
+| `05-shawns-birthday.png` | `/wishlist/demo-wishlist-viewer-birthday` | claim status **shown** (`Available`, `2 of 3 claimed` on the multi-claim overcoat) |
 | `06-shawns-birthday-spoiler-free.png` | `/wishlist/demo-wishlist-viewer-birthday` | the default load, claim status **hidden** |
 
 `WishlistDetailsPage` starts spoiler-free, so `06` needs no extra flag. `05` is
@@ -152,7 +152,7 @@ The claim-status action is the first of the two end-aligned app-bar icons, so
 its centre is about `width - 72` logical points: **330** on the 402-point medium
 device, not the 368 that belonged to the 440-point Pro Max. Tapping the second
 icon opens the edit form instead, and the capture then fails `verify.sh` with
-`ocr MISS: Available`. `bbox.swift` finds *text*, not icons — it gives the
+`ocr MISS: 2 of 3 claimed`. `bbox.swift` finds *text*, not icons — it gives the
 title's row (y ≈ 91) but you still have to place the x from the device width.
 `WT_SHOT_SCROLL=<logical px>` scrolls the page the same way; `04` uses whatever
 value puts the claimed row on screen, around 480 in the current design.
@@ -170,7 +170,7 @@ It fails on:
 - dimensions other than 1206 × 2622, or any alpha channel;
 - an OCR string a screen must show, or one it must not (`Dev session`,
   `Exception`, `Something went wrong`, `Retry`);
-- `06` containing `Available` or `Claimed on`, or `05` and `06` being identical;
+- `06` containing `Available`, `Claimed` or `2 of 3 claimed`, or `05` and `06` being identical;
 - a dominant colour that is neither the cream canvas nor the item-card surface,
   or the old blue (`#2196F3` / `#1976D2`) returning.
 

@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wishtogether/common/widgets/brand_card.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/dev/fixtures/default_scenario.dart';
 import 'package:wishtogether/dev/fixtures/dev_fixture.dart';
@@ -55,6 +56,16 @@ void main() {
     await pumpFrames(tester);
   }
 
+  Future<void> scrollListTo(WidgetTester tester, Finder finder) =>
+      tester.scrollUntilVisible(
+        finder,
+        200,
+        scrollable: find.descendant(
+          of: find.byType(ListView),
+          matching: find.byType(Scrollable),
+        ),
+      );
+
   testWidgets('default opens home with its lists and group', (tester) async {
     await pumpApp(tester, defaultFixture);
 
@@ -84,17 +95,11 @@ void main() {
 
     expect(find.text("Bea's Birthday"), findsOneWidget);
     expect(find.text('Vintage microphone'), findsOneWidget);
-    // The viewer is a reader here, so another member's claim and the viewer's
-    // own claim are both rendered without touching the spoiler toggle.
-    expect(find.text('Claimed'), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.text('You claimed this!'),
-      200,
-      scrollable: find.descendant(
-        of: find.byType(ListView),
-        matching: find.byType(Scrollable),
-      ),
-    );
+    // The viewer is a reader here, so another member's full single claim and
+    // the viewer's own claim are both rendered without touching the spoiler
+    // toggle.
+    expect(find.text('Unavailable'), findsOneWidget);
+    await scrollListTo(tester, find.text('You claimed this!'));
     expect(find.text('You claimed this!'), findsOneWidget);
   });
 
@@ -168,6 +173,37 @@ void main() {
 
     expect(find.text("Priya's Wedding List"), findsOneWidget);
     expect(find.text('Tea towel set'), findsOneWidget);
-    expect(find.text('You claimed this!'), findsOneWidget);
+    expect(find.text('You claimed this!'), findsWidgets);
+
+    await scrollListTo(tester, find.text('Garden hose'));
+    expect(find.text('2 claimed'), findsOneWidget);
+
+    await scrollListTo(tester, find.text('Board game'));
+    final boardGameCard = find.ancestor(
+      of: find.text('Board game'),
+      matching: find.byType(BrandCard),
+    );
+    expect(find.text('2 of 4 claimed'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: boardGameCard,
+        matching: find.text('You claimed this!'),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('shared opens the viewer-owned list with its claim limits', (
+    tester,
+  ) async {
+    final app = await pumpApp(tester, sharedFixture);
+
+    await open(tester, app, '/wishlist/shr-l1');
+
+    expect(find.text("Sam's Birthday"), findsOneWidget);
+    expect(find.text('1 person can claim'), findsWidgets);
+
+    await scrollListTo(tester, find.text('Stand mixer'));
+    expect(find.text('Unlimited claims'), findsOneWidget);
   });
 }

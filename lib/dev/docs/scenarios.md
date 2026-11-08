@@ -41,7 +41,7 @@ and it is read only at startup.
 | `large-wishlist` | Fifty items in one list, generated, for scrolling and performance. | `/wishlist/lg-l1` |
 | `empty` | A signed-in account with no wishlists and no groups. | `/` |
 | `overflow` | Long display, group and wishlist names, an unbroken item name, a long link and a long description. | `/wishlist/ovf-l1` |
-| `shared` | A group the viewer belongs to, a wishlist another member shared with it, and claims by that member and by the viewer. | `/group/shr-g1` or `/wishlist/shr-l2` |
+| `shared` | A group the viewer belongs to, a wishlist another member shared with it, claims by that member and by the viewer, and multi-claim rows (unlimited, partly claimed, full, viewer-claimed) plus an owner list showing each limit. | `/group/shr-g1`, `/wishlist/shr-l2` or `/wishlist/shr-l1` |
 
 The overflow scenario's group page (`/group/ovf-g1`) is worth opening too: its member row
 overflows when the name is unbroken, which is the layout gap the scenario exists to expose. It
@@ -61,8 +61,13 @@ Worth opening directly:
   viewer is a reader, so its claims are visible.
 - `/wishlist/fam-l11?scenario=family` is the viewer's own list with claims on it, so the spoiler
   toggle has something to hide and reveal.
-- `/wishlist/shr-l2?scenario=shared` is another member's list; `shr-i5` is claimed by a third
-  member and `shr-i6` by the viewer, so both claimed renderings are on one screen.
+- `/wishlist/shr-l2?scenario=shared` is another member's list. `shr-i5` is full and `shr-i6`
+  is the viewer's single claim; `shr-i7` is unlimited with a count, `shr-i8` is partly claimed,
+  `shr-i9` is full and `shr-i10` is the viewer's multi claim, so every reader rendering is on
+  one screen.
+- `/wishlist/shr-l1?scenario=shared` is the viewer's own list; its items carry a single limit,
+  an unlimited item and two finite multi limits (one with no claims), so the spoiler-free limit
+  labels and the revealed counts both have something to show. Press **Show claimed status**.
 - `/wishlist/ovf-l1?scenario=overflow` holds the long-name, long-link and long-description probes.
 
 A fixture cannot store spoiler mode: it is a per-view toggle on the wishlist details page, on by

@@ -180,7 +180,9 @@ const GROUPS = [
 // than one group. Items carry every key the app writes, so a later in-app claim
 // does not "add" a key and get denied by the rules.
 //
-// Item tuple: [name, description, linkSlug, claimedByKey]
+// Item tuple: [name, description, linkSlug, claimedByKey, claimLimit]
+// `claimedByKey` may be one person key or an array of keys; `claimLimit`
+// defaults to 1, and 0 means unlimited.
 // ---------------------------------------------------------------------------
 const link = (slug) => `https://example.com/gift/${slug}`;
 
@@ -355,7 +357,9 @@ const WISHLISTS = [
       ['Vintage watch', 'The 1960s one from the auction.', 'vintage-watch'],
       ['Art book: Basquiat', null, 'basquiat-book', 'sasha'],
       ['Vinyl: Reasonable Doubt', 'The reissue.', 'reasonable-doubt'],
-      ['Cashmere overcoat', 'Charcoal, medium.', 'overcoat'],
+      // Two claimants and a finite limit make App Store shot 05 show a real
+      // multi-claim count.
+      ['Cashmere overcoat', 'Charcoal, medium.', 'overcoat', ['sasha', 'blue'], 3],
       ['Espresso machine', 'The one with the pressure gauge.', 'espresso-machine'],
       ['Studio headphones', null, 'studio-headphones', 'blue'],
       ['Cufflinks', 'Silver, simple.', 'cufflinks'],
@@ -445,7 +449,20 @@ async function seed() {
     counts.wishlists += 1;
 
     wishlist.items.forEach((item, index) => {
-      const [name, description, slug, claimedBy] = item;
+      const [name, description, slug, claimedBy, claimLimit = 1] = item;
+      const claimantKeys = Array.isArray(claimedBy)
+        ? claimedBy
+        : claimedBy
+          ? [claimedBy]
+          : [];
+      if (claimLimit !== 0 && claimantKeys.length > claimLimit) {
+        throw new Error(
+          `Item "${name}" has ${claimantKeys.length} claimants but claimLimit ${claimLimit}.`,
+        );
+      }
+      // Two claimants on one item claimed at the same instant, so the map's
+      // values share the timestamp.
+      const claimedAt = claimantKeys.length > 0 ? claimedAtFor(claimHours++) : null;
       batchWrites.push(
         wishlistRef
           .collection('items')
@@ -454,10 +471,10 @@ async function seed() {
             name,
             description: description ?? null,
             url: slug ? link(slug) : null,
-            claims: claimedBy
-              ? { [uidOf(claimedBy)]: claimedAtFor(claimHours++) }
-              : {},
-            claimLimit: 1,
+            claims: Object.fromEntries(
+              claimantKeys.map((key) => [uidOf(key), claimedAt]),
+            ),
+            claimLimit,
           }),
       );
       counts.items += 1;

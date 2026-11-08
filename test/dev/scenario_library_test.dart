@@ -368,18 +368,21 @@ void main() {
       },
     );
 
-    test('shared exposes four people, a group, two lists and six items', () {
-      expect(documentIdsIn(sharedFixture), <String>{
-        'shr-u1',
-        'shr-u2',
-        'shr-u3',
-        'shr-u4',
-        'shr-g1',
-        'shr-l1',
-        'shr-l2',
-        for (var number = 1; number <= 6; number++) 'shr-i$number',
-      });
-    });
+    test(
+      'shared exposes four people, a group, two lists and thirteen items',
+      () {
+        expect(documentIdsIn(sharedFixture), <String>{
+          'shr-u1',
+          'shr-u2',
+          'shr-u3',
+          'shr-u4',
+          'shr-g1',
+          'shr-l1',
+          'shr-l2',
+          for (var number = 1; number <= 13; number++) 'shr-i$number',
+        });
+      },
+    );
   });
 
   group('the registry', () {

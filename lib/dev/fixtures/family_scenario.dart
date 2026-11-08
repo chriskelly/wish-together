@@ -33,7 +33,9 @@ String _link(String slug) => 'https://example.com/gift/$slug';
 ///
 /// The item text, the group and sharing structure, the list sizes and the
 /// placement of the nine claims follow `scripts/seed-demo.mjs`, which seeds the
-/// same story into a real Firestore for screenshots. The cast is invented and
+/// same story into a real Firestore for screenshots; the seed additionally
+/// gives one overcoat two claimants and a finite limit for the listing shot.
+/// The cast is invented and
 /// the few items that named a real person or title are renamed, so this is that
 /// dataset's shape rather than a character-for-character copy. Item ids run in
 /// one sequence (`fam-i01` to `fam-i86`) across the lists, so no two documents

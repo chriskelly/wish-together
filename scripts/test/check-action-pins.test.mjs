@@ -137,10 +137,10 @@ test('CLI exits 1 when the workflows directory is missing', () => {
 test('CLI discovers .yaml files as well as .yml', () => {
   const directory = mkdtempSync(join(tmpdir(), 'action-pins-'));
   try {
-    writeFileSync(join(directory, 'ci.yaml'), `        uses: actions/checkout@${SHA}\n`);
+    writeFileSync(join(directory, 'ci.yaml'), '        uses: actions/checkout@v7\n');
     const result = runCli(directory);
-    assert.equal(result.status, 0);
-    assert.equal(result.stderr, '');
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /ci\.yaml:1: actions\/checkout@v7/);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

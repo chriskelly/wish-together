@@ -10,8 +10,12 @@ the product.
   sub-collection with its parent.
 - A claim writes only the caller's own key in `claims`, and never the rest of the item. An
   owner's edit writes content and `claimLimit` only, never `claims`.
-- The owner's details page hides claimed status by default; a reader of a shared list always
-  sees it.
+- A finite claim limit never drops below the item's current claim count; the item form's
+  minimum on edit is `max(1, claimCount)`.
+- The owner's details page hides claimed status by default and shows the configured limit
+  instead; a reader of a shared list always sees the state. Single-claim rows never show a
+  count; multi and unlimited rows show the count summary while room remains, and a full reader
+  row shows `Unavailable` with no count.
 
 ## Reference
 

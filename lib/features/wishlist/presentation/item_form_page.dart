@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wishtogether/common/widgets/button_loading_indicator.dart';
@@ -30,8 +32,25 @@ class _ItemFormPageState extends State<ItemFormPage> {
   final _createItemUseCase = getIt<CreateItemUseCase>();
   final _updateItemUseCase = getIt<UpdateItemUseCase>();
   bool _isLoading = false;
+  late int _claimLimit;
+
+  static const int _singleClaimLimit = 1;
+  static const int _unlimitedClaimLimit = 0;
+  static const int _maximumClaimLimit = 99;
 
   bool get _isEditing => widget.item != null;
+
+  bool get _isUnlimited => _claimLimit == _unlimitedClaimLimit;
+
+  /// The fewest claims the limit may be lowered to.
+  ///
+  /// An item that already has claims cannot be set below them: the claims stay
+  /// on the document, so a lower limit would be an impossible state.
+  int get _minimumClaimLimit =>
+      math.max(_singleClaimLimit, widget.item?.claimCount ?? 0);
+
+  /// A finite limit is only legal when it can cover every existing claim.
+  bool get _canSetFiniteLimit => _minimumClaimLimit <= _maximumClaimLimit;
 
   @override
   void initState() {
@@ -41,6 +60,10 @@ class _ItemFormPageState extends State<ItemFormPage> {
       text: widget.item?.description ?? '',
     );
     _linkController = TextEditingController(text: widget.item?.url ?? '');
+    final storedLimit = widget.item?.claimLimit ?? _singleClaimLimit;
+    _claimLimit = storedLimit == _unlimitedClaimLimit
+        ? _unlimitedClaimLimit
+        : math.max(storedLimit, _minimumClaimLimit);
   }
 
   @override
@@ -55,7 +78,7 @@ class _ItemFormPageState extends State<ItemFormPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: _buildAppBar(),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
@@ -67,6 +90,8 @@ class _ItemFormPageState extends State<ItemFormPage> {
               _descriptionTextFormField(),
               const SizedBox(height: 16),
               _linkTextFormField(),
+              const SizedBox(height: 24),
+              _claimLimitFields(),
               const SizedBox(height: 24),
               _submitButton(),
             ],
@@ -125,6 +150,100 @@ class _ItemFormPageState extends State<ItemFormPage> {
     return null;
   }
 
+  Widget _claimLimitFields() {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'How many people can claim this?',
+          style: theme.textTheme.titleMedium,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Each person can claim one. Unlimited suits a gift where any number is welcome.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            IconButton(
+              onPressed: _canDecreaseClaimLimit ? _decreaseClaimLimit : null,
+              tooltip: 'Fewer people',
+              icon: const Icon(Icons.remove),
+            ),
+            Semantics(
+              container: true,
+              excludeSemantics: true,
+              label: _isUnlimited
+                  ? 'No claim limit'
+                  : 'Claim limit: $_claimLimit',
+              child: SizedBox(
+                width: 56,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    _isUnlimited ? '∞' : '$_claimLimit',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.headlineSmall,
+                  ),
+                ),
+              ),
+            ),
+            IconButton(
+              onPressed: _canIncreaseClaimLimit ? _increaseClaimLimit : null,
+              tooltip: 'More people',
+              icon: const Icon(Icons.add),
+            ),
+          ],
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Unlimited'),
+          subtitle: const Text(
+            'No limit on how many people can claim this item.',
+          ),
+          value: _isUnlimited,
+          // With more claims than the stepper's ceiling, no finite limit can
+          // legally cover them, so the item must stay unlimited.
+          onChanged: !_isUnlimited || _canSetFiniteLimit
+              ? (unlimited) {
+                  setState(() {
+                    _claimLimit = unlimited
+                        ? _unlimitedClaimLimit
+                        : _minimumClaimLimit;
+                  });
+                }
+              : null,
+        ),
+      ],
+    );
+  }
+
+  /// A limit above 99 can exist in a document written outside this form; it is
+  /// kept and cannot be lowered, because the stepper only edits 1..99.
+  bool get _canDecreaseClaimLimit =>
+      !_isUnlimited &&
+      _claimLimit <= _maximumClaimLimit &&
+      _claimLimit > _minimumClaimLimit;
+
+  bool get _canIncreaseClaimLimit =>
+      _isUnlimited ? _canSetFiniteLimit : _claimLimit < _maximumClaimLimit;
+
+  void _decreaseClaimLimit() {
+    setState(() {
+      _claimLimit -= 1;
+    });
+  }
+
+  void _increaseClaimLimit() {
+    setState(() {
+      _claimLimit = _isUnlimited ? _minimumClaimLimit : _claimLimit + 1;
+    });
+  }
+
   ElevatedButton _submitButton() => ElevatedButton(
     onPressed: _isLoading ? null : _saveItem,
     style: ElevatedButton.styleFrom(
@@ -154,7 +273,7 @@ class _ItemFormPageState extends State<ItemFormPage> {
           name: name,
           description: description.isEmpty ? null : description,
           url: url.isEmpty ? null : url,
-          claimLimit: widget.item!.claimLimit,
+          claimLimit: _claimLimit,
         );
       } else {
         await _createItemUseCase.execute(
@@ -162,7 +281,7 @@ class _ItemFormPageState extends State<ItemFormPage> {
           name,
           description: description.isEmpty ? null : description,
           url: url.isEmpty ? null : url,
-          claimLimit: 1,
+          claimLimit: _claimLimit,
         );
       }
       if (mounted) {

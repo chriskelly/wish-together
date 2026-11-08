@@ -74,14 +74,20 @@ root.
   value that is not a Timestamp is dropped on read rather than failing the whole list; the
   migration's `--verify` reports such a document.
 - An owner's content edit is field-scoped: it writes `name`, `description`, `url` and
-  `claimLimit`, never `claims`, so it cannot drop a claim. The item form passes the existing
-  limit; there is no limit control in the UI yet.
+  `claimLimit`, never `claims`, so it cannot drop a claim. The item form's stepper sets a limit
+  of 1–99 or unlimited (0, shown as `∞`); on edit its minimum is `max(1, claimCount)`, so a
+  limit cannot be lowered below the people who already claimed. A pre-existing finite limit
+  above 99 is kept and cannot be lowered.
 - Owner-only UI: the add-item FAB, item edit/delete actions, wishlist edit, and the spoiler
   toggle appear only when `wishlist.ownerId == currentUserId`.
 - `WishlistDetailsPage` defaults `_isSpoilerFree` to true for the owner's controls. Spoiler-free
-  shows no claim status; the revealed view shows `Claimed` or `Available`, never a date. A
-  reader always sees the state: their own claim as an accent "You claimed this!" pill beside
-  Unclaim, another person's claim as a neutral `Claimed` pill, or Claim while there is room.
+  shows the configured limit (`Unlimited claims`, `1 person can claim`, `N people can claim`)
+  instead of claim status; the revealed view shows `Available`/`Claimed` for a single-claim item,
+  `No claims yet`/`N claimed` for unlimited, and `No claims yet`/`N of M claimed` for a finite
+  multi item, never a date. A reader always sees the state: their own claim as an accent "You
+  claimed this!" pill beside Unclaim, with a count for multi or unlimited items; a count before
+  Claim while room remains; or a neutral `Unavailable` pill when full. Single-claim rows never
+  show a count.
 - A reader's card is muted and struck only when the viewer claimed the item or no room remains;
   a partially claimed item stays normal. The owner's card is never muted.
 - Another reader cannot take over a claim or remove someone else's key. There is no separate
@@ -119,9 +125,11 @@ shared with a group appears in that group's details page because of
   fake transaction has no isolation or rollback, so the true concurrency behaviour is proven by
   the rules tests and the staging smoke test, not here.
 - `test/features/wishlist/presentation/` — `claimFailureMessage` copy (including a full item);
+  `item_form_page_test` pins the stepper's create, edit, unlimited and save behaviour;
   `wishlist_details_page_test` pins the reader's own and other claims, the unclaimed case, the
-  row fitting a 320 px phone at 1.3 text scale, the signed-out unclaim copy, and the owner's
-  card never being restyled in either spoiler mode.
+  multi/unlimited counts, `Unavailable`, the owner's spoiler-free limit labels and revealed
+  status, the row fitting a 320 px phone at 1.3 text scale, the signed-out unclaim copy, and the
+  owner's card never being restyled in either spoiler mode.
 - `rules_tests/` — own-key-only adds and removes, the cap, unlimited items, the owner's
   field-scoped edit and limit invariant, create validation, a legacy document being write-denied,
   and an item created without a claims map still being claimable.

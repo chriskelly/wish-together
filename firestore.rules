@@ -1,7 +1,7 @@
 rules_version = '2';
 
-// Content writes are owner-only. The one exception is the claim fields on an
-// item, which any reader of that wishlist's items may update for themselves.
+// Content writes are owner-only. The one exception is an item's `claims` map,
+// where any reader of that wishlist's items may add or remove their own key.
 //
 // Reads are open to any signed-in user, except listing groups (members only)
 // and any item whose wishlist has never been shared. Anything finer needs a
@@ -120,42 +120,73 @@ service cloud.firestore {
                      && parent().sharedWithGroups.size() > 0);
         }
 
-        // A claim is a pair: `claimedBy` and its timestamp are set together, or
-        // neither is. A reader that sets only one half of the pair is denied,
-        // because a half-written claim reads as claimed with no date, which the
-        // wishlist page cannot render.
-        function claimIsWellFormed() {
-          return (request.resource.data.keys().hasAny(['claimedBy'])
-                  && request.resource.data.claimedBy != null)
-                 == (request.resource.data.keys().hasAny(['claimedAt'])
-                     && request.resource.data.claimedAt is timestamp);
+        // A claim is one key in `claims`, mapping a uid to the time it was
+        // claimed. The two helpers tolerate a document written before the
+        // migration (no map yet) and a last unclaim that leaves the map empty.
+        function storedClaims() {
+          return resource.data.keys().hasAny(['claims'])
+                 ? resource.data.claims : {};
+        }
+        function requestClaims() {
+          return request.resource.data.keys().hasAny(['claims'])
+                 ? request.resource.data.claims : {};
+        }
+
+        // A reader may affect only their own key, and a key they add must be a
+        // timestamp. A removed key is allowed, which is the unclaim path.
+        function ownClaimOnly() {
+          return requestClaims() is map
+                 && requestClaims().diff(storedClaims()).affectedKeys()
+                      .hasOnly([request.auth.uid])
+                 && (!(request.auth.uid in requestClaims())
+                     || requestClaims()[request.auth.uid] is timestamp);
+        }
+
+        // The cap holds on every write. A document without `claimLimit`
+        // (written before the migration) errors here and is denied until it is
+        // migrated, which the release runbook does before the rules deploy.
+        function claimsFitLimit() {
+          return requestClaims() is map
+                 && (request.resource.data.claimLimit == 0
+                     || requestClaims().size()
+                        <= request.resource.data.claimLimit);
+        }
+
+        // The owner may change content and the limit, but never below the
+        // people who already claimed.
+        function ownerLimitIsValid() {
+          return request.resource.data.claimLimit is int
+                 && request.resource.data.claimLimit >= 0
+                 && claimsFitLimit();
         }
 
         // Narrower than the wishlist read above: an item is readable only by its
         // wishlist's owner, or when that wishlist has been shared with a group.
         allow read: if canReadParent();
 
-        // An item may not be created already claimed.
+        // An item may not be created already claimed, and every new write
+        // carries a non-negative integer limit. An old client that omits it is
+        // refused; the release window updates clients before this deploys.
         allow create: if isParentOwner()
-                      && (!request.resource.data.keys().hasAny(['claimedBy'])
-                          || request.resource.data.claimedBy == null);
+                      && request.resource.data.claimLimit is int
+                      && request.resource.data.claimLimit >= 0
+                      && (!request.resource.data.keys().hasAny(['claims'])
+                          || (request.resource.data.claims is map
+                              && request.resource.data.claims.size() == 0));
 
         allow delete: if isParentOwner();
 
-        // The owner edits content freely. A reader may change only the claim
-        // fields, only for themselves, may not take over another's claim, and
-        // must write the pair. The key guards keep documents written before the
-        // claim fields existed from erroring instead of denying.
-        allow update: if isParentOwner()
+        // The owner's update is field-scoped so a whole-document write cannot
+        // drop a reader's claim. A reader's update may change only the claims
+        // map, only their own key, and only while the item has room.
+        allow update: if (isParentOwner()
+                          && changed().hasOnly(
+                               ['name', 'description', 'url', 'claimLimit'])
+                          && ownerLimitIsValid())
                       || (canReadParent()
-                          && changed().hasOnly(['claimedBy', 'claimedAt'])
-                          && (!request.resource.data.keys().hasAny(['claimedBy'])
-                              || request.resource.data.claimedBy == null
-                              || request.resource.data.claimedBy == request.auth.uid)
-                          && (!resource.data.keys().hasAny(['claimedBy'])
-                              || resource.data.claimedBy == null
-                              || resource.data.claimedBy == request.auth.uid)
-                          && claimIsWellFormed());
+                          && changed().hasOnly(['claims'])
+                          && ownClaimOnly()
+                          && claimsFitLimit());
       }
     }
   }

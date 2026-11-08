@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import assert from 'node:assert/strict';
 import { test, before, after, beforeEach } from 'node:test';
 import {
   initializeTestEnvironment,
@@ -8,6 +9,7 @@ import {
 import {
   arrayRemove,
   arrayUnion,
+  deleteField,
   setLogLevel,
   Timestamp,
 } from 'firebase/firestore';
@@ -79,7 +81,7 @@ const itemRef = (uid, wishlistId, itemId) =>
 const anonItemRef = (wishlistId, itemId) =>
   anonDb().collection('wishlists').doc(wishlistId).collection('items').doc(itemId);
 
-const seedItem = (store, wishlistId, itemId, data = { name: 'Gift' }) =>
+const seedItem = (store, wishlistId, itemId, data = { name: 'Gift', claims: {}, claimLimit: 1 }) =>
   store
     .collection('wishlists')
     .doc(wishlistId)
@@ -589,7 +591,7 @@ test('the owner creates, updates and deletes an item', async () => {
   await seed((s) => seedWishlist(s, wishlistId));
 
   const item = itemRef(OWNER, wishlistId, itemId);
-  await assertSucceeds(item.set({ name: 'Gift' }));
+  await assertSucceeds(item.set({ name: 'Gift', claimLimit: 1 }));
   await assertSucceeds(item.update({ name: 'Renamed' }));
   await assertSucceeds(item.delete());
 });
@@ -633,7 +635,9 @@ test('a non-owner cannot create an item in a shared wishlist', async () => {
     seedWishlist(s, wishlistId, { sharedWithGroups: ['group-1'] }),
   );
 
-  await assertFails(itemRef(OUTSIDER, wishlistId, itemId).set({ name: 'Gift' }));
+  await assertFails(
+    itemRef(OUTSIDER, wishlistId, itemId).set({ name: 'Gift', claimLimit: 1 }),
+  );
 });
 
 test('a non-owner cannot delete an item in a shared wishlist', async () => {
@@ -648,81 +652,215 @@ test('a non-owner cannot delete an item in a shared wishlist', async () => {
   await assertFails(itemRef(OUTSIDER, wishlistId, itemId).delete());
 });
 
-test('a reader claims an item', async () => {
-  const wishlistId = 'wishlist-claim';
+// A claim is one entry in the item's `claims` map. A reader may add or remove
+// only their own key, and the cap is enforced on every write.
+
+const claimAt = () => Timestamp.fromDate(new Date());
+
+test('a reader adds only their own claim', async () => {
+  const wishlistId = 'wishlist-claim-own';
   const itemId = 'item';
   await seed((s) =>
     seedWishlistWithItem(s, wishlistId, itemId, {
       sharedWithGroups: ['group-1'],
+      item: { name: 'Gift', claims: {}, claimLimit: 2 },
     }),
   );
 
   await assertSucceeds(
     itemRef(OUTSIDER, wishlistId, itemId).update({
-      claimedBy: OUTSIDER,
-      claimedAt: Timestamp.fromDate(new Date()),
+      [`claims.${OUTSIDER}`]: claimAt(),
     }),
   );
 });
 
-test('a reader cannot claim an item without a timestamp', async () => {
-  const wishlistId = 'wishlist-claim-no-time';
+test("a reader cannot add another user's claim", async () => {
+  const wishlistId = 'wishlist-claim-another';
   const itemId = 'item';
   await seed((s) =>
     seedWishlistWithItem(s, wishlistId, itemId, {
       sharedWithGroups: ['group-1'],
-    }),
-  );
-
-  await assertFails(
-    itemRef(OUTSIDER, wishlistId, itemId).update({ claimedBy: OUTSIDER }),
-  );
-});
-
-test('a reader cannot stamp an item they have not claimed', async () => {
-  const wishlistId = 'wishlist-stamp-unclaimed';
-  const itemId = 'item';
-  await seed((s) =>
-    seedWishlistWithItem(s, wishlistId, itemId, {
-      sharedWithGroups: ['group-1'],
+      item: { name: 'Gift', claims: {}, claimLimit: 2 },
     }),
   );
 
   await assertFails(
     itemRef(OUTSIDER, wishlistId, itemId).update({
-      claimedAt: Timestamp.fromDate(new Date()),
+      [`claims.${MEMBER}`]: claimAt(),
     }),
   );
 });
 
-test('a reader claims an item by writing its whole map', async () => {
-  const wishlistId = 'wishlist-claim-map';
+test('a reader cannot claim a full finite item', async () => {
+  const wishlistId = 'wishlist-claim-full';
   const itemId = 'item';
-  const contents = {
-    name: 'Gift',
-    description: 'Something they want',
-    url: 'https://example.com/gift',
-  };
   await seed((s) =>
     seedWishlistWithItem(s, wishlistId, itemId, {
       sharedWithGroups: ['group-1'],
-      item: { ...contents, claimedBy: null, claimedAt: null },
+      item: {
+        name: 'Gift',
+        claims: { [MEMBER]: claimAt() },
+        claimLimit: 1,
+      },
+    }),
+  );
+
+  await assertFails(
+    itemRef(OUTSIDER, wishlistId, itemId).update({
+      [`claims.${OUTSIDER}`]: claimAt(),
+    }),
+  );
+});
+
+test('an unlimited item accepts a new claim', async () => {
+  const wishlistId = 'wishlist-claim-unlimited';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      sharedWithGroups: ['group-1'],
+      item: {
+        name: 'Gift',
+        claims: { [MEMBER]: claimAt() },
+        claimLimit: 0,
+      },
     }),
   );
 
   await assertSucceeds(
     itemRef(OUTSIDER, wishlistId, itemId).update({
-      ...contents,
-      claimedBy: OUTSIDER,
-      claimedAt: Timestamp.fromDate(new Date()),
+      [`claims.${OUTSIDER}`]: claimAt(),
     }),
   );
 });
 
-// A whole-map claim is allowed only while the reader's copy matches the stored
-// document exactly; one content edit by the owner turns it into a denial. The
-// app therefore writes only the claim pair.
-test('a whole-map claim carrying stale content is denied', async () => {
+test('a reader removes only their own claim', async () => {
+  const wishlistId = 'wishlist-unclaim-own';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      sharedWithGroups: ['group-1'],
+      item: {
+        name: 'Gift',
+        claims: { [OUTSIDER]: claimAt(), [MEMBER]: claimAt() },
+        claimLimit: 2,
+      },
+    }),
+  );
+
+  await assertSucceeds(
+    itemRef(OUTSIDER, wishlistId, itemId).update({
+      [`claims.${OUTSIDER}`]: deleteField(),
+    }),
+  );
+
+  const snapshot = await itemRef(OWNER, wishlistId, itemId).get();
+  const claims = snapshot.data().claims;
+  assert.equal(claims[OUTSIDER], undefined);
+  assert.ok(claims[MEMBER]);
+});
+
+test("a reader cannot remove another user's claim", async () => {
+  const wishlistId = 'wishlist-unclaim-another';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      sharedWithGroups: ['group-1'],
+      item: {
+        name: 'Gift',
+        claims: { [OUTSIDER]: claimAt(), [MEMBER]: claimAt() },
+        claimLimit: 2,
+      },
+    }),
+  );
+
+  await assertFails(
+    itemRef(OUTSIDER, wishlistId, itemId).update({
+      [`claims.${MEMBER}`]: deleteField(),
+    }),
+  );
+});
+
+test('a reader can remove the last remaining claim', async () => {
+  const wishlistId = 'wishlist-unclaim-last';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      sharedWithGroups: ['group-1'],
+      item: {
+        name: 'Gift',
+        claims: { [OUTSIDER]: claimAt() },
+        claimLimit: 1,
+      },
+    }),
+  );
+
+  await assertSucceeds(
+    itemRef(OUTSIDER, wishlistId, itemId).update({
+      [`claims.${OUTSIDER}`]: deleteField(),
+    }),
+  );
+
+  const snapshot = await itemRef(OWNER, wishlistId, itemId).get();
+  assert.deepEqual(Object.keys(snapshot.data().claims ?? {}), []);
+});
+
+test('a reader cannot change the content or the claim limit', async () => {
+  const wishlistId = 'wishlist-reader-edit';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      sharedWithGroups: ['group-1'],
+      item: { name: 'Gift', claims: {}, claimLimit: 1 },
+    }),
+  );
+
+  const item = itemRef(OUTSIDER, wishlistId, itemId);
+  await assertFails(item.update({ name: 'Changed' }));
+  await assertFails(item.update({ claimLimit: 3 }));
+  await assertFails(
+    item.update({
+      name: 'Changed',
+      [`claims.${OUTSIDER}`]: claimAt(),
+    }),
+  );
+});
+
+test('a claim value that is not a timestamp is denied', async () => {
+  const wishlistId = 'wishlist-bad-claim-value';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      sharedWithGroups: ['group-1'],
+      item: { name: 'Gift', claims: {}, claimLimit: 1 },
+    }),
+  );
+
+  await assertFails(
+    itemRef(OUTSIDER, wishlistId, itemId).update({
+      [`claims.${OUTSIDER}`]: 'yesterday',
+    }),
+  );
+});
+
+test('a non-map claims value is denied', async () => {
+  const wishlistId = 'wishlist-claims-not-a-map';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      sharedWithGroups: ['group-1'],
+      item: { name: 'Gift', claims: {}, claimLimit: 1 },
+    }),
+  );
+
+  await assertFails(
+    itemRef(OUTSIDER, wishlistId, itemId).update({ claims: 'nope' }),
+  );
+});
+
+// A whole-document claim is allowed only while the reader's copy matches the
+// stored document exactly; one content edit by the owner turns it into a
+// denial. The app therefore writes only the claims field.
+test('a whole-document claim carrying stale content is denied', async () => {
   const wishlistId = 'wishlist-claim-stale-map';
   const itemId = 'item';
   await seed((s) =>
@@ -732,6 +870,8 @@ test('a whole-map claim carrying stale content is denied', async () => {
         name: 'Renamed by the owner',
         description: 'A description the owner wrote',
         url: 'https://example.com/owner-version',
+        claims: {},
+        claimLimit: 1,
       },
     }),
   );
@@ -741,89 +881,102 @@ test('a whole-map claim carrying stale content is denied', async () => {
       name: 'The name the reader still has',
       description: 'The description the reader still has',
       url: 'https://example.com/reader-version',
-      claimedBy: OUTSIDER,
-      claimedAt: Timestamp.fromDate(new Date()),
+      claims: { [OUTSIDER]: claimAt() },
+      claimLimit: 1,
     }),
   );
 });
 
-test('a reader unclaims their own item', async () => {
-  const wishlistId = 'wishlist-unclaim';
+test('the owner changes content and the claim limit', async () => {
+  const wishlistId = 'wishlist-owner-limit';
   const itemId = 'item';
   await seed((s) =>
     seedWishlistWithItem(s, wishlistId, itemId, {
-      sharedWithGroups: ['group-1'],
-      item: { name: 'Gift', claimedBy: OUTSIDER, claimedAt: new Date() },
+      item: {
+        name: 'Gift',
+        claims: { [MEMBER]: claimAt() },
+        claimLimit: 2,
+      },
     }),
   );
 
-  await assertSucceeds(
-    itemRef(OUTSIDER, wishlistId, itemId).update({
-      claimedBy: null,
-      claimedAt: null,
-    }),
-  );
+  const item = itemRef(OWNER, wishlistId, itemId);
+  await assertSucceeds(item.update({ name: 'Renamed' }));
+  await assertSucceeds(item.update({ claimLimit: 3 }));
 });
 
-test('a reader cannot change an item name, description or url', async () => {
-  const wishlistId = 'wishlist-reader-edit';
-  const nameItemId = 'item-name';
-  const descriptionItemId = 'item-description';
-  const urlItemId = 'item-url';
-  await seed(async (s) => {
-    await seedWishlist(s, wishlistId, { sharedWithGroups: ['group-1'] });
-    await seedItem(s, wishlistId, nameItemId);
-    await seedItem(s, wishlistId, descriptionItemId, {
-      name: 'Gift',
-      description: 'Original',
-    });
-    await seedItem(s, wishlistId, urlItemId, {
-      name: 'Gift',
-      url: 'https://example.com/gift',
-    });
-  });
-
-  const items = itemsRef(OUTSIDER, wishlistId);
-  await assertFails(items.doc(nameItemId).update({ name: 'Changed' }));
-  await assertFails(items.doc(descriptionItemId).update({ description: 'Changed' }));
-  await assertFails(
-    items.doc(urlItemId).update({ url: 'https://example.com/other' }),
-  );
-});
-
-test("a reader cannot take over another user's claim", async () => {
-  const wishlistId = 'wishlist-takeover';
+test('the owner cannot drop a claim with a whole-document write', async () => {
+  const wishlistId = 'wishlist-owner-drop-claim';
   const itemId = 'item';
   await seed((s) =>
     seedWishlistWithItem(s, wishlistId, itemId, {
-      sharedWithGroups: ['group-1'],
-      item: { name: 'Gift', claimedBy: MEMBER, claimedAt: new Date() },
+      item: {
+        name: 'Gift',
+        claims: { [MEMBER]: claimAt() },
+        claimLimit: 1,
+      },
     }),
   );
 
   await assertFails(
-    itemRef(OUTSIDER, wishlistId, itemId).update({
-      claimedBy: OUTSIDER,
-      claimedAt: Timestamp.fromDate(new Date()),
+    itemRef(OWNER, wishlistId, itemId).update({
+      name: 'Renamed',
+      claims: {},
     }),
   );
 });
 
-test('a claim with a non-timestamp claimedAt is denied', async () => {
-  const wishlistId = 'wishlist-bad-claim-time';
+test('the owner cannot lower a finite limit below the claims', async () => {
+  const wishlistId = 'wishlist-owner-lower-limit';
   const itemId = 'item';
   await seed((s) =>
     seedWishlistWithItem(s, wishlistId, itemId, {
-      sharedWithGroups: ['group-1'],
+      item: {
+        name: 'Gift',
+        claims: { [MEMBER]: claimAt(), [OUTSIDER]: claimAt() },
+        claimLimit: 3,
+      },
     }),
   );
 
-  await assertFails(
-    itemRef(OUTSIDER, wishlistId, itemId).update({
-      claimedBy: OUTSIDER,
-      claimedAt: 'yesterday',
-    }),
-  );
+  const item = itemRef(OWNER, wishlistId, itemId);
+  await assertFails(item.update({ claimLimit: 1 }));
+  await assertSucceeds(item.update({ claimLimit: 2 }));
+  await assertSucceeds(item.update({ claimLimit: 0 }));
+});
+
+test('the owner cannot lower the limit by dropping claims in the same write',
+  async () => {
+    const wishlistId = 'wishlist-owner-drop-and-lower';
+    const itemId = 'item';
+    await seed((s) =>
+      seedWishlistWithItem(s, wishlistId, itemId, {
+        item: {
+          name: 'Gift',
+          claims: { [MEMBER]: claimAt(), [OUTSIDER]: claimAt() },
+          claimLimit: 3,
+        },
+      }),
+    );
+
+    await assertFails(
+      itemRef(OWNER, wishlistId, itemId).update({
+        claims: {},
+        claimLimit: 1,
+      }),
+    );
+  },
+);
+
+test('creating an item requires a non-negative integer limit', async () => {
+  const wishlistId = 'wishlist-create-limit';
+  const itemId = 'item';
+  await seed((s) => seedWishlist(s, wishlistId));
+
+  const item = itemRef(OWNER, wishlistId, itemId);
+  await assertFails(item.set({ name: 'Gift' }));
+  await assertFails(item.set({ name: 'Gift', claimLimit: -1 }));
+  await assertSucceeds(item.set({ name: 'Gift', claimLimit: 1 }));
 });
 
 test('creating an item that is already claimed is denied', async () => {
@@ -834,9 +987,69 @@ test('creating an item that is already claimed is denied', async () => {
   await assertFails(
     itemRef(OWNER, wishlistId, itemId).set({
       name: 'Gift',
-      claimedBy: OWNER,
-      claimedAt: Timestamp.fromDate(new Date()),
+      claimLimit: 1,
+      claims: { [OWNER]: claimAt() },
     }),
+  );
+});
+
+test('creating an item with a non-map claims value is denied', async () => {
+  const wishlistId = 'wishlist-create-bad-claims';
+  await seed((s) => seedWishlist(s, wishlistId));
+
+  await assertFails(
+    itemRef(OWNER, wishlistId, 'list-claims').set({
+      name: 'Gift',
+      claimLimit: 1,
+      claims: [],
+    }),
+  );
+  await assertFails(
+    itemRef(OWNER, wishlistId, 'string-claims').set({
+      name: 'Gift',
+      claimLimit: 1,
+      claims: '',
+    }),
+  );
+});
+
+test('an item created without a claims map can be claimed', async () => {
+  const wishlistId = 'wishlist-create-no-claims';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlist(s, wishlistId, { sharedWithGroups: ['group-1'] }),
+  );
+
+  await assertSucceeds(
+    itemRef(OWNER, wishlistId, itemId).set({
+      name: 'Gift',
+      claimLimit: 1,
+    }),
+  );
+  await assertSucceeds(
+    itemRef(OUTSIDER, wishlistId, itemId).update({
+      [`claims.${OUTSIDER}`]: claimAt(),
+    }),
+  );
+});
+
+test('a legacy item without a limit is write-denied until migrated', async () => {
+  const wishlistId = 'wishlist-legacy-item';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      sharedWithGroups: ['group-1'],
+      item: { name: 'Gift' },
+    }),
+  );
+
+  await assertFails(
+    itemRef(OUTSIDER, wishlistId, itemId).update({
+      [`claims.${OUTSIDER}`]: claimAt(),
+    }),
+  );
+  await assertFails(
+    itemRef(OWNER, wishlistId, itemId).update({ name: 'Renamed' }),
   );
 });
 
@@ -847,8 +1060,7 @@ test('an item under a never-shared wishlist cannot be claimed', async () => {
 
   await assertFails(
     itemRef(OUTSIDER, wishlistId, itemId).update({
-      claimedBy: OUTSIDER,
-      claimedAt: Timestamp.fromDate(new Date()),
+      [`claims.${OUTSIDER}`]: claimAt(),
     }),
   );
 });
@@ -874,8 +1086,11 @@ test('an unauthenticated visitor cannot write to an item', async () => {
     }),
   );
 
-  await assertFails(anonItemRef(wishlistId, itemId).update({ name: 'Changed' }));
+  await assertFails(
+    anonItemRef(wishlistId, itemId).update({ name: 'Changed' }),
+  );
 });
+
 
 // ── deny-by-default ──────────────────────────────────────────────────────────
 // Paths with no matching rule stay closed.

@@ -121,8 +121,7 @@ Map<String, Map<String, dynamic>> _documents() {
         'Dance heels',
         description: 'Size 8, something stage-ready.',
         url: _link('dance-heels'),
-        claimedBy: 'fam-u4',
-        claimedAt: _claimedOn,
+        claims: <String, Timestamp>{'fam-u4': _claimedOn},
       ),
       devItemFields(
         'Art print: abstract',
@@ -138,8 +137,7 @@ Map<String, Map<String, dynamic>> _documents() {
       devItemFields(
         'Perfume: oud',
         url: _link('oud-perfume'),
-        claimedBy: familyViewerUid,
-        claimedAt: _claimedOn,
+        claims: <String, Timestamp>{familyViewerUid: _claimedOn},
       ),
       devItemFields('Candle: fig & cedar', url: _link('candle-fig')),
       devItemFields(
@@ -170,8 +168,7 @@ Map<String, Map<String, dynamic>> _documents() {
         'Art easel',
         description: 'One each, so they stop arguing over it.',
         url: _link('easel'),
-        claimedBy: 'fam-u4',
-        claimedAt: _claimedOn,
+        claims: <String, Timestamp>{'fam-u4': _claimedOn},
       ),
       devItemFields(
         'Wooden blocks',
@@ -182,8 +179,7 @@ Map<String, Map<String, dynamic>> _documents() {
         'Picture books',
         description: 'Anything with animals.',
         url: _link('picture-books'),
-        claimedBy: 'fam-u3',
-        claimedAt: _claimedOn,
+        claims: <String, Timestamp>{'fam-u3': _claimedOn},
       ),
       devItemFields(
         'Swim vests',
@@ -218,8 +214,7 @@ Map<String, Map<String, dynamic>> _documents() {
         'Ballet slippers',
         description: 'Size 1.',
         url: _link('ballet-slippers'),
-        claimedBy: 'fam-u2',
-        claimedAt: _claimedOn,
+        claims: <String, Timestamp>{'fam-u2': _claimedOn},
       ),
       devItemFields(
         'Telescope',
@@ -350,8 +345,7 @@ Map<String, Map<String, dynamic>> _documents() {
       devItemFields(
         'Resistance bands',
         url: _link('resistance-bands'),
-        claimedBy: 'fam-u8',
-        claimedAt: _claimedOn,
+        claims: <String, Timestamp>{'fam-u8': _claimedOn},
       ),
       devItemFields('Silk pillowcase', url: _link('silk-pillowcase')),
       devItemFields('Perfume: neroli'),
@@ -438,8 +432,7 @@ Map<String, Map<String, dynamic>> _documents() {
         'Noise-cancelling headphones',
         description: 'Over-ear, not earbuds.',
         url: _link('anc-headphones'),
-        claimedBy: familyViewerUid,
-        claimedAt: _claimedOn,
+        claims: <String, Timestamp>{familyViewerUid: _claimedOn},
       ),
       devItemFields('Neck pillow', url: _link('neck-pillow')),
       devItemFields('Universal adapter', url: _link('adapter')),
@@ -494,8 +487,7 @@ Map<String, Map<String, dynamic>> _documents() {
       devItemFields(
         'Art book: monographs',
         url: _link('monographs-book'),
-        claimedBy: 'fam-u2',
-        claimedAt: _claimedOn,
+        claims: <String, Timestamp>{'fam-u2': _claimedOn},
       ),
       devItemFields(
         'Vinyl: reissue',
@@ -515,8 +507,7 @@ Map<String, Map<String, dynamic>> _documents() {
       devItemFields(
         'Studio headphones',
         url: _link('studio-headphones'),
-        claimedBy: 'fam-u3',
-        claimedAt: _claimedOn,
+        claims: <String, Timestamp>{'fam-u3': _claimedOn},
       ),
       devItemFields(
         'Cufflinks',

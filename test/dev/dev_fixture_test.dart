@@ -18,7 +18,10 @@ List<Wishlist> wishlistsIn(DevFixture fixture) => <Wishlist>[
 
 /// The number of documents a fixture marks as claimed.
 int claimsIn(DevFixture fixture) => fixture.documents.values
-    .where((document) => document['claimedBy'] != null)
+    .where((document) {
+      final claims = document['claims'];
+      return claims is Map && claims.isNotEmpty;
+    })
     .length;
 
 /// The id of every document directly inside [collection].
@@ -55,7 +58,7 @@ void main() {
       test('parses every document through its model', () async {
         // Fixtures are Firestore-shaped maps, so the parse has to be the real
         // one: seeding the fake and reading back exercises the same conversion
-        // production runs, including the claimedAt Timestamp.
+        // production runs, including each claim's Timestamp.
         final firestore = FakeFirebaseFirestore();
         await seedDevFirestore(firestore, fixture);
 
@@ -82,13 +85,14 @@ void main() {
               final document = await firestore.doc(entry.key).get();
               final item = repository.fromFirestore(document);
               expect(item.id, itemId);
-              if (item.claimedBy != null) {
+              final rawClaims = entry.value['claims'];
+              if (rawClaims is Map && rawClaims.isNotEmpty) {
                 expect(
-                  item.claimedAt,
-                  isNotNull,
+                  item.claimCount,
+                  rawClaims.length,
                   reason:
-                      'a claimed item must carry a claimedAt Timestamp; the '
-                      'repository casts the field, so a string would throw',
+                      'every stored claim must be readable; the repository '
+                      'converts Timestamp values and drops anything else',
                 );
               }
             default:
@@ -175,9 +179,13 @@ void main() {
             Item.collectionName,
             final id,
           ]) {
-            final claimedBy = entry.value['claimedBy'] as String?;
-            if (claimedBy != null && !userIds.contains(claimedBy)) {
-              broken.add('item $wishlistId/$id is claimed by $claimedBy');
+            final claims = entry.value['claims'];
+            if (claims is Map) {
+              for (final uid in claims.keys) {
+                if (uid is! String || !userIds.contains(uid)) {
+                  broken.add('item $wishlistId/$id is claimed by $uid');
+                }
+              }
             }
           }
         }

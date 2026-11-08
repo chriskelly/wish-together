@@ -104,8 +104,7 @@ final DevFixture overflowFixture = DevFixture(
     'wishlists/$overflowSharedWishlistId/items/ovf-i5': devItemFields(
       overflowSpacedItemName,
       description: overflowDescription,
-      claimedBy: overflowClaimerUid,
-      claimedAt: Timestamp.fromDate(DateTime.utc(2026, 9, 20, 18)),
+      claims: <String, Timestamp>{overflowClaimerUid: Timestamp.fromDate(DateTime.utc(2026, 9, 20, 18))},
     ),
   },
 );

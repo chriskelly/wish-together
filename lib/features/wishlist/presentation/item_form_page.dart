@@ -154,6 +154,7 @@ class _ItemFormPageState extends State<ItemFormPage> {
           name: name,
           description: description.isEmpty ? null : description,
           url: url.isEmpty ? null : url,
+          claimLimit: widget.item?.claimLimit ?? 1,
         );
       } else {
         await _createItemUseCase.execute(
@@ -161,6 +162,7 @@ class _ItemFormPageState extends State<ItemFormPage> {
           name,
           description: description.isEmpty ? null : description,
           url: url.isEmpty ? null : url,
+          claimLimit: 1,
         );
       }
       if (mounted) {

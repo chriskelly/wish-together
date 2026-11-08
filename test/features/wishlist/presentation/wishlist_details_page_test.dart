@@ -8,6 +8,7 @@ import 'package:wishtogether/common/widgets/status_pill.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/core/theme.dart';
 import 'package:wishtogether/features/auth/domain/auth_session.dart';
+import 'package:wishtogether/features/wishlist/application/claim_failure.dart';
 import 'package:wishtogether/features/wishlist/application/claim_item_use_case.dart';
 import 'package:wishtogether/features/wishlist/application/unclaim_item_use_case.dart';
 import 'package:wishtogether/features/wishlist/data/item_repository.dart';
@@ -42,6 +43,7 @@ void main() {
 
     late MockWishlistRepository wishlistRepository;
     late MockItemRepository itemRepository;
+    late MockUnclaimItemUseCase unclaimItemUseCase;
 
     setUp(() {
       getIt.reset();
@@ -60,7 +62,8 @@ void main() {
       getIt.registerSingleton<WishlistRepository>(wishlistRepository);
       getIt.registerSingleton<AuthSession>(authSession);
       getIt.registerSingleton<ClaimItemUseCase>(MockClaimItemUseCase());
-      getIt.registerSingleton<UnclaimItemUseCase>(MockUnclaimItemUseCase());
+      unclaimItemUseCase = MockUnclaimItemUseCase();
+      getIt.registerSingleton<UnclaimItemUseCase>(unclaimItemUseCase);
     });
 
     tearDown(getIt.reset);
@@ -152,8 +155,10 @@ void main() {
           Item(
             id: 'item-1',
             name: itemName,
-            claimedBy: viewerId,
-            claimedAt: DateTime.utc(2026, 11, 1),
+            claims: <String, DateTime>{
+              viewerId: DateTime.utc(2026, 11, 1),
+            },
+            claimLimit: 1,
           ),
         ]);
 
@@ -175,6 +180,34 @@ void main() {
       },
     );
 
+    testWidgets('explains a signed-out unclaim instead of printing the error', (
+      tester,
+    ) async {
+      await pumpPage(tester, [
+        Item(
+          id: 'item-1',
+          name: itemName,
+          claims: <String, DateTime>{viewerId: DateTime.utc(2026, 11, 1)},
+          claimLimit: 1,
+        ),
+      ]);
+      when(() => unclaimItemUseCase.execute(wishlistId, 'item-1')).thenThrow(
+        const ClaimFailure(
+          ClaimFailureReason.signedOut,
+          code: unauthenticatedCode,
+        ),
+      );
+
+      await tester.tap(find.text('Unclaim'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Please sign in again to claim items.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('ClaimFailure'), findsNothing);
+    });
+
     testWidgets("shows another reader's claim as a neutral pill", (
       tester,
     ) async {
@@ -182,8 +215,10 @@ void main() {
         Item(
           id: 'item-1',
           name: itemName,
-          claimedBy: otherReaderId,
-          claimedAt: DateTime.utc(2026, 11, 1),
+          claims: <String, DateTime>{
+            otherReaderId: DateTime.utc(2026, 11, 1),
+          },
+          claimLimit: 1,
         ),
       ]);
 
@@ -216,8 +251,10 @@ void main() {
               Item(
                 id: claimedItemId,
                 name: itemName,
-                claimedBy: claimedBy,
-                claimedAt: DateTime.utc(2026, 11, 1),
+                claims: <String, DateTime>{
+                  claimedBy: DateTime.utc(2026, 11, 1),
+                },
+                claimLimit: 1,
               ),
             ]);
 
@@ -235,8 +272,10 @@ void main() {
               Item(
                 id: claimedItemId,
                 name: itemName,
-                claimedBy: claimedBy,
-                claimedAt: DateTime.utc(2026, 11, 1),
+                claims: <String, DateTime>{
+                  claimedBy: DateTime.utc(2026, 11, 1),
+                },
+                claimLimit: 1,
               ),
             ]);
 
@@ -261,8 +300,10 @@ void main() {
                 id: claimedItemId,
                 name: itemName,
                 description: description,
-                claimedBy: claimedBy,
-                claimedAt: DateTime.utc(2026, 11, 1),
+                claims: <String, DateTime>{
+                  claimedBy: DateTime.utc(2026, 11, 1),
+                },
+                claimLimit: 1,
               ),
             ]);
 
@@ -292,8 +333,10 @@ void main() {
             id: claimedItemId,
             name: itemName,
             description: description,
-            claimedBy: otherReaderId,
-            claimedAt: DateTime.utc(2026, 11, 1),
+            claims: <String, DateTime>{
+              otherReaderId: DateTime.utc(2026, 11, 1),
+            },
+            claimLimit: 1,
           ),
         ], asOwner: true);
 
@@ -320,8 +363,10 @@ void main() {
           Item(
             id: claimedItemId,
             name: itemName,
-            claimedBy: otherReaderId,
-            claimedAt: DateTime.utc(2026, 11, 1),
+            claims: <String, DateTime>{
+              otherReaderId: DateTime.utc(2026, 11, 1),
+            },
+            claimLimit: 1,
           ),
         ], theme: darkTheme);
 
@@ -344,8 +389,10 @@ void main() {
           Item(
             id: claimedItemId,
             name: longName,
-            claimedBy: otherReaderId,
-            claimedAt: DateTime.utc(2026, 11, 1),
+            claims: <String, DateTime>{
+              otherReaderId: DateTime.utc(2026, 11, 1),
+            },
+            claimLimit: 1,
           ),
         ]);
 
@@ -360,15 +407,18 @@ void main() {
         Item(
           id: 'item-1',
           name: itemName,
-          claimedBy: otherReaderId,
-          claimedAt: DateTime.utc(2026, 11, 1),
+          claims: <String, DateTime>{
+            otherReaderId: DateTime.utc(2026, 11, 1),
+          },
+          claimLimit: 1,
         ),
       ], asOwner: true);
 
       await tester.tap(find.byTooltip('Show claimed status'));
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('Claimed on'), findsOneWidget);
+      expect(find.text('Claimed'), findsOneWidget);
+      expect(find.textContaining('Claimed on'), findsNothing);
       expect(
         cardOf(tester, itemName).color,
         lightTheme.colorScheme.surfaceContainerLow,
@@ -390,12 +440,15 @@ void main() {
         Item(
           id: 'item-1',
           name: itemName,
-          claimedBy: otherReaderId,
-          claimedAt: DateTime.utc(2026, 11, 1),
+          claims: <String, DateTime>{
+            otherReaderId: DateTime.utc(2026, 11, 1),
+          },
+          claimLimit: 1,
         ),
       ], asOwner: true);
 
-      expect(find.textContaining('Claimed on'), findsNothing);
+      expect(find.text('Claimed'), findsNothing);
+      expect(find.text('Available'), findsNothing);
       expect(
         cardOf(tester, itemName).color,
         lightTheme.colorScheme.surfaceContainerLow,
@@ -423,8 +476,10 @@ void main() {
         Item(
           id: 'item-1',
           name: itemName,
-          claimedBy: viewerId,
-          claimedAt: DateTime.utc(2026, 11, 1),
+          claims: <String, DateTime>{
+            viewerId: DateTime.utc(2026, 11, 1),
+          },
+          claimLimit: 1,
         ),
       ]);
 

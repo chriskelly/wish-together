@@ -354,9 +354,18 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
       if (mounted) {
         _showSuccessSnackbar('Item unclaimed.');
       }
-    } catch (e) {
+    } catch (error, stackTrace) {
+      if (error is! ClaimFailure) {
+        // No repository seam saw this one, so it would otherwise leave no
+        // trail; a classified failure is already reported by the write itself.
+        appLogOrNull?.error(error, stackTrace);
+      }
       if (mounted) {
-        _showErrorSnackbar('Failed to unclaim item: $e');
+        _showErrorSnackbar(
+          error is ClaimFailure
+              ? claimFailureMessage(error)
+              : "Couldn't unclaim this item. Please try again.",
+        );
       }
     }
   }

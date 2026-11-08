@@ -2,7 +2,7 @@
 
 WishTogether is a collaborative wishlist app for families and groups: create wishlists,
 share them with groups, and claim gifts **spoiler-free**. It is a Flutter app on Firebase,
-shipped to web (https://wishtogether.gift) and, in progress, iOS.
+shipped to web (https://wishtogether.gift) and iOS.
 
 Read the `AGENTS.md` beside the code you are touching. Flutter 3 / Dart 3 (Material 3),
 `go_router`, `get_it`; Cloud Firestore in `wish-together-project` (production `(default)`,
@@ -33,6 +33,7 @@ staging `staging`); phone OTP, Google on web and App Check; tests with `flutter_
 | Where do crash reports go, and what is never reported? | `docs/diagnostics.md` |
 | What do the Firestore rules allow? | `docs/authorization.md` |
 | How do CI, staging and releases work? | `docs/ci.md` · `docs/staging.md` · `docs/release.md` |
+| How do I migrate Firestore data? | `docs/migrations.md` (one-off script, gcloud export/import, issue #143) |
 | App icons, invite links | `docs/icons.md` · `docs/deep-links.md` |
 | Real auth on a preview, listing screenshots | `.agents/skills/preview-auth/` · `.agents/skills/appstore-screenshots/` |
 

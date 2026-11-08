@@ -96,8 +96,8 @@ jobs:
           node-version: "22"
 
       - name: Test the dev scripts
-        # The rules-release verifier gates the staging deploy, so its tests
-        # must run before that verifier is trusted in CI.
+        # The action-pin guard gates merges and the rules-release verifier gates
+        # the staging deploy, so both must run before either is trusted in CI.
         run: npm ci && npm test
         working-directory: scripts
 

@@ -162,11 +162,20 @@ jobs:
 
       - name: Add GitHub to known hosts
         if: steps.pr.outputs.no_deploy != 'true'
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           install -d -m 700 ~/.ssh
-          cat "$GITHUB_WORKSPACE/.github/known_hosts" >> ~/.ssh/known_hosts
+          # This job checks out the PR head; prefer the default branch's keys so
+          # a pull request cannot replace the key it is verified by. Fall back
+          # only while that branch predates the file.
+          git fetch --depth=1 --no-tags origin "$DEFAULT_BRANCH"
+          if ! git show "FETCH_HEAD:.github/known_hosts" > "$HOME/.ssh/known_hosts" 2>/dev/null; then
+            echo "::warning::$DEFAULT_BRANCH has no .github/known_hosts yet; using the checked-out copy"
+            cp "$GITHUB_WORKSPACE/.github/known_hosts" "$HOME/.ssh/known_hosts"
+          fi
           chmod 600 ~/.ssh/known_hosts
-          printf 'Host github.com\n  StrictHostKeyChecking yes\n' >> ~/.ssh/config
+          printf 'Host github.com key-*.github.com\n  StrictHostKeyChecking yes\n' >> ~/.ssh/config
           chmod 600 ~/.ssh/config
 
       - name: Build and upload to TestFlight

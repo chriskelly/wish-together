@@ -114,7 +114,7 @@ jobs:
           install -d -m 700 ~/.ssh
           cat "$GITHUB_WORKSPACE/.github/known_hosts" >> ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
-          printf 'Host github.com\n  StrictHostKeyChecking yes\n' >> ~/.ssh/config
+          printf 'Host github.com key-*.github.com\n  StrictHostKeyChecking yes\n' >> ~/.ssh/config
           chmod 600 ~/.ssh/config
 
       - name: Build and submit to the App Store

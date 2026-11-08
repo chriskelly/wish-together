@@ -59,8 +59,9 @@ because `.` would walk `node_modules`.
 - Pin every third-party action in `.github/workflows/` to a full commit SHA and keep the
   readable ref in a trailing comment: `uses: actions/checkout@<sha> # v7`. Dependabot's
   `github-actions` entry proposes the updates; merge them like any dependency bump. The
-  `scripts/check-action-pins.mjs` guard, run by the Lint `npm test` step, rejects anything but
-  a 40-character SHA.
+  `scripts/check-action-pins.mjs` guard, whose repository test runs in the Lint `npm test`
+  step, rejects any single-line `uses:` that is not a 40-character SHA. It checks the ref
+  shape, not that the SHA exists, so a typo still fails when the job starts.
 - Never add `ssh-keyscan` to a workflow. The release workflows install `.github/known_hosts`,
   which holds GitHub's published host keys. To update it, compare `ssh-keyscan github.com`
   from a trusted network with the `ssh_keys` field of `https://api.github.com/meta`, verify

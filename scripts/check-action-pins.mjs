@@ -1,6 +1,15 @@
+// Enforces that third-party actions in `.github/workflows/` run from a full
+// commit SHA, never a mutable tag or branch.
+//
+// The check is line-based: it understands the YAML spellings of a single-line
+// `uses:` key, not flow mappings or a value on the following line. Keep that in
+// mind when adding a new step shape; the Lint job runs the repository test,
+// which covers the forms used in this repo.
+
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+
+import { isEntryPoint } from './module-entry.mjs';
 
 // A step is either `- uses: ...` or `uses: ...`; accept a spaced colon and a
 // quoted key because YAML allows all of them.
@@ -50,15 +59,15 @@ export function unpinnedUses(text) {
   return unpinned;
 }
 
-function main(argv) {
-  const directory = argv[2] ?? '.github/workflows';
+function main(directory = '.github/workflows') {
   let files;
 
   try {
     files = readdirSync(directory)
       .filter((file) => /\.ya?ml$/.test(file))
       .sort();
-  } catch {
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
     console.error(`error: workflows directory not found: ${directory}`);
     process.exitCode = 1;
     return;
@@ -81,6 +90,6 @@ function main(argv) {
   }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  main(process.argv);
+if (isEntryPoint(import.meta.url)) {
+  main(process.argv[2]);
 }

@@ -61,6 +61,11 @@ and the `no-deploy` label opts a PR out — but anyone who can push a branch rea
 secrets' effects. Add a GitHub `environment` with required reviewers if that needs a
 human gate.
 
+The release workflows install `.github/known_hosts` (GitHub's published keys from
+`https://api.github.com/meta`) and require `StrictHostKeyChecking yes`, so a substituted key
+fails the clone before signing. TestFlight checks out the PR head, so that path trusts the
+same-repo PR exactly as the rest of the workflow does; the App Store path reads the tag.
+
 ## One-time local setup
 
 On a Mac with Xcode: `bundle install`, then `bundle exec fastlane match appstore` to create

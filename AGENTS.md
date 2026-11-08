@@ -47,11 +47,24 @@ staging `staging`); phone OTP, Google on web and App Check; tests with `flutter_
 | Run the dev-script tests | `cd scripts && npm ci && npm test` |
 | Inspect/verify a rules release | `cd scripts && ACCESS_TOKEN=$(gcloud auth print-access-token) npm run rules:release -- show --database staging` (`check --database <id> --source ../firestore.rules` compares source) |
 | Build for web | `flutter build web` |
+| Check action pins | `node scripts/check-action-pins.mjs` |
 
 Run every command from the repository root. After substantive changes run `dart format .`,
 `flutter analyze` and `flutter test`; analyze must be clean and tests green before you claim work
 complete. CI enforces formatting; after `npm ci` in `rules_tests/` use `dart format lib test web`,
 because `.` would walk `node_modules`.
+
+## Workflow supply chain
+
+- Pin every third-party action in `.github/workflows/` to a full commit SHA and keep the
+  readable ref in a trailing comment: `uses: actions/checkout@<sha> # v7`. Dependabot's
+  `github-actions` entry proposes the updates; merge them like any dependency bump. The
+  `scripts/check-action-pins.mjs` guard, run by the Lint `npm test` step, rejects anything but
+  a 40-character SHA.
+- Never add `ssh-keyscan` to a workflow. The release workflows install `.github/known_hosts`,
+  which holds GitHub's published host keys. To update it, compare `ssh-keyscan github.com`
+  from a trusted network with the `ssh_keys` field of `https://api.github.com/meta`, verify
+  the fingerprints against GitHub's documented values, and commit the verified lines.
 
 ## Architecture and dependency direction
 

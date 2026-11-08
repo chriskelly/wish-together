@@ -197,8 +197,8 @@ function isPlainObject(value) {
 /// is kept. A claimed uid without a usable timestamp is repaired with [now].
 export function planItem(data, now = Timestamp.now()) {
   if (isPlainObject(data.claims)) {
-    // Already migrated. A missing limit or leftover legacy keys are written so a
-    // rerun converges instead of leaving verify to report them forever.
+    // Already migrated. A missing or invalid limit, or leftover legacy keys, is
+    // written so a rerun converges instead of leaving verify to report it.
     const claimCount = Object.keys(data.claims).length;
     const validLimit =
       Number.isInteger(data.claimLimit) && data.claimLimit >= 0;

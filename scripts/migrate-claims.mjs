@@ -298,7 +298,8 @@ export async function runClaims({
     written: 0,
     problems: [],
   };
-  const snapshot = await db.collectionGroup('items').get();
+  const query = db.collectionGroup('items');
+  const snapshot = await (limit === null ? query.get() : query.limit(limit).get());
 
   if (mode === 'verify') {
     for (const doc of snapshot.docs) {

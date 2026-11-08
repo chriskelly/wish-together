@@ -165,18 +165,20 @@ and the web job are independent; wait for both before the smoke test.
    reseed staging:
 
    ```sh
-   # repository root
-   git show origin/master:firestore.rules > firestore.rules
-   firebase deploy --only firestore:rules --config firebase.staging.json \
-     --project wish-together-project
+   # repository root, before the claims rules merge
+   git fetch && git show origin/master:firestore.rules > firestore.rules \
+     && test -s firestore.rules \
+     && firebase deploy --only firestore:rules \
+       --config firebase.staging.json --project wish-together-project
    (cd scripts && npm run seed:demo -- --yes --viewer-uid <staging-test-uid> \
      --database staging)
    ```
 
-   The seeder needs `--yes` and a uid; `docs/staging.md` names the test uid.
-   Staging then holds claims-shaped data, and a claim from the old app under the
-   old rules would be written in the legacy shape and dropped by the next
-   migration.
+   The seeder needs `--yes` and a uid; `docs/staging.md` says to use the
+   dedicated test account. This restores the pre-claims rules only before the
+   claims merge; afterwards `origin/master` holds the claims rules. Staging then
+   holds claims-shaped data, and a claim from the old app under the old rules
+   would be written in the legacy shape and dropped by the next migration.
 
 ## Production order
 
@@ -198,8 +200,9 @@ live, so the release window includes an App Store build.
    the window, and your account needs `storage.objects.create` on it.
 5. Run the dry run against production and read the counts:
    `npm run migrate:claims -- --database "(default)"`.
-6. Run the canary, stop if it exits non-zero (a planning failure writes nothing;
-   a failed batch can be rerun or rolled back), then the full migration:
+6. Run the canary, stop if it exits non-zero (the failing run writes nothing;
+   committed canary batches remain and are safe to rerun), then the full
+   migration:
 
    ```sh
    npm run migrate:claims -- --database "(default)" --limit 10 --yes
@@ -221,7 +224,9 @@ live, so the release window includes an App Store build.
    rules and confirm the content is live:
 
    ```sh
-   git fetch && git show origin/master:firestore.rules > firestore.rules
+   cd "$(git rev-parse --show-toplevel)"
+   git fetch && git show origin/master:firestore.rules > firestore.rules \
+     && test -s firestore.rules
    cd scripts && ACCESS_TOKEN=$(gcloud auth print-access-token) \
      npm run rules:release -- check --database "(default)" --source ../firestore.rules
    ```
@@ -246,11 +251,17 @@ already-open web tab is not gated and must reload for the new build.
 ## Rollback
 
 Before the merge (the freeze is live): import the export, reject or remove the
-pending App Store version, then `git fetch && git show origin/master:firestore.rules
-> firestore.rules` (master still holds the pre-freeze rules because rules merges
-are held) and deploy it, or copy the pre-freeze version from the Firebase
-console's Firestore rules history and publish it (the console publishes to the
-production `(default)` database only).
+pending App Store version, then restore and deploy the pre-freeze rules:
+
+```sh
+git fetch && git show origin/master:firestore.rules > firestore.rules \
+  && test -s firestore.rules \
+  && firebase deploy --only firestore:rules --project wish-together-project
+```
+
+Master still holds the pre-freeze rules because rules merges are held. Or copy
+the pre-freeze version from the Firebase console's Firestore rules history and
+publish it (the console publishes to the production `(default)` database only).
 Verify the content:
 
 ```sh
@@ -272,16 +283,19 @@ shipped):
 
    ```sh
    cd "$(git rev-parse --show-toplevel)"
-   git show <pre-freeze-commit>:firestore.rules > firestore.rules
-   firebase deploy --only firestore:rules --project wish-together-project
+   git show <pre-freeze-commit>:firestore.rules > firestore.rules \
+     && test -s firestore.rules \
+     && firebase deploy --only firestore:rules --project wish-together-project
    cd scripts && ACCESS_TOKEN=$(gcloud auth print-access-token) \
      npm run rules:release -- check --database "(default)" --source ../firestore.rules
    ```
 
+   The `test -s` stops an empty file reaching production if `git show` fails.
    This overwrites the local freeze edit; the file route is the only one that
-   can be verified by content. Revert the claims rules merge (or block every
-   merge touching the rules paths) so a later merge cannot publish `master`'s
-   claims rules over the restored ones.
+   can be verified by content. Revert both claims merges (the rules/data change
+   and the UI change), or block every merge to `master`, because the web job
+   deploys on any push and would otherwise republish the claims-aware UI under
+   the restored rules.
 5. Restore the previous `min_supported_build` value if it was raised (publish
    Remote Config).
 6. If the App Store version is still pending, reject or remove it. If it is

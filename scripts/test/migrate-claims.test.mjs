@@ -56,7 +56,12 @@ function fakeDb(documents, { failCommit = 0 } = {}) {
     batches,
     collectionGroup(name) {
       assert.equal(name, 'items');
-      return { get: async () => ({ docs: documents }) };
+      return {
+        get: async () => ({ docs: documents }),
+        limit(size) {
+          return { get: async () => ({ docs: documents.slice(0, size) }) };
+        },
+      };
     },
     batch() {
       const ops = [];

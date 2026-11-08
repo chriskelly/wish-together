@@ -77,27 +77,6 @@ The `items` collection-group query is the one sanctioned exception to the
 wishlist area rule against global item reads. Client code must still never query
 items across wishlists; this script runs with a service account and never ships.
 
-## Export before any write
-
-Take a full export first; it is the rollback path. Both commands take
-`--project`; without `--database` gcloud targets the production `(default)`, so
-name the target explicitly.
-
-```sh
-gcloud firestore export "gs://<backup-bucket>/claims-<database>-$(date +%Y%m%dT%H%M%S)" \
-  --project=wish-together-project --database="<database>"
-```
-
-Rollback is an import. It overwrites the exported documents with their export
-content and discards every write after the export, including claims, but it does
-**not** delete documents created later. Stop the app's writes first (the freeze
-below) and expect to redeploy the matching rules and build.
-
-```sh
-gcloud firestore import "gs://<backup-bucket>/claims-<database>-<timestamp>" \
-  --project=wish-together-project --database="<database>"
-```
-
 ## Freeze
 
 Deploy temporary rules that set the wishlist `allow delete` and the nested item
@@ -145,9 +124,33 @@ CI publishes `master`'s rules whenever a push touches `firestore.rules`,
 `firebase.json`, `rules_tests/` or the rules workflow, and the web build
 publishes on merge. Hold every other merge until the final rules are live: an
 unrelated push touching those paths republishes master's rules and lifts the
-freeze. Merging the rules-and-data change and the UI change is the deploy: hold
-them until `--verify` is clean and merge inside the freeze window. The rules job
-and the web job are independent; wait for both before the smoke test.
+freeze. Merging the rules-and-data change is the deploy, so hold it until
+`--verify` is clean; do not merge it early. Whether the UI change is stacked on
+it or production deploys are gated behind manual approval is decided before that
+work starts. The rules job and the web job are independent; wait for both before
+the smoke test.
+
+## Export and rollback import
+
+With the freeze in place, take a full export; it is the rollback path. An
+export taken before the freeze can be outrun by writes between the two, and a
+restore would drop them. Both commands take `--project`; without `--database`
+gcloud targets the production `(default)`, so name the target explicitly.
+
+```sh
+gcloud firestore export "gs://<backup-bucket>/claims-<database>-$(date +%Y%m%dT%H%M%S)" \
+  --project=wish-together-project --database="<database>"
+```
+
+Rollback is an import. It overwrites the exported documents with their export
+content and discards every write after the export, including claims, but it does
+**not** delete documents created later. The freeze above stops the app's writes;
+expect to redeploy the matching rules and build.
+
+```sh
+gcloud firestore import "gs://<backup-bucket>/claims-<database>-<timestamp>" \
+  --project=wish-together-project --database="<database>"
+```
 
 ## Staging rehearsal
 
@@ -187,10 +190,10 @@ Run the `npm run` commands from `scripts/`, with
 live, so the release window includes an App Store build.
 
 1. Rehearse on `staging`, including the restore, and verify the counts.
-2. Submit the claims-aware build from the head of the final UI change (which
-   contains the data change; the merge keeps the tree identical), then
-   immediately switch Version Release to "Manually release this version" in App
-   Store Connect: the `app_store_release` lane requests automatic release. After
+2. Submit the claims-aware build from the final claims code as it will be
+   merged, then immediately switch Version Release to "Manually release this
+   version" in App Store Connect: the `app_store_release` lane requests
+   automatic release. After
    submitting, do not push to either claims branch.
    Confirm it shows "Pending Developer Release" before continuing. Do not
    release it until later in this window.

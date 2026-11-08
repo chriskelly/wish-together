@@ -38,7 +38,7 @@ After:
   limit can be guessed.
 - A non-null, non-map `claims` value stops the run and names the document; no
   later run could repair it. For a document without a claims map, a `claimedBy`
-  that is not a non-empty string also stops the run.
+  that is neither null nor a non-empty string also stops the run.
 - Writes are 400-document batches committed in order. The first failed batch
   stops the run and reports how many items were written before it.
 
@@ -166,12 +166,14 @@ and the web job are independent; wait for both before the smoke test.
 
    ```sh
    # repository root
-   git checkout origin/master -- firestore.rules
+   git show origin/master:firestore.rules > firestore.rules
    firebase deploy --only firestore:rules --config firebase.staging.json \
      --project wish-together-project
-   (cd scripts && npm run seed:demo -- --database staging)
+   (cd scripts && npm run seed:demo -- --yes --viewer-uid <staging-test-uid> \
+     --database staging)
    ```
 
+   The seeder needs `--yes` and a uid; `docs/staging.md` names the test uid.
    Staging then holds claims-shaped data, and a claim from the old app under the
    old rules would be written in the legacy shape and dropped by the next
    migration.
@@ -215,9 +217,11 @@ live, so the release window includes an App Store build.
    release iOS, and reject or remove the pending App Store version.
 
 8. From a clean tree, merge the rules-and-data change and the UI change; CI
-   deploys the final rules and the web build. Confirm the content is live:
+   deploys the final rules and the web build. Point the local file at the merged
+   rules and confirm the content is live:
 
    ```sh
+   git fetch && git show origin/master:firestore.rules > firestore.rules
    cd scripts && ACCESS_TOKEN=$(gcloud auth print-access-token) \
      npm run rules:release -- check --database "(default)" --source ../firestore.rules
    ```
@@ -241,11 +245,12 @@ already-open web tab is not gated and must reload for the new build.
 
 ## Rollback
 
-Before the merge (the freeze is live): import the export, then
-`git fetch && git checkout origin/master -- firestore.rules` (master still holds
-the pre-freeze rules because rules merges are held) and deploy it, or copy the
-pre-freeze version from the Firebase console's Firestore rules history and
-publish it (the console publishes to the production `(default)` database only).
+Before the merge (the freeze is live): import the export, reject or remove the
+pending App Store version, then `git fetch && git show origin/master:firestore.rules
+> firestore.rules` (master still holds the pre-freeze rules because rules merges
+are held) and deploy it, or copy the pre-freeze version from the Firebase
+console's Firestore rules history and publish it (the console publishes to the
+production `(default)` database only).
 Verify the content:
 
 ```sh
@@ -260,7 +265,9 @@ shipped):
 1. Re-apply the freeze to the current `firestore.rules` (deny every item write
    and the wishlist delete, including the claims update branch) and deploy it.
 2. Import the export.
-3. Restore the pre-freeze rules from the commit before the rules change merged
+3. Roll Hosting back in the Firebase console's release history to the last
+   release published before the claims changes merged.
+4. Restore the pre-freeze rules from the commit before the rules change merged
    and deploy them, then verify the content:
 
    ```sh
@@ -272,12 +279,13 @@ shipped):
    ```
 
    This overwrites the local freeze edit; the file route is the only one that
-   can be verified by content. Revert the claims rules merge, or keep the freeze
-   deployed, before any other merge publishes `master`'s rules again.
-4. Roll Hosting back in the Firebase console's release history to the last
-   release published before the claims changes merged.
+   can be verified by content. Revert the claims rules merge (or block every
+   merge touching the rules paths) so a later merge cannot publish `master`'s
+   claims rules over the restored ones.
 5. Restore the previous `min_supported_build` value if it was raised (publish
    Remote Config).
 6. If the App Store version is still pending, reject or remove it. If it is
-   already live, the rollback needs a follow-up claims-aware build: a raised
-   `min_supported_build` cannot rescue a client that already updated.
+   already live, an updated client can only be repaired by a build that writes
+   the legacy pair, or by rolling forward: redeploy the claims rules and re-run
+   the migration. A raised `min_supported_build` cannot rescue a client that
+   already updated.

@@ -598,3 +598,10 @@ test('a dry run previews at most ten planned paths', async () => {
     10,
   );
 });
+
+test('runClaims refuses a limit in verify mode', async () => {
+  await assert.rejects(
+    runClaims({ db: fakeDb([]), mode: 'verify', limit: 1, log: fakeLog() }),
+    /limit cannot be combined with verify/,
+  );
+});

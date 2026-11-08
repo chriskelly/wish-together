@@ -61,6 +61,13 @@ and the `no-deploy` label opts a PR out — but anyone who can push a branch rea
 secrets' effects. Add a GitHub `environment` with required reviewers if that needs a
 human gate.
 
+The release workflows require `StrictHostKeyChecking yes` (for `github.com` and the
+`webfactory/ssh-agent` deploy-key alias) and install `.github/known_hosts` (GitHub's published
+keys from `https://api.github.com/meta`): TestFlight prefers the default branch's copy (falling
+back to the checked-out copy only while that branch predates the file); the App Store path reads
+the checked-out ref (a `v*` tag, or the branch chosen for a manual run). A host key that differs
+from that committed file fails the clone before signing.
+
 ## One-time local setup
 
 On a Mac with Xcode: `bundle install`, then `bundle exec fastlane match appstore` to create

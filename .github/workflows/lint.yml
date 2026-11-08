@@ -55,7 +55,7 @@ jobs:
     runs-on: ubuntu-26.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Install actionlint
         # The downloader is itself pinned (tag in the URL, version hardcoded in
@@ -91,18 +91,18 @@ jobs:
         run: bash .agents/skills/preview-auth/scripts/preview-auth.test.sh
 
       - name: Set up Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: "22"
 
       - name: Test the dev scripts
-        # The rules-release verifier gates the staging deploy, so its tests
-        # must run before that verifier is trusted in CI.
+        # The action-pin guard gates merges and the rules-release verifier gates
+        # the staging deploy, so both must run before either is trusted in CI.
         run: npm ci && npm test
         working-directory: scripts
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
         with:
           ruby-version: "3.3"
           bundler-cache: true

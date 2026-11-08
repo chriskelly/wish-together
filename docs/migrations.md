@@ -200,8 +200,8 @@ live, so the release window includes an App Store build.
    the window, and your account needs `storage.objects.create` on it.
 5. Run the dry run against production and read the counts:
    `npm run migrate:claims -- --database "(default)"`.
-6. Run the canary, stop if it exits non-zero (the failing run writes nothing;
-   committed canary batches remain and are safe to rerun), then the full
+6. Run the canary, stop if it exits non-zero (a planning or batch failure
+   commits nothing; a canary that succeeded is safe to rerun), then the full
    migration:
 
    ```sh
@@ -254,6 +254,7 @@ Before the merge (the freeze is live): import the export, reject or remove the
 pending App Store version, then restore and deploy the pre-freeze rules:
 
 ```sh
+cd "$(git rev-parse --show-toplevel)"
 git fetch && git show origin/master:firestore.rules > firestore.rules \
   && test -s firestore.rules \
   && firebase deploy --only firestore:rules --project wish-together-project
@@ -296,8 +297,8 @@ shipped):
    and the UI change), or block every merge to `master`, because the web job
    deploys on any push and would otherwise republish the claims-aware UI under
    the restored rules.
-5. Restore the previous `min_supported_build` value if it was raised (publish
-   Remote Config).
+5. Restore the previous `min_supported_build`, `update_url` and `update_message`
+   values if they were changed (publish Remote Config).
 6. If the App Store version is still pending, reject or remove it. If it is
    already live, an updated client can only be repaired by a build that writes
    the legacy pair, or by rolling forward: redeploy the claims rules and re-run

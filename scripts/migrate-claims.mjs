@@ -64,7 +64,7 @@ function validateDatabaseId(raw) {
 
 function validateLimit(raw) {
   const value = String(raw ?? '');
-  if (!/^[1-9]\d*$/.test(value)) {
+  if (!/^[1-9]\d*$/.test(value) || Number(value) > 2_147_483_647) {
     throw new UsageError(
       `Invalid --limit ${JSON.stringify(raw)}: expected a positive integer`,
     );

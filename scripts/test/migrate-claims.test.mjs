@@ -51,14 +51,17 @@ function fakeDoc(path, data) {
 /// A Firestore stand-in: one collection group snapshot and recorded batches.
 function fakeDb(documents, { failCommit = 0 } = {}) {
   const batches = [];
+  const limitSizes = [];
   let commits = 0;
   return {
     batches,
+    limitSizes,
     collectionGroup(name) {
       assert.equal(name, 'items');
       return {
         get: async () => ({ docs: documents }),
         limit(size) {
+          limitSizes.push(size);
           return { get: async () => ({ docs: documents.slice(0, size) }) };
         },
       };
@@ -475,6 +478,7 @@ test('--limit counts scanned documents, not planned ones', async () => {
   assert.equal(result.scanned, 2);
   assert.equal(result.skipped, 1);
   assert.equal(result.planned, 1);
+  assert.deepEqual(db.limitSizes, [2]);
 });
 
 test('a rerun skips already migrated items', async () => {
@@ -609,4 +613,13 @@ test('runClaims refuses a limit in verify mode', async () => {
     runClaims({ db: fakeDb([]), mode: 'verify', limit: 1, log: fakeLog() }),
     /limit cannot be combined with verify/,
   );
+});
+
+test('an unreadable credentials file is named and exits 2', () => {
+  const result = run(['--limit', '1'], {
+    GOOGLE_APPLICATION_CREDENTIALS: '/nope/service-account.json',
+  });
+
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /Cannot read "\/nope\/service-account.json"/);
 });

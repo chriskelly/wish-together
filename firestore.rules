@@ -173,9 +173,8 @@ service cloud.firestore {
         // refused; the release window updates clients before this deploys.
         allow create: if isParentOwner()
                       && limitIsValid()
-                      && (!request.resource.data.keys().hasAny(['claims'])
-                          || (request.resource.data.claims is map
-                              && request.resource.data.claims.size() == 0));
+                      && requestClaims() is map
+                      && requestClaims().size() == 0;
 
         allow delete: if isParentOwner();
 

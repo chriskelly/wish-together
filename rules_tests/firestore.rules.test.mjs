@@ -1012,28 +1012,26 @@ test('the owner cannot lower a finite limit below the claims', async () => {
   await assertSucceeds(item.update({ claimLimit: 0 }));
 });
 
-test('the owner cannot lower the limit by dropping claims in the same write',
-  async () => {
-    const wishlistId = 'wishlist-owner-drop-and-lower';
-    const itemId = 'item';
-    await seed((s) =>
-      seedWishlistWithItem(s, wishlistId, itemId, {
-        item: {
-          name: 'Gift',
-          claims: { [MEMBER]: claimAt(), [OUTSIDER]: claimAt() },
-          claimLimit: 3,
-        },
-      }),
-    );
+test('an owner write cannot change claims and the limit together', async () => {
+  const wishlistId = 'wishlist-owner-drop-and-lower';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      item: {
+        name: 'Gift',
+        claims: { [MEMBER]: claimAt(), [OUTSIDER]: claimAt() },
+        claimLimit: 3,
+      },
+    }),
+  );
 
-    await assertFails(
-      itemRef(OWNER, wishlistId, itemId).update({
-        claims: {},
-        claimLimit: 1,
-      }),
-    );
-  },
-);
+  await assertFails(
+    itemRef(OWNER, wishlistId, itemId).update({
+      claims: {},
+      claimLimit: 1,
+    }),
+  );
+});
 
 test('creating an item requires a non-negative integer limit', async () => {
   const wishlistId = 'wishlist-create-limit';
@@ -1044,6 +1042,18 @@ test('creating an item requires a non-negative integer limit', async () => {
   await assertFails(item.set({ name: 'Gift' }));
   await assertFails(item.set({ name: 'Gift', claimLimit: -1 }));
   await assertSucceeds(item.set({ name: 'Gift', claimLimit: 1 }));
+});
+
+test('creating an unlimited item is allowed', async () => {
+  const wishlistId = 'wishlist-create-unlimited';
+  await seed((s) => seedWishlist(s, wishlistId));
+
+  await assertSucceeds(
+    itemRef(OWNER, wishlistId, 'unlimited').set({
+      name: 'Gift',
+      claimLimit: 0,
+    }),
+  );
 });
 
 test('creating an item that is already claimed is denied', async () => {

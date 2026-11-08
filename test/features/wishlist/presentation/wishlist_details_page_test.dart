@@ -43,6 +43,7 @@ void main() {
 
     late MockWishlistRepository wishlistRepository;
     late MockItemRepository itemRepository;
+    late MockClaimItemUseCase claimItemUseCase;
     late MockUnclaimItemUseCase unclaimItemUseCase;
 
     setUp(() {
@@ -61,7 +62,8 @@ void main() {
 
       getIt.registerSingleton<WishlistRepository>(wishlistRepository);
       getIt.registerSingleton<AuthSession>(authSession);
-      getIt.registerSingleton<ClaimItemUseCase>(MockClaimItemUseCase());
+      claimItemUseCase = MockClaimItemUseCase();
+      getIt.registerSingleton<ClaimItemUseCase>(claimItemUseCase);
       unclaimItemUseCase = MockUnclaimItemUseCase();
       getIt.registerSingleton<UnclaimItemUseCase>(unclaimItemUseCase);
     });
@@ -200,6 +202,22 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Please sign in again to claim items.'), findsOneWidget);
+      expect(find.textContaining('ClaimFailure'), findsNothing);
+    });
+
+    testWidgets('shows the full-item copy when a claim is refused', (
+      tester,
+    ) async {
+      await pumpPage(tester, [
+        Item(id: 'item-1', name: itemName, claimLimit: 1),
+      ]);
+      when(() => claimItemUseCase.execute(wishlistId, 'item-1'))
+          .thenThrow(const ClaimFailure(ClaimFailureReason.fullyClaimed));
+
+      await tester.tap(find.text('Claim'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('This item is no longer available.'), findsOneWidget);
       expect(find.textContaining('ClaimFailure'), findsNothing);
     });
 

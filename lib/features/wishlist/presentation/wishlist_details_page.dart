@@ -124,9 +124,9 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
     bool isOwner,
   ) {
     final scheme = Theme.of(context).colorScheme;
-    // The owner's view never changes: the spoiler toggle controls the status
-    // text there. A reader always sees claims, so the card itself carries the
-    // state.
+    // An owner's card never carries the claimed treatment; the spoiler toggle
+    // only controls the status text. A reader always sees claims, so the card
+    // itself carries the state.
     final applyClaimedTreatment =
         !isOwner && (item.isClaimedBy(_currentUserId) || !item.hasClaimRoom);
     final claimedText = applyClaimedTreatment

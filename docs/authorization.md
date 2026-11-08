@@ -20,7 +20,9 @@ if you own it. The owner is `ownerId` on a wishlist or a group, the parent wishl
   over, remove or rewrite another person's claim. A finite `claimLimit` caps how many claims an
   item may hold (`0` is unlimited). The owner edits content and the limit only, and cannot
   lower a finite limit below the current number of claims. An item cannot be created already
-  claimed, and create requires a non-negative integer limit.
+  claimed, and create requires a non-negative integer limit. A stored item without `claimLimit`
+  (written before the migration) is write-denied, including owner edits, until the migration adds
+  it; rerunning the migration is the repair.
 
 Group membership is the one other writable edge, and it is bounded to exactly that: a
 signed-in user who has a group's id may add themselves to the group or remove themselves

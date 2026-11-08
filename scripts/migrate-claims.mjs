@@ -288,6 +288,9 @@ export async function runClaims({
   if (!['dry-run', 'apply', 'verify'].includes(mode)) {
     throw new Error(`Unknown mode ${JSON.stringify(mode)}`);
   }
+  if (mode === 'verify' && limit !== null) {
+    throw new Error('limit cannot be combined with verify');
+  }
   const result = {
     scanned: 0,
     skipped: 0,

@@ -25,8 +25,9 @@ After:
 ```
 
 - `claimedBy`/`claimedAt` are deleted, not written as `null`.
-- A document with `claimLimit` but no `claims` map is new-shape and keeps its
-  limit; only a missing or invalid limit becomes `1`.
+- A document with `claimLimit` but no `claims` map is new-shape: it gains an
+  empty `claims` map and keeps its limit; only a missing or invalid limit
+  becomes `1`.
 - A claimed uid without a usable `claimedAt` is repaired with the run time.
 - An item with a claims map is not re-claimed. A missing or invalid
   `claimLimit` and leftover legacy keys are the only things written for it
@@ -116,7 +117,8 @@ cd scripts && ACCESS_TOKEN=$(gcloud auth print-access-token) \
   npm run rules:release -- show --database "(default)"   # or staging
 ```
 
-Deploy the freeze as an uncommitted edit to `firestore.rules`:
+Deploy the freeze as an uncommitted edit to `firestore.rules`; run these from
+the repository root:
 
 ```sh
 # staging
@@ -150,8 +152,8 @@ and the web job are independent; wait for both before the smoke test.
 ## Staging rehearsal
 
 1. Seed from a commit before the claims changes (the seeder then writes the
-   legacy shape), or import a legacy export; the current seeder writes the new
-   shape and the dry run would plan nothing. Deploy the staging freeze (above),
+   legacy shape), or import a legacy export. Once the claims change lands, the
+   seeder writes the new shape and the dry run would plan nothing. Deploy the staging freeze (above),
    take the export, and require a non-zero plan.
 2. Run the dry run and read the counts.
 3. Run `--limit 10 --yes` as a canary; stop if it exits non-zero. Then run the
@@ -159,17 +161,18 @@ and the web job are independent; wait for both before the smoke test.
 4. Run `--verify`; zero problems, or stop and investigate.
 5. Run the import once to prove the rollback, then repeat the migration and
    `--verify`.
-6. Discard the local freeze edit (`git checkout -- firestore.rules`), redeploy
-   the previous staging rules, and reseed staging:
+6. Discard the local freeze edit, redeploy the previous staging rules, and
+   reseed staging:
 
    ```sh
+   # repository root
    git checkout origin/master -- firestore.rules
    firebase deploy --only firestore:rules --config firebase.staging.json \
      --project wish-together-project
-   npm run seed:demo -- --database staging
+   (cd scripts && npm run seed:demo -- --database staging)
    ```
 
-   Staging now holds claims-shaped data, and a claim from the old app under the
+   Staging then holds claims-shaped data, and a claim from the old app under the
    old rules would be written in the legacy shape and dropped by the next
    migration.
 
@@ -212,8 +215,15 @@ live, so the release window includes an App Store build.
    release iOS, and reject or remove the pending App Store version.
 
 8. From a clean tree, merge the rules-and-data change and the UI change; CI
-   deploys the final rules and the web build. Confirm the rules release id. If the rules job fails, the freeze
-   stays live: fix and push before releasing iOS. If the web job fails, the old
+   deploys the final rules and the web build. Confirm the content is live:
+
+   ```sh
+   cd scripts && ACCESS_TOKEN=$(gcloud auth print-access-token) \
+     npm run rules:release -- check --database "(default)" --source ../firestore.rules
+   ```
+
+   If the rules job fails, the freeze stays live: fix and push before releasing
+   iOS. If the web job fails, the old
    web build stays served under the new rules: re-run it before the smoke test.
 9. Smoke test on web: a reader claims, unclaims, a full item shows unavailable,
    and the owner edits an item without dropping a claim.
@@ -236,8 +246,12 @@ Before the merge (the freeze is live): import the export, then
 the pre-freeze rules because rules merges are held) and deploy it, or copy the
 pre-freeze version from the Firebase console's Firestore rules history and
 publish it (the console publishes to the production `(default)` database only).
-Verify the content with
-`rules:release check --database "(default)" --source ../firestore.rules`.
+Verify the content:
+
+```sh
+cd scripts && ACCESS_TOKEN=$(gcloud auth print-access-token) \
+  npm run rules:release -- check --database "(default)" --source ../firestore.rules
+```
 Nothing has shipped yet, so the old app still reads the legacy fields.
 
 After the merge (the final rules and web are live, whether or not iOS has
@@ -250,6 +264,7 @@ shipped):
    and deploy them, then verify the content:
 
    ```sh
+   cd "$(git rev-parse --show-toplevel)"
    git show <pre-freeze-commit>:firestore.rules > firestore.rules
    firebase deploy --only firestore:rules --project wish-together-project
    cd scripts && ACCESS_TOKEN=$(gcloud auth print-access-token) \
@@ -257,9 +272,12 @@ shipped):
    ```
 
    This overwrites the local freeze edit; the file route is the only one that
-   can be verified by content.
+   can be verified by content. Revert the claims rules merge, or keep the freeze
+   deployed, before any other merge publishes `master`'s rules again.
 4. Roll Hosting back in the Firebase console's release history to the last
    release published before the claims changes merged.
 5. Restore the previous `min_supported_build` value if it was raised (publish
    Remote Config).
-6. If the App Store version is still pending, reject or remove it.
+6. If the App Store version is still pending, reject or remove it. If it is
+   already live, the rollback needs a follow-up claims-aware build: a raised
+   `min_supported_build` cannot rescue a client that already updated.

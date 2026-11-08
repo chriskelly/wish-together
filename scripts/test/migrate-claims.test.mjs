@@ -459,13 +459,17 @@ test('a failed batch through the CLI exits 1', async () => {
   assert.equal(await main(['--yes'], deps(db)), 1);
 });
 
-test('--limit stops after N scanned documents', async () => {
-  const db = fakeDb(documents(5));
+test('--limit counts scanned documents, not planned ones', async () => {
+  const db = fakeDb([
+    fakeDoc('wishlists/w1/items/a', { claims: {}, claimLimit: 1 }),
+    ...documents(5),
+  ]);
 
   const result = await runClaims({ db, mode: 'dry-run', limit: 2, log: fakeLog() });
 
   assert.equal(result.scanned, 2);
-  assert.equal(result.planned, 2);
+  assert.equal(result.skipped, 1);
+  assert.equal(result.planned, 1);
 });
 
 test('a rerun skips already migrated items', async () => {

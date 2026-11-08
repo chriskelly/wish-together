@@ -110,7 +110,12 @@ jobs:
           ssh-private-key: ${{ secrets.MATCH_GIT_PRIVATE_KEY }}
 
       - name: Add GitHub to known hosts
-        run: ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts
+        run: |
+          install -d -m 700 ~/.ssh
+          cat "$GITHUB_WORKSPACE/.github/known_hosts" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          printf 'Host github.com\n  StrictHostKeyChecking yes\n' >> ~/.ssh/config
+          chmod 600 ~/.ssh/config
 
       - name: Build and submit to the App Store
         run: bundle exec fastlane app_store_release

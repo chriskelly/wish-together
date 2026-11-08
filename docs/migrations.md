@@ -68,8 +68,9 @@ GOOGLE_APPLICATION_CREDENTIALS=~/path/to/service-account.json \
 
 Exit codes: `0` success; `1` verification problems, a malformed document, a
 failed batch, a key that cannot authenticate, or any other failure after the
-guards; `2` usage or a refused credentials file. A run that scans zero items
-also exits 1: it has checked nothing, so check the target.
+guards; `2` usage, or credentials that are missing, unreadable, from the wrong
+project or not a service-account key. A run that scans zero items also exits 1:
+it has checked nothing, so check the target.
 
 The `items` collection-group query is the one sanctioned exception to the
 wishlist area rule against global item reads. Client code must still never query
@@ -107,8 +108,8 @@ deleted item aborts a batch.
 
 The freeze lasts from here until the rules job publishes after the merge,
 typically 20-40 minutes: item creates, edits and claims are refused, not an
-outage. Record the previous ruleset id with the rules-release script so the
-rollback can redeploy it:
+outage. Record the pre-freeze ruleset id for the audit trail; every deploy mints
+a new id, so a restore is verified by content, not by that id:
 
 ```sh
 cd scripts && ACCESS_TOKEN=$(gcloud auth print-access-token) \
@@ -178,16 +179,16 @@ window includes an App Store build.
 
 1. Rehearse on `staging`, including the restore, and verify the counts.
 2. Submit the claims-aware build from the head of the final UI change (which
-   contains the data change; a squash merge keeps the tree identical), then
+   contains the data change; the merge keeps the tree identical), then
    immediately switch Version Release to "Manually release this version" in App
    Store Connect: the `app_store_release` lane requests automatic release. After
    submitting, do not push to either claims branch.
    Confirm it shows "Pending Developer Release" before continuing. Do not
    release it until later in this window.
 3. Record the prior ruleset id, then deploy the production freeze (above).
-4. Export production to the backup bucket, with `--database="(default)"`. The
-   bucket must exist before the window, and your account needs
-   `storage.objects.create` on it.
+4. Export production to the backup bucket, with `--database="(default)"`, and
+   record the exact `gs://` path for the rollback. The bucket must exist before
+   the window, and your account needs `storage.objects.create` on it.
 5. Run the dry run against production and read the counts:
    `npm run migrate:claims -- --database "(default)"`.
 6. Run the canary, stop if it exits non-zero, then the full migration:
@@ -205,7 +206,7 @@ window includes an App Store build.
 
    If it is not clean, import the export, restore the pre-freeze rules (see
    Rollback, before the merge), and stop: do not deploy the final rules or
-   release iOS.
+   release iOS, and reject or remove the pending App Store version.
 
 8. From a clean tree, merge the rules-and-data change and the UI change; CI
    deploys the final rules and the web build. Confirm the rules release id. If the rules job fails, the freeze
@@ -231,16 +232,23 @@ Before the merge (the freeze is live): import the export, then
 `git fetch && git checkout origin/master -- firestore.rules` (master still holds
 the pre-freeze rules because rules merges are held) and deploy it, or copy the
 pre-freeze version from the Firebase console's Firestore rules history and
-publish it. Verify with `rules:release check --expect-ruleset <id>`. Nothing has
-shipped yet, so the old app still reads the legacy fields.
+publish it (the console publishes to the production `(default)` database only).
+Verify the content with
+`rules:release check --database "(default)" --source ../firestore.rules`.
+Nothing has shipped yet, so the old app still reads the legacy fields.
 
 After the merge (the final rules and web are live, whether or not iOS has
-shipped): first deploy the freeze rules again, import the export, then copy the
-pre-freeze version from the Firebase console's Firestore rules history and
-publish it, and roll Hosting back in the Firebase console's release history to
-the last release published before the claims changes merged. Keep the freeze in
-place until the rules and Hosting are restored. Restore the previous
-`min_supported_build` value if it was raised (publish Remote Config). The git
-checkout now restores the claims rules, so do not use it here. Once the
+shipped): re-apply the freeze to the current `firestore.rules` (deny every item
+and wishlist write, including the claims update branch) and deploy it, then
+import the export. Copy the pre-freeze version from the production Firestore
+rules history and publish it, or restore the file from the pre-freeze commit and
+deploy it, and verify the content with
+`rules:release check --database "(default)" --source ../firestore.rules`. The
+pre-merge local copy was already discarded, so re-apply the freeze rather than
+reusing it. Keep the freeze in place until the rules are restored, then discard
+the local edit. Roll Hosting back in the Firebase console's release history to
+the last release published before the claims changes merged, and restore the
+previous `min_supported_build` value if it was raised (publish Remote Config).
+The git checkout now restores the claims rules, so do not use it for the rules. Once the
 claims-aware iOS build is live, a data rollback needs a follow-up build, so
 release iOS only after `--verify` is clean.

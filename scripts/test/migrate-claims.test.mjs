@@ -551,12 +551,14 @@ test('a credentials file with the wrong type is refused', (t) => {
   assert.match(result.stderr, /service-account key/);
 });
 
-test('invalid timestamps and over-limit maps are left for verify', () => {
+test('invalid timestamps and over-limit maps are skipped, and verify reports them', () => {
   const now = Timestamp.now();
+  const invalid = { claims: { a: 'yesterday' }, claimLimit: 1 };
+  const overLimit = { claims: { a: now, b: now }, claimLimit: 1 };
 
-  assert.equal(planItem({ claims: { a: 'yesterday' }, claimLimit: 1 }), null);
-  assert.equal(
-    planItem({ claims: { a: now, b: now }, claimLimit: 1 }),
-    null,
-  );
+  assert.equal(planItem(invalid), null);
+  assert.equal(planItem(overLimit), null);
+  assert.deepEqual(verifyItem(invalid), ['invalid claim timestamp for a']);
+  assert.deepEqual(verifyItem(overLimit), ['claims exceed claimLimit 1']);
+  assert.deepEqual(verifyItem({ claims: { a: now, b: now, c: now }, claimLimit: 0 }), []);
 });

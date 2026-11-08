@@ -198,7 +198,9 @@ function isPlainObject(value) {
 export function planItem(data, now = Timestamp.now()) {
   if (isPlainObject(data.claims)) {
     // Already migrated. A missing or invalid limit, or leftover legacy keys, is
-    // written so a rerun converges instead of leaving verify to report it.
+    // written so a rerun converges instead of leaving verify to report it. A
+    // legacy claim beside a claims map is stale and deleted; the freeze makes
+    // that unreachable, because no writer can add one after the backfill starts.
     const claimCount = Object.keys(data.claims).length;
     const validLimit =
       Number.isInteger(data.claimLimit) && data.claimLimit >= 0;

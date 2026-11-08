@@ -192,9 +192,10 @@ function isPlainObject(value) {
   return prototype === Object.prototype || prototype === null;
 }
 
-/// The fields to write for one legacy item, or null when there is nothing to
-/// write. A missing or invalid limit is repaired to 1 and an existing valid one
-/// is kept. A claimed uid without a usable timestamp is repaired with [now].
+/// The fields to write for one item, legacy or already migrated, or null when
+/// there is nothing to write. A missing or invalid limit is repaired to 1 and an
+/// existing valid one is kept. A claimed uid without a usable timestamp is
+/// repaired with [now].
 export function planItem(data, now = Timestamp.now()) {
   if (isPlainObject(data.claims)) {
     // Already migrated. A missing or invalid limit, or leftover legacy keys, is
@@ -227,7 +228,7 @@ export function planItem(data, now = Timestamp.now()) {
     data.claimedBy !== null &&
     (typeof data.claimedBy !== 'string' || data.claimedBy === '')
   ) {
-    throw new Error('claimedBy is not a string');
+    throw new Error('claimedBy is not a non-empty string');
   }
   const claimedAt = data.claimedAt instanceof Timestamp ? data.claimedAt : now;
   const claims = data.claimedBy ? { [data.claimedBy]: claimedAt } : {};

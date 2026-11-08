@@ -329,9 +329,9 @@ test('a non-map claims value stops the run instead of being skipped', () => {
 });
 
 test('a claimedBy that is not a non-empty string stops the run', () => {
-  assert.throws(() => planItem({ claimedBy: 123 }), /claimedBy is not a string/);
-  assert.throws(() => planItem({ claimedBy: {} }), /claimedBy is not a string/);
-  assert.throws(() => planItem({ claimedBy: '' }), /claimedBy is not a string/);
+  assert.throws(() => planItem({ claimedBy: 123 }), /claimedBy is not a non-empty string/);
+  assert.throws(() => planItem({ claimedBy: {} }), /claimedBy is not a non-empty string/);
+  assert.throws(() => planItem({ claimedBy: '' }), /claimedBy is not a non-empty string/);
 });
 
 test('a missing or wrong-typed claim timestamp is repaired with the run time', () => {
@@ -560,5 +560,37 @@ test('invalid timestamps and over-limit maps are skipped, and verify reports the
   assert.equal(planItem(overLimit), null);
   assert.deepEqual(verifyItem(invalid), ['invalid claim timestamp for a']);
   assert.deepEqual(verifyItem(overLimit), ['claims exceed claimLimit 1']);
-  assert.deepEqual(verifyItem({ claims: { a: now, b: now, c: now }, claimLimit: 0 }), []);
+});
+
+test('verify accepts more claims than a zero limit, which means unlimited', () => {
+  const now = Timestamp.now();
+
+  assert.deepEqual(
+    verifyItem({ claims: { a: now, b: now, c: now }, claimLimit: 0 }),
+    [],
+  );
+});
+
+test('a malformed document after a writable one writes nothing', async () => {
+  const db = fakeDb([
+    fakeDoc('wishlists/w1/items/good', { claimedBy: null }),
+    fakeDoc('wishlists/w1/items/bad', { claims: 'nope' }),
+  ]);
+
+  await assert.rejects(
+    runClaims({ db, mode: 'apply', log: fakeLog() }),
+    /wishlists\/w1\/items\/bad: claims is not a map/,
+  );
+  assert.deepEqual(db.batches, []);
+});
+
+test('a dry run previews at most ten planned paths', async () => {
+  const log = fakeLog();
+
+  await runClaims({ db: fakeDb(documents(11)), mode: 'dry-run', log });
+
+  assert.equal(
+    log.lines.filter((line) => line.startsWith('would update ')).length,
+    10,
+  );
 });

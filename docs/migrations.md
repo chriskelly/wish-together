@@ -44,9 +44,9 @@ After:
 The new UI does not display claim dates, so a repaired timestamp is not
 user-visible. Until the new web build is deployed and any open tab reloads, the
 old web build reads the deleted `claimedBy` as unclaimed: it shows migrated
-claimed items as available, and a claim from it fails. Old iOS builds keep
-reading the legacy fields until users update; the minimum-build gate nudges
-them.
+claimed items as available, and a claim from it fails. Old iOS builds read the
+same deleted fields and behave the same way until users update; the
+minimum-build gate nudges them.
 
 Run the script from `scripts/`:
 
@@ -166,6 +166,7 @@ and the web job are independent; wait for both before the smoke test.
    git checkout origin/master -- firestore.rules
    firebase deploy --only firestore:rules --config firebase.staging.json \
      --project wish-together-project
+   npm run seed:demo -- --database staging
    ```
 
    Staging now holds claims-shaped data, and a claim from the old app under the
@@ -174,8 +175,9 @@ and the web job are independent; wait for both before the smoke test.
 
 ## Production order
 
-Run the `npm run` commands from `scripts/`. The iOS app is live, so the release
-window includes an App Store build.
+Run the `npm run` commands from `scripts/`, with
+`GOOGLE_APPLICATION_CREDENTIALS` exported once for the window. The iOS app is
+live, so the release window includes an App Store build.
 
 1. Rehearse on `staging`, including the restore, and verify the counts.
 2. Submit the claims-aware build from the head of the final UI change (which
@@ -191,7 +193,8 @@ window includes an App Store build.
    the window, and your account needs `storage.objects.create` on it.
 5. Run the dry run against production and read the counts:
    `npm run migrate:claims -- --database "(default)"`.
-6. Run the canary, stop if it exits non-zero, then the full migration:
+6. Run the canary, stop if it exits non-zero (a planning failure writes nothing;
+   a failed batch can be rerun or rolled back), then the full migration:
 
    ```sh
    npm run migrate:claims -- --database "(default)" --limit 10 --yes
@@ -238,17 +241,25 @@ Verify the content with
 Nothing has shipped yet, so the old app still reads the legacy fields.
 
 After the merge (the final rules and web are live, whether or not iOS has
-shipped): re-apply the freeze to the current `firestore.rules` (deny every item
-and wishlist write, including the claims update branch) and deploy it, then
-import the export. Copy the pre-freeze version from the production Firestore
-rules history and publish it, or restore the file from the pre-freeze commit and
-deploy it, and verify the content with
-`rules:release check --database "(default)" --source ../firestore.rules`. The
-pre-merge local copy was already discarded, so re-apply the freeze rather than
-reusing it. Keep the freeze in place until the rules are restored, then discard
-the local edit. Roll Hosting back in the Firebase console's release history to
-the last release published before the claims changes merged, and restore the
-previous `min_supported_build` value if it was raised (publish Remote Config).
-The git checkout now restores the claims rules, so do not use it for the rules. Once the
-claims-aware iOS build is live, a data rollback needs a follow-up build, so
-release iOS only after `--verify` is clean.
+shipped):
+
+1. Re-apply the freeze to the current `firestore.rules` (deny every item write
+   and the wishlist delete, including the claims update branch) and deploy it.
+2. Import the export.
+3. Restore the pre-freeze rules from the commit before the rules change merged
+   and deploy them, then verify the content:
+
+   ```sh
+   git show <pre-freeze-commit>:firestore.rules > firestore.rules
+   firebase deploy --only firestore:rules --project wish-together-project
+   cd scripts && ACCESS_TOKEN=$(gcloud auth print-access-token) \
+     npm run rules:release -- check --database "(default)" --source ../firestore.rules
+   ```
+
+   This overwrites the local freeze edit; the file route is the only one that
+   can be verified by content.
+4. Roll Hosting back in the Firebase console's release history to the last
+   release published before the claims changes merged.
+5. Restore the previous `min_supported_build` value if it was raised (publish
+   Remote Config).
+6. If the App Store version is still pending, reject or remove it.

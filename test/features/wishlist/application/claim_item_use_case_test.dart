@@ -9,6 +9,7 @@ import 'package:wishtogether/features/wishlist/application/claim_failure.dart';
 import 'package:wishtogether/features/wishlist/application/claim_item_use_case.dart';
 import 'package:wishtogether/features/wishlist/data/item_repository.dart';
 import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
+import 'package:wishtogether/features/wishlist/domain/claim_limit_reached_exception.dart';
 import 'package:wishtogether/features/wishlist/domain/item.dart';
 
 import '../../../core/logging/recording_sink.dart';
@@ -105,6 +106,27 @@ void main() {
                 ClaimFailureReason.accessDenied,
               )
               .having((failure) => failure.code, 'code', code),
+        ),
+      );
+    });
+
+    test('reports a full item as fully claimed', () async {
+      // Arrange
+      when(() => mockAuthSession.currentUserId).thenReturn(userId);
+      when(() => mockItemRepository.claim(itemId, claimedBy: userId))
+          .thenThrow(const ClaimLimitReachedException());
+
+      // Act & Assert
+      await expectLater(
+        claimItemUseCase.execute(wishlistId, itemId),
+        throwsA(
+          isA<ClaimFailure>()
+              .having(
+                (failure) => failure.reason,
+                'reason',
+                ClaimFailureReason.fullyClaimed,
+              )
+              .having((failure) => failure.code, 'code', isNull),
         ),
       );
     });

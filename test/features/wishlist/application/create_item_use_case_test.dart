@@ -65,6 +65,33 @@ void main() {
       expect(item.name, itemName);
       expect(item.description, itemDescription);
       expect(item.url, itemUrl);
+      expect(item.claimLimit, 1);
+    });
+
+    test('should carry an explicit claim limit', () async {
+      // Arrange
+      const wishlistId = 'wishlist123';
+      const itemName = 'New Item';
+      const claimLimit = 3;
+      final mockDocRef = MockDocumentReference();
+
+      when(() => mockWishlistRepository.items(wishlistId))
+          .thenReturn(mockItemRepository);
+      when(() => mockItemRepository.add(any()))
+          .thenAnswer((_) async => mockDocRef);
+
+      // Act
+      await createItemUseCase.execute(
+        wishlistId,
+        itemName,
+        claimLimit: claimLimit,
+      );
+
+      // Assert
+      final captured = verify(() => mockItemRepository.add(captureAny()))
+          .captured;
+      final item = captured.single as Item;
+      expect(item.claimLimit, claimLimit);
     });
 
     test('should create item with only name', () async {

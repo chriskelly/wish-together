@@ -17,6 +17,7 @@ String claimFailureMessage(Object error) {
       "Couldn't reach the server. Check your connection and try again.",
     ClaimFailureReason.itemMissing => 'This item no longer exists.',
     ClaimFailureReason.signedOut => 'Please sign in again to claim items.',
+    ClaimFailureReason.fullyClaimed => 'This item is no longer available.',
     ClaimFailureReason.unknown => "Couldn't claim this item. Please try again.",
   };
 }

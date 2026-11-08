@@ -9,6 +9,7 @@ class UpdateItemUseCase {
     String? name,
     String? description,
     String? url,
+    int? claimLimit,
   }) async {
     final wishlistRepository = getIt<WishlistRepository>();
     final itemRepository = wishlistRepository.items(wishlistId);
@@ -17,7 +18,15 @@ class UpdateItemUseCase {
       name: name,
       description: description,
       url: url,
+      claimLimit: claimLimit,
     );
-    await itemRepository.update(item.id!, updatedItem);
+    // Field-scoped: an owner's edit must never rewrite the claims map.
+    await itemRepository.updateContent(
+      item.id!,
+      name: updatedItem.name,
+      description: updatedItem.description,
+      url: updatedItem.url,
+      claimLimit: updatedItem.claimLimit,
+    );
   }
 }

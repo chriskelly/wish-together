@@ -8,11 +8,17 @@ class CreateItemUseCase {
     String name, {
     String? description,
     String? url,
+    int claimLimit = 1,
   }) async {
     final wishlistRepository = getIt<WishlistRepository>();
     final itemRepository = wishlistRepository.items(wishlistId);
 
-    final newItem = Item(name: name, description: description, url: url);
+    final newItem = Item(
+      name: name,
+      description: description,
+      url: url,
+      claimLimit: claimLimit,
+    );
     await itemRepository.add(newItem);
   }
 }

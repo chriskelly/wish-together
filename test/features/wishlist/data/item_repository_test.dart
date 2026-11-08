@@ -25,10 +25,7 @@ void main() {
         fakeFirestore.collection(itemsCollectionPath).doc(itemId).set(data);
 
     Future<Map<String, dynamic>> stored(String itemId) async =>
-        (await fakeFirestore
-                .collection(itemsCollectionPath)
-                .doc(itemId)
-                .get())
+        (await fakeFirestore.collection(itemsCollectionPath).doc(itemId).get())
             .data()!;
 
     group('claims conversion', () {
@@ -97,29 +94,32 @@ void main() {
     });
 
     group('claim', () {
-      test('adds only the claim key and leaves the content untouched', () async {
-        const itemId = 'stale_item';
-        const storedName = 'Renamed by the owner';
-        const storedDescription = 'Stored description';
-        const storedUrl = 'https://example.com/stored';
-        const readerUid = 'reader-1';
-        await seed(itemId, <String, dynamic>{
-          'name': storedName,
-          'description': storedDescription,
-          'url': storedUrl,
-          'claims': <String, dynamic>{},
-          'claimLimit': 1,
-        });
+      test(
+        'adds only the claim key and leaves the content untouched',
+        () async {
+          const itemId = 'stale_item';
+          const storedName = 'Renamed by the owner';
+          const storedDescription = 'Stored description';
+          const storedUrl = 'https://example.com/stored';
+          const readerUid = 'reader-1';
+          await seed(itemId, <String, dynamic>{
+            'name': storedName,
+            'description': storedDescription,
+            'url': storedUrl,
+            'claims': <String, dynamic>{},
+            'claimLimit': 1,
+          });
 
-        await itemRepository.claim(itemId, claimedBy: readerUid);
+          await itemRepository.claim(itemId, claimedBy: readerUid);
 
-        final data = await stored(itemId);
-        final claims = data['claims'] as Map<String, dynamic>;
-        expect(claims[readerUid], isA<Timestamp>());
-        expect(data['name'], storedName);
-        expect(data['description'], storedDescription);
-        expect(data['url'], storedUrl);
-      });
+          final data = await stored(itemId);
+          final claims = data['claims'] as Map<String, dynamic>;
+          expect(claims[readerUid], isA<Timestamp>());
+          expect(data['name'], storedName);
+          expect(data['description'], storedDescription);
+          expect(data['url'], storedUrl);
+        },
+      );
 
       test('does not add an optional field the stored item lacks', () async {
         const itemId = 'sparse_item';
@@ -136,45 +136,52 @@ void main() {
         expect(data.containsKey('url'), isFalse);
       });
 
-      test('claiming twice for the same uid keeps one key and the original time',
-          () async {
-        const itemId = 'double_tap';
-        const readerUid = 'reader-1';
-        final firstClaimAt = DateTime.utc(2026, 1, 1);
-        await seed(itemId, <String, dynamic>{
-          'name': 'Gift',
-          'claims': <String, dynamic>{
-            readerUid: Timestamp.fromDate(firstClaimAt),
-          },
-          'claimLimit': 1,
-        });
+      test(
+        'claiming twice for the same uid keeps one key and the original time',
+        () async {
+          const itemId = 'double_tap';
+          const readerUid = 'reader-1';
+          final firstClaimAt = DateTime.utc(2026, 1, 1);
+          await seed(itemId, <String, dynamic>{
+            'name': 'Gift',
+            'claims': <String, dynamic>{
+              readerUid: Timestamp.fromDate(firstClaimAt),
+            },
+            'claimLimit': 1,
+          });
 
-        await itemRepository.claim(itemId, claimedBy: readerUid);
+          await itemRepository.claim(itemId, claimedBy: readerUid);
 
-        final claims = (await stored(itemId))['claims'] as Map<String, dynamic>;
-        expect(claims.keys, orderedEquals(<String>[readerUid]));
-        expect(claims[readerUid], Timestamp.fromDate(firstClaimAt));
-      });
+          final claims =
+              (await stored(itemId))['claims'] as Map<String, dynamic>;
+          expect(claims.keys, orderedEquals(<String>[readerUid]));
+          expect(claims[readerUid], Timestamp.fromDate(firstClaimAt));
+        },
+      );
 
-      test('rejects a claim on a full finite item and writes nothing', () async {
-        const itemId = 'full_item';
-        await seed(itemId, <String, dynamic>{
-          'name': 'Gift',
-          'claims': <String, dynamic>{
-            'someone-else': Timestamp.fromDate(claimedAt),
-          },
-          'claimLimit': 1,
-        });
+      test(
+        'rejects a claim on a full finite item and writes nothing',
+        () async {
+          const itemId = 'full_item';
+          await seed(itemId, <String, dynamic>{
+            'name': 'Gift',
+            'claims': <String, dynamic>{
+              'someone-else': Timestamp.fromDate(claimedAt),
+            },
+            'claimLimit': 1,
+          });
 
-        await expectLater(
-          itemRepository.claim(itemId, claimedBy: 'reader-1'),
-          throwsA(isA<ClaimLimitReachedException>()),
-        );
+          await expectLater(
+            itemRepository.claim(itemId, claimedBy: 'reader-1'),
+            throwsA(isA<ClaimLimitReachedException>()),
+          );
 
-        final claims = (await stored(itemId))['claims'] as Map<String, dynamic>;
-        expect(claims.containsKey('reader-1'), isFalse);
-        expect(claims.keys, orderedEquals(<String>['someone-else']));
-      });
+          final claims =
+              (await stored(itemId))['claims'] as Map<String, dynamic>;
+          expect(claims.containsKey('reader-1'), isFalse);
+          expect(claims.keys, orderedEquals(<String>['someone-else']));
+        },
+      );
 
       test('accepts a claim one below the limit', () async {
         const itemId = 'room_left';
@@ -226,27 +233,29 @@ void main() {
     });
 
     group('unclaim', () {
-      test('removes only the caller key and leaves another claim intact',
-          () async {
-        const itemId = 'two_claims';
-        final otherClaimAt = DateTime.utc(2026, 10, 1);
-        await seed(itemId, <String, dynamic>{
-          'name': 'Gift',
-          'claims': <String, dynamic>{
-            'reader-1': Timestamp.fromDate(claimedAt),
-            'reader-2': Timestamp.fromDate(otherClaimAt),
-          },
-          'claimLimit': 2,
-        });
+      test(
+        'removes only the caller key and leaves another claim intact',
+        () async {
+          const itemId = 'two_claims';
+          final otherClaimAt = DateTime.utc(2026, 10, 1);
+          await seed(itemId, <String, dynamic>{
+            'name': 'Gift',
+            'claims': <String, dynamic>{
+              'reader-1': Timestamp.fromDate(claimedAt),
+              'reader-2': Timestamp.fromDate(otherClaimAt),
+            },
+            'claimLimit': 2,
+          });
 
-        await itemRepository.unclaim(itemId, claimedBy: 'reader-1');
+          await itemRepository.unclaim(itemId, claimedBy: 'reader-1');
 
-        final data = await stored(itemId);
-        final claims = data['claims'] as Map<String, dynamic>;
-        expect(claims.keys, orderedEquals(<String>['reader-2']));
-        expect(claims['reader-2'], Timestamp.fromDate(otherClaimAt));
-        expect(data['name'], 'Gift');
-      });
+          final data = await stored(itemId);
+          final claims = data['claims'] as Map<String, dynamic>;
+          expect(claims.keys, orderedEquals(<String>['reader-2']));
+          expect(claims['reader-2'], Timestamp.fromDate(otherClaimAt));
+          expect(data['name'], 'Gift');
+        },
+      );
     });
 
     group('updateContent', () {

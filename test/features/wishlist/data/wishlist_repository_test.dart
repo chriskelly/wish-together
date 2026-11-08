@@ -110,11 +110,12 @@ void main() {
         );
 
         // ASSERT: content changed, the stored claim survived.
-        final data = (await fakeFirestore
-                .collection(itemsCollectionPath)
-                .doc(docRef.id)
-                .get())
-            .data()!;
+        final data =
+            (await fakeFirestore
+                    .collection(itemsCollectionPath)
+                    .doc(docRef.id)
+                    .get())
+                .data()!;
         expect(data['name'], 'Updated Item Name');
         expect(data['description'], 'Updated description');
         expect(data['url'], 'https://example.com/updated');

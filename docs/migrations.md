@@ -125,10 +125,11 @@ CI publishes `master`'s rules whenever a push touches `firestore.rules`,
 publishes on merge. Hold every other merge until the final rules are live: an
 unrelated push touching those paths republishes master's rules and lifts the
 freeze. Merging the rules-and-data change is the deploy, so hold it until
-`--verify` is clean; do not merge it early. Whether the UI change is stacked on
-it or production deploys are gated behind manual approval is decided before that
-work starts. The rules job and the web job are independent; wait for both before
-the smoke test.
+`--verify` is clean; do not merge it early. The merge order is fixed: the
+rules-and-data PR merges first, then the UI PR stacked on its branch, both in the
+same window. The App Store review wait is not frozen; the freeze covers only the
+migration and verify window. The rules job and the web job are independent; wait
+for both before the smoke test.
 
 ## Export and rollback import
 
@@ -222,9 +223,9 @@ live, so the release window includes an App Store build.
    Rollback, before the merge), and stop: do not deploy the final rules or
    release iOS, and reject or remove the pending App Store version.
 
-8. From a clean tree, merge the rules-and-data change and the UI change; CI
-   deploys the final rules and the web build. Point the local file at the merged
-   rules and confirm the content is live:
+8. From a clean tree, merge the rules-and-data change first, then the UI change
+   stacked on its branch; CI deploys the final rules and the web build. Point the
+   local file at the merged rules and confirm the content is live:
 
    ```sh
    cd "$(git rev-parse --show-toplevel)"

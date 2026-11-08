@@ -64,10 +64,7 @@ class ItemRepository extends FirebaseRepository<Item> {
       () => instance.runTransaction<bool>((transaction) async {
         final snapshot = await transaction.get(doc);
         if (!snapshot.exists) {
-          throw FirebaseException(
-            plugin: 'cloud_firestore',
-            code: 'not-found',
-          );
+          throw FirebaseException(plugin: 'cloud_firestore', code: 'not-found');
         }
         final current = fromFirestore(snapshot);
         if (current.isClaimedBy(claimedBy)) {

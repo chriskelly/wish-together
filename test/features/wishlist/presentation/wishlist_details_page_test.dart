@@ -155,9 +155,7 @@ void main() {
           Item(
             id: 'item-1',
             name: itemName,
-            claims: <String, DateTime>{
-              viewerId: DateTime.utc(2026, 11, 1),
-            },
+            claims: <String, DateTime>{viewerId: DateTime.utc(2026, 11, 1)},
             claimLimit: 1,
           ),
         ]);
@@ -201,10 +199,7 @@ void main() {
       await tester.tap(find.text('Unclaim'));
       await tester.pumpAndSettle();
 
-      expect(
-        find.text('Please sign in again to claim items.'),
-        findsOneWidget,
-      );
+      expect(find.text('Please sign in again to claim items.'), findsOneWidget);
       expect(find.textContaining('ClaimFailure'), findsNothing);
     });
 
@@ -215,9 +210,7 @@ void main() {
         Item(
           id: 'item-1',
           name: itemName,
-          claims: <String, DateTime>{
-            otherReaderId: DateTime.utc(2026, 11, 1),
-          },
+          claims: <String, DateTime>{otherReaderId: DateTime.utc(2026, 11, 1)},
           claimLimit: 1,
         ),
       ]);
@@ -407,9 +400,7 @@ void main() {
         Item(
           id: 'item-1',
           name: itemName,
-          claims: <String, DateTime>{
-            otherReaderId: DateTime.utc(2026, 11, 1),
-          },
+          claims: <String, DateTime>{otherReaderId: DateTime.utc(2026, 11, 1)},
           claimLimit: 1,
         ),
       ], asOwner: true);
@@ -440,9 +431,7 @@ void main() {
         Item(
           id: 'item-1',
           name: itemName,
-          claims: <String, DateTime>{
-            otherReaderId: DateTime.utc(2026, 11, 1),
-          },
+          claims: <String, DateTime>{otherReaderId: DateTime.utc(2026, 11, 1)},
           claimLimit: 1,
         ),
       ], asOwner: true);
@@ -476,9 +465,7 @@ void main() {
         Item(
           id: 'item-1',
           name: itemName,
-          claims: <String, DateTime>{
-            viewerId: DateTime.utc(2026, 11, 1),
-          },
+          claims: <String, DateTime>{viewerId: DateTime.utc(2026, 11, 1)},
           claimLimit: 1,
         ),
       ]);

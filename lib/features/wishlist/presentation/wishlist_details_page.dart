@@ -128,8 +128,7 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
     // text there. A reader always sees claims, so the card itself carries the
     // state.
     final applyClaimedTreatment =
-        !isOwner &&
-        (item.isClaimedBy(_currentUserId) || !item.hasClaimRoom);
+        !isOwner && (item.isClaimedBy(_currentUserId) || !item.hasClaimRoom);
     final claimedText = applyClaimedTreatment
         ? (color: scheme.onSurfaceVariant, strikeThrough: true)
         : null;

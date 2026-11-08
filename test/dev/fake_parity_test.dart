@@ -5,7 +5,6 @@ import 'package:wishtogether/dev/fixtures/dev_fixture.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
 import 'package:wishtogether/features/group/data/group_repository.dart';
 import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
-import 'package:wishtogether/features/wishlist/domain/item.dart';
 import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
 
 /// Harness-contract tests: every repository operation a signed-in page issues,

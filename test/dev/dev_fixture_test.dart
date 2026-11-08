@@ -17,12 +17,10 @@ List<Wishlist> wishlistsIn(DevFixture fixture) => <Wishlist>[
 ];
 
 /// The number of documents a fixture marks as claimed.
-int claimsIn(DevFixture fixture) => fixture.documents.values
-    .where((document) {
-      final claims = document['claims'];
-      return claims is Map && claims.isNotEmpty;
-    })
-    .length;
+int claimsIn(DevFixture fixture) => fixture.documents.values.where((document) {
+  final claims = document['claims'];
+  return claims is Map && claims.isNotEmpty;
+}).length;
 
 /// The id of every document directly inside [collection].
 ///

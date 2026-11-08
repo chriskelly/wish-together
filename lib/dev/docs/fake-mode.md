@@ -49,9 +49,10 @@ A committed scenario is one Dart module plus one registry line.
    and the registry cannot disagree. The `viewerUid` needs a `users/<uid>` document with a
    non-empty `displayName`; without one every route redirects to onboarding.
 2. Write the documents as Firestore-shaped maps keyed by full path. `devItemFields` writes one
-   item; `devItems` generates N under a wishlist in one call, with ids you choose. A claim needs
-   both `claimedBy` and a `Timestamp` `claimedAt`: `ItemRepository` casts that field, so an
-   ISO-8601 string throws when the item is read back.
+   item; `devItems` generates N under a wishlist in one call, with ids you choose. A claim is one
+   entry in the item's `claims` map, `{uid: Timestamp}`; `devItemFields(claims: {...})` writes it.
+   `ItemRepository` converts those values, so an ISO-8601 string is dropped when the item is read
+   back.
 3. Register it in `fixtures/registry.dart` — one import, one map entry.
 4. `flutter test test/dev/dev_fixture_test.dart` sweeps every registered scenario: every document
    parses through its model, each id names one document, the viewer has a display name, and every
@@ -113,7 +114,7 @@ page behind each one:
 | router, profile | `users/{uid}` read by id, create when missing, `updateData` for one field |
 | home | `users` by id (stream); `wishlists` where `ownerId == uid`; `groups` where `members` contains uid; deleting a wishlist pages its `items` and batch-deletes them before the wishlist document (pinned in `test/features/wishlist/data/wishlist_repository_test.dart`) |
 | wishlist details | `wishlists/{id}` stream; `wishlists/{id}/items` stream, add, update, delete |
-| item claim and unclaim | item `update` carrying a `Timestamp`; `updateData` clearing `claimedBy` and `claimedAt` together |
+| item claim and unclaim | `claims.<uid>` written in a transaction; `claims.<uid>` deleted |
 | group details | `users` by `documentId whereIn`; `wishlists` where `sharedWithGroups` contains the group; `groups` `updateData` with `arrayUnion` / `arrayRemove` |
 | account deletion (not offered in dev) | one-shot `listWhere` reads; the paged batch delete in `WishlistRepository.deleteWithItems` |
 

@@ -22,55 +22,64 @@ void main() {
       expect(Item(name: 'Gift', claimLimit: 3).isUnlimited, isFalse);
     });
 
-    test('hasClaimRoom follows the finite limit and ignores it when unlimited', () {
-      final oneClaim = <String, DateTime>{'u1': claimedAt};
-      final twoClaims = <String, DateTime>{'u1': claimedAt, 'u2': otherClaim};
-      final threeClaims = <String, DateTime>{
-        'u1': claimedAt,
-        'u2': otherClaim,
-        'u3': claimedAt,
-      };
+    test(
+      'hasClaimRoom follows the finite limit and ignores it when unlimited',
+      () {
+        final oneClaim = <String, DateTime>{'u1': claimedAt};
+        final twoClaims = <String, DateTime>{'u1': claimedAt, 'u2': otherClaim};
+        final threeClaims = <String, DateTime>{
+          'u1': claimedAt,
+          'u2': otherClaim,
+          'u3': claimedAt,
+        };
 
-      expect(Item(name: 'Gift').hasClaimRoom, isTrue);
-      expect(Item(name: 'Gift', claims: oneClaim).hasClaimRoom, isFalse);
-      expect(
-        Item(name: 'Gift', claimLimit: 3, claims: twoClaims).hasClaimRoom,
-        isTrue,
-      );
-      expect(
-        Item(name: 'Gift', claimLimit: 3, claims: threeClaims).hasClaimRoom,
-        isFalse,
-      );
-      expect(
-        Item(name: 'Gift', claimLimit: 0, claims: threeClaims).hasClaimRoom,
-        isTrue,
-      );
-    });
+        expect(Item(name: 'Gift').hasClaimRoom, isTrue);
+        expect(Item(name: 'Gift', claims: oneClaim).hasClaimRoom, isFalse);
+        expect(
+          Item(name: 'Gift', claimLimit: 3, claims: twoClaims).hasClaimRoom,
+          isTrue,
+        );
+        expect(
+          Item(name: 'Gift', claimLimit: 3, claims: threeClaims).hasClaimRoom,
+          isFalse,
+        );
+        expect(
+          Item(name: 'Gift', claimLimit: 0, claims: threeClaims).hasClaimRoom,
+          isTrue,
+        );
+      },
+    );
 
     test('isClaimedBy matches a stored uid, never a null or absent one', () {
-      final item = Item(name: 'Gift', claims: <String, DateTime>{'u1': claimedAt});
+      final item = Item(
+        name: 'Gift',
+        claims: <String, DateTime>{'u1': claimedAt},
+      );
 
       expect(item.isClaimedBy('u1'), isTrue);
       expect(item.isClaimedBy('u2'), isFalse);
       expect(item.isClaimedBy(null), isFalse);
     });
 
-    test('toMap stores claims as ISO-8601 strings and always sets claimLimit', () {
-      final item = Item(
-        name: 'Gift',
-        claims: <String, DateTime>{'u1': claimedAt},
-        claimLimit: 0,
-      );
+    test(
+      'toMap stores claims as ISO-8601 strings and always sets claimLimit',
+      () {
+        final item = Item(
+          name: 'Gift',
+          claims: <String, DateTime>{'u1': claimedAt},
+          claimLimit: 0,
+        );
 
-      final map = item.toMap();
+        final map = item.toMap();
 
-      expect(map['claims'], <String, dynamic>{
-        'u1': claimedAt.toIso8601String(),
-      });
-      expect(map['claimLimit'], 0);
-      expect(map.containsKey('claimedBy'), isFalse);
-      expect(map.containsKey('claimedAt'), isFalse);
-    });
+        expect(map['claims'], <String, dynamic>{
+          'u1': claimedAt.toIso8601String(),
+        });
+        expect(map['claimLimit'], 0);
+        expect(map.containsKey('claimedBy'), isFalse);
+        expect(map.containsKey('claimedAt'), isFalse);
+      },
+    );
 
     test('toMap writes the empty defaults a new item carries', () {
       final map = Item(name: 'Gift').toMap();
@@ -111,17 +120,24 @@ void main() {
 
     test('fromMap keeps a zero limit', () {
       expect(
-        Item.fromMap(<String, dynamic>{'name': 'Gift', 'claimLimit': 0}, 'i')
-            .claimLimit,
+        Item.fromMap(<String, dynamic>{
+          'name': 'Gift',
+          'claimLimit': 0,
+        }, 'i').claimLimit,
         0,
       );
     });
 
     test('fromMap tolerates an absent or non-map claims field', () {
-      expect(Item.fromMap(<String, dynamic>{'name': 'Gift'}, 'i').claims, isEmpty);
       expect(
-        Item.fromMap(<String, dynamic>{'name': 'Gift', 'claims': 'nope'}, 'i')
-            .claims,
+        Item.fromMap(<String, dynamic>{'name': 'Gift'}, 'i').claims,
+        isEmpty,
+      );
+      expect(
+        Item.fromMap(<String, dynamic>{
+          'name': 'Gift',
+          'claims': 'nope',
+        }, 'i').claims,
         isEmpty,
       );
     });

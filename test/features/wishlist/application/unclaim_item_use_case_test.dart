@@ -59,31 +59,33 @@ void main() {
           .called(1);
     });
 
-    test('throws a signed-out failure and writes nothing when nobody is signed in',
-        () async {
-      // Arrange
-      when(() => mockAuthSession.currentUserId).thenReturn(null);
+    test(
+      'throws a signed-out failure and writes nothing when nobody is signed in',
+      () async {
+        // Arrange
+        when(() => mockAuthSession.currentUserId).thenReturn(null);
 
-      // Act & Assert
-      await expectLater(
-        unclaimItemUseCase.execute(wishlistId, itemId),
-        throwsA(
-          isA<ClaimFailure>()
-              .having(
-                (failure) => failure.reason,
-                'reason',
-                ClaimFailureReason.signedOut,
-              )
-              .having((failure) => failure.code, 'code', unauthenticatedCode),
-        ),
-      );
-      verifyNever(
-        () => mockItemRepository.unclaim(
-          any(),
-          claimedBy: any(named: 'claimedBy'),
-        ),
-      );
-    });
+        // Act & Assert
+        await expectLater(
+          unclaimItemUseCase.execute(wishlistId, itemId),
+          throwsA(
+            isA<ClaimFailure>()
+                .having(
+                  (failure) => failure.reason,
+                  'reason',
+                  ClaimFailureReason.signedOut,
+                )
+                .having((failure) => failure.code, 'code', unauthenticatedCode),
+          ),
+        );
+        verifyNever(
+          () => mockItemRepository.unclaim(
+            any(),
+            claimedBy: any(named: 'claimedBy'),
+          ),
+        );
+      },
+    );
 
     test('propagates exceptions from ItemRepository', () async {
       // Arrange
@@ -157,23 +159,25 @@ void main() {
       );
     });
 
-    test('reports denied with the error code and rethrows on a failed write',
-        () async {
-      const code = 'permission-denied';
-      when(() => mockAuthSession.currentUserId).thenReturn(userId);
-      when(() => mockItemRepository.unclaim(itemId, claimedBy: userId))
-          .thenThrow(const CodedError(code));
+    test(
+      'reports denied with the error code and rethrows on a failed write',
+      () async {
+        const code = 'permission-denied';
+        when(() => mockAuthSession.currentUserId).thenReturn(userId);
+        when(() => mockItemRepository.unclaim(itemId, claimedBy: userId))
+            .thenThrow(const CodedError(code));
 
-      await expectLater(
-        unclaimItemUseCase.execute(wishlistId, itemId),
-        throwsA(isA<CodedError>()),
-      );
+        await expectLater(
+          unclaimItemUseCase.execute(wishlistId, itemId),
+          throwsA(isA<CodedError>()),
+        );
 
-      expect(phasesOf(sink), <ClaimPhase>[
-        ClaimPhase.started,
-        ClaimPhase.denied,
-      ]);
-      expect(sink.eventsOf<ClaimActionEvent>().last.code, code);
-    });
+        expect(phasesOf(sink), <ClaimPhase>[
+          ClaimPhase.started,
+          ClaimPhase.denied,
+        ]);
+        expect(sink.eventsOf<ClaimActionEvent>().last.code, code);
+      },
+    );
   });
 }

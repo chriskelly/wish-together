@@ -116,29 +116,32 @@ void main() {
       ).called(1);
     });
 
-    test('keeps the existing description and url when they are omitted', () async {
-      // Arrange
-      final item = Item(
-        id: itemId,
-        name: 'Old Name',
-        description: 'Old description',
-        url: 'https://old.com',
-      );
-
-      // Act
-      await updateItemUseCase.execute(wishlistId, item, name: 'New Name');
-
-      // Assert
-      verify(
-        () => mockItemRepository.updateContent(
-          itemId,
-          name: 'New Name',
+    test(
+      'keeps the existing description and url when they are omitted',
+      () async {
+        // Arrange
+        final item = Item(
+          id: itemId,
+          name: 'Old Name',
           description: 'Old description',
           url: 'https://old.com',
-          claimLimit: 1,
-        ),
-      ).called(1);
-    });
+        );
+
+        // Act
+        await updateItemUseCase.execute(wishlistId, item, name: 'New Name');
+
+        // Assert
+        verify(
+          () => mockItemRepository.updateContent(
+            itemId,
+            name: 'New Name',
+            description: 'Old description',
+            url: 'https://old.com',
+            claimLimit: 1,
+          ),
+        ).called(1);
+      },
+    );
 
     test('propagates exceptions from ItemRepository', () async {
       // Arrange

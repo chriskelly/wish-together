@@ -64,8 +64,9 @@ human gate.
 The release workflows require `StrictHostKeyChecking yes` (for `github.com` and the
 `webfactory/ssh-agent` deploy-key alias) and install `.github/known_hosts` (GitHub's published
 keys from `https://api.github.com/meta`): TestFlight prefers the default branch's copy (falling
-back to the checked-out copy only while that branch predates the file), the App Store path reads
-the tag, so a substituted key fails the clone before signing.
+back to the checked-out copy only while that branch predates the file); the App Store path reads
+the checked-out ref (a `v*` tag, or the branch chosen for a manual run). A host key that differs
+from that committed file fails the clone before signing.
 
 ## One-time local setup
 

@@ -236,16 +236,16 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
     }
 
     if (!item.hasClaimRoom) {
-      return _buildClaimedPill();
+      return _buildUnavailablePill();
     }
 
     return _buildClaimButton(item);
   }
 
   Widget _buildOwnerActions(Item item) => Row(
-    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      _buildClaimedStatus(item),
+      Expanded(child: _buildOwnerStatus(item)),
       ListItemActions(
         onEdit: () {
           context.pushNamed(
@@ -259,63 +259,99 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
     ],
   );
 
-  Widget _buildClaimedStatus(Item item) {
-    if (_isSpoilerFree) {
-      return const Spacer();
+  Widget _buildOwnerStatus(Item item) =>
+      _isSpoilerFree ? _buildClaimLimitText(item) : _buildClaimedStatus(item);
+
+  TextStyle get _mutedTextStyle =>
+      TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant);
+
+  Widget _buildClaimLimitText(Item item) =>
+      Text(_claimLimitLabel(item), style: _mutedTextStyle);
+
+  String _claimLimitLabel(Item item) {
+    if (item.isUnlimited) {
+      return 'Unlimited claims';
     }
-    final scheme = Theme.of(context).colorScheme;
+    if (item.claimLimit == 1) {
+      return '1 person can claim';
+    }
+    return '${item.claimLimit} people can claim';
+  }
+
+  /// The claim count copy, shared by the owner's revealed view and the reader
+  /// rows so the two can never drift.
+  String _claimSummary(Item item) {
+    if (item.isUnlimited) {
+      return item.claimCount == 0
+          ? 'No claims yet'
+          : '${item.claimCount} claimed';
+    }
+    if (item.claimCount == 0) {
+      return 'No claims yet';
+    }
+    return '${item.claimCount} of ${item.claimLimit} claimed';
+  }
+
+  /// A single-claim item never shows a count; multi and unlimited items do.
+  String? _readerClaimSummary(Item item) =>
+      item.claimLimit == 1 ? null : _claimSummary(item);
+
+  Widget _buildClaimedStatus(Item item) {
+    final italic = _mutedTextStyle.copyWith(fontStyle: FontStyle.italic);
+    if (item.claimLimit != 1) {
+      return Text(_claimSummary(item), style: italic);
+    }
     if (item.claimCount > 0) {
-      return Text(
-        'Claimed',
-        style: TextStyle(
-          color: scheme.onSurfaceVariant,
-          fontStyle: FontStyle.italic,
-        ),
-      );
+      return Text('Claimed', style: italic);
     }
     return Text(
       'Available',
-      style: TextStyle(
-        color: scheme.onSurfaceVariant,
-        fontWeight: FontWeight.bold,
-      ),
+      style: _mutedTextStyle.copyWith(fontWeight: FontWeight.bold),
     );
   }
 
-  // A Wrap, not a Row: when the pill and its action do not fit side by side the
-  // action moves to the next run instead of the row overflowing. The pill keeps
-  // its natural width there, so its label breaks between words rather than
-  // inside one.
-  Widget _buildUserClaimedView(Item item) => Align(
-    alignment: Alignment.centerRight,
-    child: Wrap(
-      alignment: WrapAlignment.end,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      spacing: 8,
-      children: [
-        const StatusPill(
-          label: 'You claimed this!',
-          tone: StatusPillTone.accent,
+  // A Wrap, not a Row: when the count, pill and action do not fit side by side
+  // the action moves to the next run instead of the row overflowing. The pill
+  // keeps its natural width there, so its label breaks between words rather
+  // than inside one.
+  Widget _claimActionRow({String? summary, required List<Widget> trailing}) =>
+      Align(
+        alignment: Alignment.centerRight,
+        child: Wrap(
+          alignment: WrapAlignment.end,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          children: [
+            if (summary != null) Text(summary, style: _mutedTextStyle),
+            ...trailing,
+          ],
         ),
-        TextButton(
-          onPressed: () => _unclaimItem(item),
-          child: const Text('Unclaim'),
-        ),
-      ],
-    ),
+      );
+
+  Widget _buildUserClaimedView(Item item) => _claimActionRow(
+    summary: _readerClaimSummary(item),
+    trailing: [
+      const StatusPill(label: 'You claimed this!', tone: StatusPillTone.accent),
+      TextButton(
+        onPressed: () => _unclaimItem(item),
+        child: const Text('Unclaim'),
+      ),
+    ],
   );
 
-  Widget _buildClaimedPill() => const Align(
+  Widget _buildUnavailablePill() => const Align(
     alignment: Alignment.centerRight,
-    child: StatusPill(label: 'Claimed', tone: StatusPillTone.neutral),
+    child: StatusPill(label: 'Unavailable', tone: StatusPillTone.neutral),
   );
 
-  Widget _buildClaimButton(Item item) => Align(
-    alignment: Alignment.centerRight,
-    child: ElevatedButton(
-      onPressed: () => _claimItem(item),
-      child: const Text('Claim'),
-    ),
+  Widget _buildClaimButton(Item item) => _claimActionRow(
+    summary: _readerClaimSummary(item),
+    trailing: [
+      ElevatedButton(
+        onPressed: () => _claimItem(item),
+        child: const Text('Claim'),
+      ),
+    ],
   );
 
   Future<void> _launchURL(String url) async {

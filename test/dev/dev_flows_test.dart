@@ -108,6 +108,7 @@ void main() {
     await tester.tap(find.byTooltip('Add item'));
     await pumpFrames(tester);
     await tester.enterText(find.byType(TextFormField).first, added);
+    await tester.ensureVisible(find.text('Save Item'));
     await tester.tap(find.text('Save Item'));
     await pumpFrames(tester);
 
@@ -132,6 +133,7 @@ void main() {
     );
     await pumpFrames(tester);
     await tester.enterText(find.byType(TextFormField).first, renamed);
+    await tester.ensureVisible(find.text('Update Item'));
     await tester.tap(find.text('Update Item'));
     await pumpFrames(tester);
 

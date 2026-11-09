@@ -32,8 +32,11 @@ const String sharedOtherWishlistId = 'shr-l2';
 /// spoiler toggle; the first one is the viewer's, so the toggle has a claim to
 /// hide and reveal.
 ///
-/// The claim by the viewer is what renders the "You claimed this!" row with its
-/// unclaim action, next to another member's neutral "Claimed" pill.
+/// The second list carries every reader rendering: another member's full
+/// single claim (`Unavailable`), the viewer's single claim, an unlimited item
+/// with a count, a partly claimed finite item, a full finite item and the
+/// viewer's own multi claim. The first list carries the owner labels: a single
+/// limit, an unlimited item and two finite multi limits (one with no claims).
 final DevFixture sharedFixture = DevFixture(
   id: 'shared',
   viewerUid: sharedViewerUid,
@@ -74,6 +77,25 @@ final DevFixture sharedFixture = DevFixture(
         sharedClaimerUid: Timestamp.fromDate(DateTime.utc(2026, 9, 21, 9)),
       },
     ),
+    'wishlists/$sharedViewerWishlistId/items/shr-i11': devItemFields(
+      'Stand mixer',
+      claimLimit: 0,
+      claims: <String, Timestamp>{
+        sharedClaimerUid: Timestamp.fromDate(DateTime.utc(2026, 9, 24, 9)),
+        sharedMemberUid: Timestamp.fromDate(DateTime.utc(2026, 9, 24, 10)),
+      },
+    ),
+    'wishlists/$sharedViewerWishlistId/items/shr-i12': devItemFields(
+      'Garden chair',
+      claimLimit: 3,
+      claims: <String, Timestamp>{
+        sharedMemberUid: Timestamp.fromDate(DateTime.utc(2026, 9, 24, 11)),
+      },
+    ),
+    'wishlists/$sharedViewerWishlistId/items/shr-i13': devItemFields(
+      'Fire pit',
+      claimLimit: 3,
+    ),
     'wishlists/$sharedOtherWishlistId/items/shr-i3': devItemFields(
       'Serving platter',
     ),
@@ -93,6 +115,37 @@ final DevFixture sharedFixture = DevFixture(
       'Tea towel set',
       claims: <String, Timestamp>{
         sharedViewerUid: Timestamp.fromDate(DateTime.utc(2026, 9, 23, 11)),
+      },
+    ),
+    'wishlists/$sharedOtherWishlistId/items/shr-i7': devItemFields(
+      'Garden hose',
+      claimLimit: 0,
+      claims: <String, Timestamp>{
+        sharedClaimerUid: Timestamp.fromDate(DateTime.utc(2026, 9, 25, 9)),
+        sharedMemberUid: Timestamp.fromDate(DateTime.utc(2026, 9, 25, 10)),
+      },
+    ),
+    'wishlists/$sharedOtherWishlistId/items/shr-i8': devItemFields(
+      'Picnic set',
+      claimLimit: 3,
+      claims: <String, Timestamp>{
+        sharedClaimerUid: Timestamp.fromDate(DateTime.utc(2026, 9, 25, 11)),
+      },
+    ),
+    'wishlists/$sharedOtherWishlistId/items/shr-i9': devItemFields(
+      'Camping stove',
+      claimLimit: 2,
+      claims: <String, Timestamp>{
+        sharedClaimerUid: Timestamp.fromDate(DateTime.utc(2026, 9, 25, 12)),
+        sharedMemberUid: Timestamp.fromDate(DateTime.utc(2026, 9, 25, 13)),
+      },
+    ),
+    'wishlists/$sharedOtherWishlistId/items/shr-i10': devItemFields(
+      'Board game',
+      claimLimit: 4,
+      claims: <String, Timestamp>{
+        sharedViewerUid: Timestamp.fromDate(DateTime.utc(2026, 9, 25, 14)),
+        sharedClaimerUid: Timestamp.fromDate(DateTime.utc(2026, 9, 25, 15)),
       },
     ),
   },

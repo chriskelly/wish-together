@@ -32,7 +32,7 @@ expect() {
     02-the-knowles-family.png) echo "The Knowles Family|Angie's Travel Kit" ;;
     03-home.png) echo "My Wishlists|My Groups|Rumi and Sir's Birthday|The Crew" ;;
     04-sasha-birthday.png) echo "Sasha's Birthday|Perfume: oud|You claimed this" ;;
-    05-shawns-birthday.png) echo "Shawn's Birthday|Cashmere|Available|Claimed on" ;;
+    05-shawns-birthday.png) echo "Shawn's Birthday|Cashmere|Available|2 of 3 claimed" ;;
     06-shawns-birthday-spoiler-free.png) echo "Shawn's Birthday|Cashmere" ;;
   esac
 }
@@ -99,7 +99,7 @@ for name in "${EXPECTED[@]}"; do
 
   # The spoiler-free shot must not leak claim state.
   if [ "$file" = "06-shawns-birthday-spoiler-free.png" ]; then
-    for absent in "Available" "Claimed on"; do
+    for absent in "Available" "Claimed" "2 of 3 claimed"; do
       if has "$text" "$absent"; then
         echo "ocr SHOULD BE ABSENT: $absent"
         status=1

@@ -94,6 +94,16 @@ void main() {
       await tester.pumpAndSettle();
     }
 
+    /// A 320 px phone at 1.3 text scale: the narrowest layout the review
+    /// requires the claim rows to fit.
+    void useNarrowPhone(WidgetTester tester) {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(320, 640);
+      addTearDown(tester.view.reset);
+      tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    }
+
     /// The margin the page gives every item row.
     const itemMargin = EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0);
 
@@ -113,6 +123,17 @@ void main() {
 
     StatusPillTone toneOf(WidgetTester tester, String label) =>
         tester.widget<StatusPill>(find.widgetWithText(StatusPill, label)).tone;
+
+    /// The card's content sits 16 px inside its edge.
+    void expectRightAligned(WidgetTester tester, Finder finder) {
+      final card = tester.getRect(
+        find.descendant(
+          of: find.byType(BrandCard),
+          matching: find.byType(Card),
+        ),
+      );
+      expect(tester.getRect(finder).right, closeTo(card.right - 16, 1.5));
+    }
 
     /// Records the platform channel so a copy can be asserted.
     ///
@@ -221,7 +242,7 @@ void main() {
       expect(find.textContaining('ClaimFailure'), findsNothing);
     });
 
-    testWidgets("shows another reader's claim as a neutral pill", (
+    testWidgets('shows a full single-claim item as Unavailable', (
       tester,
     ) async {
       await pumpPage(tester, [
@@ -233,12 +254,14 @@ void main() {
         ),
       ]);
 
-      expect(find.text('Claimed'), findsOneWidget);
-      expect(toneOf(tester, 'Claimed'), StatusPillTone.neutral);
+      expect(find.text('Unavailable'), findsOneWidget);
+      expect(toneOf(tester, 'Unavailable'), StatusPillTone.neutral);
       // Only the claimer may clear a claim, so offering either action here
       // would surface a denial for a tap the viewer cannot win.
       expect(find.text('Claim'), findsNothing);
       expect(find.text('Unclaim'), findsNothing);
+      // A single-claim row never carries a count.
+      expect(find.textContaining('of 1 claimed'), findsNothing);
     });
 
     testWidgets('leaves an unclaimed item claimable', (tester) async {
@@ -389,6 +412,7 @@ void main() {
           isNot(TextDecoration.lineThrough),
         );
         expect(find.text('Claim'), findsOneWidget);
+        expect(find.text('1 of 3 claimed'), findsOneWidget);
         expect(find.byType(StatusPill), findsNothing);
       });
 
@@ -414,11 +438,7 @@ void main() {
       testWidgets('renders a claimed card at 320 px without overflowing', (
         tester,
       ) async {
-        tester.view.devicePixelRatio = 1.0;
-        tester.view.physicalSize = const Size(320, 640);
-        addTearDown(tester.view.reset);
-        tester.platformDispatcher.textScaleFactorTestValue = 1.3;
-        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        useNarrowPhone(tester);
 
         const longName = 'A very long claimed item name that must wrap cleanly';
         await pumpPage(tester, [
@@ -433,6 +453,305 @@ void main() {
         ]);
 
         expect(tester.takeException(), isNull);
+      });
+    });
+
+    group('owner claim limit and status', () {
+      Future<void> reveal(WidgetTester tester) async {
+        await tester.tap(find.byTooltip('Show claimed status'));
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets('shows the unlimited limit while spoiler-free', (
+        tester,
+      ) async {
+        await pumpPage(tester, [
+          Item(id: 'item-1', name: itemName, claimLimit: 0),
+        ], asOwner: true);
+
+        expect(find.text('Unlimited claims'), findsOneWidget);
+        expect(find.text('No claims yet'), findsNothing);
+      });
+
+      testWidgets('shows the single limit while spoiler-free', (tester) async {
+        await pumpPage(tester, [
+          Item(id: 'item-1', name: itemName, claimLimit: 1),
+        ], asOwner: true);
+
+        expect(find.text('1 person can claim'), findsOneWidget);
+      });
+
+      testWidgets('shows the finite limit while spoiler-free', (tester) async {
+        await pumpPage(tester, [
+          Item(id: 'item-1', name: itemName, claimLimit: 3),
+        ], asOwner: true);
+
+        expect(find.text('3 people can claim'), findsOneWidget);
+      });
+
+      testWidgets('shows No claims yet for an unlimited item with no claims', (
+        tester,
+      ) async {
+        await pumpPage(tester, [
+          Item(id: 'item-1', name: itemName, claimLimit: 0),
+        ], asOwner: true);
+
+        await reveal(tester);
+
+        expect(find.text('No claims yet'), findsOneWidget);
+      });
+
+      testWidgets('shows the unlimited claim count when revealed', (
+        tester,
+      ) async {
+        await pumpPage(tester, [
+          Item(
+            id: 'item-1',
+            name: itemName,
+            claimLimit: 0,
+            claims: <String, DateTime>{
+              otherReaderId: DateTime.utc(2026, 11, 1),
+              'third-reader-uid': DateTime.utc(2026, 11, 2),
+            },
+          ),
+        ], asOwner: true);
+
+        await reveal(tester);
+
+        expect(find.text('2 claimed'), findsOneWidget);
+      });
+
+      testWidgets(
+        'shows No claims yet for a finite multi item with no claims',
+        (tester) async {
+          await pumpPage(tester, [
+            Item(id: 'item-1', name: itemName, claimLimit: 3),
+          ], asOwner: true);
+
+          await reveal(tester);
+
+          expect(find.text('No claims yet'), findsOneWidget);
+        },
+      );
+
+      testWidgets('shows the finite multi claim count when revealed', (
+        tester,
+      ) async {
+        await pumpPage(tester, [
+          Item(
+            id: 'item-1',
+            name: itemName,
+            claimLimit: 3,
+            claims: <String, DateTime>{
+              otherReaderId: DateTime.utc(2026, 11, 1),
+              'third-reader-uid': DateTime.utc(2026, 11, 2),
+            },
+          ),
+        ], asOwner: true);
+
+        await reveal(tester);
+
+        expect(find.text('2 of 3 claimed'), findsOneWidget);
+      });
+
+      testWidgets(
+        'shows Available for an unclaimed single item when revealed',
+        (tester) async {
+          await pumpPage(tester, [
+            Item(id: 'item-1', name: itemName, claimLimit: 1),
+          ], asOwner: true);
+
+          await reveal(tester);
+
+          expect(find.text('Available'), findsOneWidget);
+        },
+      );
+    });
+
+    group('reader multi-claim rows', () {
+      testWidgets('shows a full multi item as Unavailable without a count', (
+        tester,
+      ) async {
+        await pumpPage(tester, [
+          Item(
+            id: 'item-1',
+            name: itemName,
+            claimLimit: 2,
+            claims: <String, DateTime>{
+              otherReaderId: DateTime.utc(2026, 11, 1),
+              'third-reader-uid': DateTime.utc(2026, 11, 2),
+            },
+          ),
+        ]);
+
+        final scheme = lightTheme.colorScheme;
+        expect(find.text('Unavailable'), findsOneWidget);
+        expect(find.textContaining('of 2 claimed'), findsNothing);
+        expect(find.text('Claim'), findsNothing);
+        expect(cardOf(tester, itemName).color, scheme.surfaceContainerHighest);
+        expect(
+          titleOf(tester, itemName).style?.decoration,
+          TextDecoration.lineThrough,
+        );
+        expectRightAligned(tester, find.byType(StatusPill));
+      });
+
+      testWidgets("shows the viewer's multi claim count beside Unclaim", (
+        tester,
+      ) async {
+        await pumpPage(tester, [
+          Item(
+            id: 'item-1',
+            name: itemName,
+            claimLimit: 4,
+            claims: <String, DateTime>{
+              viewerId: DateTime.utc(2026, 11, 1),
+              otherReaderId: DateTime.utc(2026, 11, 2),
+            },
+          ),
+        ]);
+
+        final scheme = lightTheme.colorScheme;
+        expect(find.text('2 of 4 claimed'), findsOneWidget);
+        expect(toneOf(tester, 'You claimed this!'), StatusPillTone.accent);
+        expect(find.text('Unclaim'), findsOneWidget);
+        expect(cardOf(tester, itemName).color, scheme.surfaceContainerHighest);
+        expect(
+          titleOf(tester, itemName).style?.decoration,
+          TextDecoration.lineThrough,
+        );
+      });
+
+      testWidgets('keeps Unclaim on a full item the viewer claimed', (
+        tester,
+      ) async {
+        await pumpPage(tester, [
+          Item(
+            id: 'item-1',
+            name: itemName,
+            claimLimit: 2,
+            claims: <String, DateTime>{
+              viewerId: DateTime.utc(2026, 11, 1),
+              otherReaderId: DateTime.utc(2026, 11, 2),
+            },
+          ),
+        ]);
+
+        final scheme = lightTheme.colorScheme;
+        expect(find.text('2 of 2 claimed'), findsOneWidget);
+        expect(toneOf(tester, 'You claimed this!'), StatusPillTone.accent);
+        expect(find.text('Unclaim'), findsOneWidget);
+        expect(find.text('Unavailable'), findsNothing);
+        expect(cardOf(tester, itemName).color, scheme.surfaceContainerHighest);
+        expect(
+          titleOf(tester, itemName).style?.decoration,
+          TextDecoration.lineThrough,
+        );
+      });
+
+      testWidgets('shows an unlimited claim count beside Claim', (
+        tester,
+      ) async {
+        await pumpPage(tester, [
+          Item(
+            id: 'item-1',
+            name: itemName,
+            claimLimit: 0,
+            claims: <String, DateTime>{
+              otherReaderId: DateTime.utc(2026, 11, 1),
+              'third-reader-uid': DateTime.utc(2026, 11, 2),
+              'fourth-reader-uid': DateTime.utc(2026, 11, 3),
+            },
+          ),
+        ]);
+
+        expect(find.text('3 claimed'), findsOneWidget);
+        expect(find.text('Claim'), findsOneWidget);
+        expect(find.byType(StatusPill), findsNothing);
+      });
+
+      testWidgets('shows No claims yet for an unlimited item with no claims', (
+        tester,
+      ) async {
+        await pumpPage(tester, [
+          Item(id: 'item-1', name: itemName, claimLimit: 0),
+        ]);
+
+        expect(find.text('No claims yet'), findsOneWidget);
+        expect(find.text('Claim'), findsOneWidget);
+      });
+
+      testWidgets('fits the widest claim row at a raised text scale', (
+        tester,
+      ) async {
+        useNarrowPhone(tester);
+
+        await pumpPage(tester, [
+          Item(
+            id: 'item-1',
+            name: itemName,
+            claimLimit: 4,
+            claims: <String, DateTime>{
+              viewerId: DateTime.utc(2026, 11, 1),
+              otherReaderId: DateTime.utc(2026, 11, 2),
+            },
+          ),
+        ]);
+
+        expect(tester.takeException(), isNull);
+        expect(find.text('2 of 4 claimed'), findsOneWidget);
+        expect(find.text('You claimed this!'), findsOneWidget);
+        expect(find.text('Unclaim'), findsOneWidget);
+        expectRightAligned(
+          tester,
+          find
+              .ancestor(
+                of: find.text('You claimed this!'),
+                matching: find.byType(Wrap),
+              )
+              .first,
+        );
+      });
+
+      testWidgets(
+        'fits a partial multi count and Claim at a raised text scale',
+        (tester) async {
+          useNarrowPhone(tester);
+
+          await pumpPage(tester, [
+            Item(
+              id: 'item-1',
+              name: itemName,
+              claimLimit: 3,
+              claims: <String, DateTime>{
+                otherReaderId: DateTime.utc(2026, 11, 1),
+              },
+            ),
+          ]);
+
+          expect(tester.takeException(), isNull);
+          expect(find.text('1 of 3 claimed'), findsOneWidget);
+          expect(find.text('Claim'), findsOneWidget);
+          expectRightAligned(
+            tester,
+            find
+                .ancestor(of: find.text('Claim'), matching: find.byType(Wrap))
+                .first,
+          );
+        },
+      );
+
+      testWidgets('fits the owner limit label at a raised text scale', (
+        tester,
+      ) async {
+        useNarrowPhone(tester);
+
+        await pumpPage(tester, [
+          Item(id: 'item-1', name: itemName, claimLimit: 0),
+        ], asOwner: true);
+
+        expect(tester.takeException(), isNull);
+        expect(find.text('Unlimited claims'), findsOneWidget);
       });
     });
 
@@ -481,6 +800,7 @@ void main() {
 
       expect(find.text('Claimed'), findsNothing);
       expect(find.text('Available'), findsNothing);
+      expect(find.text('1 person can claim'), findsOneWidget);
       expect(
         cardOf(tester, itemName).color,
         lightTheme.colorScheme.surfaceContainerLow,
@@ -498,11 +818,7 @@ void main() {
     testWidgets('keeps the claim row inside the card at a raised text scale', (
       tester,
     ) async {
-      tester.view.devicePixelRatio = 1.0;
-      tester.view.physicalSize = const Size(320, 640);
-      addTearDown(tester.view.reset);
-      tester.platformDispatcher.textScaleFactorTestValue = 1.3;
-      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      useNarrowPhone(tester);
 
       await pumpPage(tester, [
         Item(

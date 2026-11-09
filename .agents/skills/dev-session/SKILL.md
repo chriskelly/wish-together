@@ -78,7 +78,7 @@ page. The table's URL is also what you open by hand.
 | `large-wishlist` | `/wishlist/lg-l1` | Fifty generated items in one list, for scrolling and performance. |
 | `empty` | `/` | A signed-in account with no lists and no groups. |
 | `overflow` | `/wishlist/ovf-l1` | Long names, an unbroken item name, a long link and description. |
-| `shared` | `/group/shr-g1` or `/wishlist/shr-l2` | A group-shared list and claims by another member and by the viewer. |
+| `shared` | `/group/shr-g1`, `/wishlist/shr-l2` or `/wishlist/shr-l1` | A group-shared list with single- and multi-claim rows (unlimited, partly claimed, full, viewer claimed) and an owner list showing each limit. |
 
 Useful deep links:
 
@@ -87,8 +87,11 @@ Useful deep links:
 - `/wishlist/fam-l11?scenario=family` — the viewer's own list; press **Show
   claimed status** to reveal claims (spoiler mode is a per-view toggle, and a
   fixture cannot store it).
-- `/wishlist/shr-l2?scenario=shared` — another member's list; `shr-i5` is claimed
-  by a third member and `shr-i6` by the viewer.
+- `/wishlist/shr-l2?scenario=shared` — another member's list; `shr-i5` is full,
+  `shr-i6` is the viewer's single claim, and `shr-i7`–`shr-i10` cover unlimited,
+  partly claimed, full and viewer-claimed multi-claim rows.
+- `/wishlist/shr-l1?scenario=shared` — the viewer's own list; press **Show
+  claimed status** to swap the limit labels for the claim counts.
 
 `lib/dev/docs/scenarios.md` publishes the same scenario table and explains how ids are discovered
 from the fixture modules.

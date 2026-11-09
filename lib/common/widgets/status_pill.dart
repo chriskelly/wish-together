@@ -8,7 +8,7 @@ enum StatusPillTone { neutral, accent }
 /// A claim-state badge.
 ///
 /// `neutral` is outlined with muted ink and carries text the viewer does not
-/// own ("Claimed"). `accent` is a brass fill with `onSecondary` text ("you
+/// own ("Unavailable"). `accent` is a brass fill with `onSecondary` text ("you
 /// claimed this"); brass never carries text on a light ground, so the fill is
 /// the only way the colour is used here.
 class StatusPill extends StatelessWidget {

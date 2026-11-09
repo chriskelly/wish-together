@@ -39,6 +39,10 @@ cannot be exercised in one process, or are app behaviour the harness reproduces 
    `currentUserId`, so a signed-out session would throw rather than degrade.
 9. **Nothing persists.** The store lives in the process; a reload re-seeds it, and there is no
    offline or cache behaviour to observe (`metadata.hasPendingWrites` is always false).
+10. **A transaction is not isolated.** The fake's `runTransaction` runs the handler once against
+    the current data, with no retry and no rollback, and applies its `update` without awaiting it,
+    so do not rely on write ordering. A fake-mode claim proves the widget and the query shape, not
+    the cap under concurrency; the rules tests and the staging smoke test own that.
 
 A fake-mode success is a success of the widgets and the query composition, not a promise that
 production accepts the same write.

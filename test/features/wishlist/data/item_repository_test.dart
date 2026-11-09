@@ -1,9 +1,16 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wishtogether/core/logging/app_event.dart';
+import 'package:wishtogether/core/logging/app_log.dart';
+import 'package:wishtogether/core/logging/log_sink.dart';
+import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/wishlist/data/item_repository.dart';
+import 'package:wishtogether/features/wishlist/domain/claim_limit_reached_exception.dart';
 import 'package:wishtogether/features/wishlist/domain/item.dart';
 import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+
+import '../../../core/logging/recording_sink.dart';
 
 void main() {
   group('ItemRepository', () {
@@ -13,187 +20,357 @@ void main() {
     const String testWishlistId = 'test_wishlist';
     final String itemsCollectionPath =
         '${Wishlist.collectionName}/$testWishlistId/${Item.collectionName}';
+    final DateTime claimedAt = DateTime.utc(2026, 11, 1, 12);
 
     setUp(() {
       fakeFirestore = FakeFirebaseFirestore();
       itemRepository = ItemRepository(testWishlistId, firestore: fakeFirestore);
     });
 
-    test('toFirestore should convert claimedAt from DateTime to Timestamp', () {
-      // ARRANGE: Create an item with a claimedAt date as a DateTime object.
-      final item = Item(
-        id: 'test_item',
-        name: 'Test Item',
-        claimedAt: DateTime.now(),
-      );
+    Future<void> seed(String itemId, Map<String, dynamic> data) =>
+        fakeFirestore.collection(itemsCollectionPath).doc(itemId).set(data);
 
-      // ACT: Convert the item to a Firestore map.
-      final firestoreMap = itemRepository.toFirestore(item);
+    Future<Map<String, dynamic>> stored(String itemId) async =>
+        (await fakeFirestore.collection(itemsCollectionPath).doc(itemId).get())
+            .data()!;
 
-      // ASSERT: Verify that the claimedAt field is a Firestore Timestamp.
-      expect(
-        firestoreMap['claimedAt'],
-        isA<Timestamp>(),
-        reason:
-            'The claimedAt field should be converted to a Firestore Timestamp.',
-      );
-    });
+    group('claims conversion', () {
+      test('toFirestore stores claim times as Timestamps', () {
+        final item = Item(
+          id: 'item',
+          name: 'Gift',
+          claims: <String, DateTime>{'u1': claimedAt},
+          claimLimit: 2,
+        );
 
-    test(
-      'fromFirestore should convert claimedAt from Timestamp to DateTime',
-      () async {
-        // ARRANGE: Create a Firestore document with a Timestamp for the claimedAt field.
-        final docRef = await fakeFirestore.collection(itemsCollectionPath).add({
-          'name': 'Test Item From Firestore',
-          'claimedAt': Timestamp.now(),
-        });
+        final map = itemRepository.toFirestore(item);
 
-        // ACT: Retrieve the document and use fromFirestore to parse it.
-        final doc = await docRef.get();
-        final item = itemRepository.fromFirestore(doc);
-
-        // ASSERT: Verify that the claimedAt field in the Item object is a DateTime.
+        expect(map['claims'], isA<Map<String, dynamic>>());
         expect(
-          item.claimedAt,
-          isA<DateTime>(),
-          reason:
-              'The claimedAt field should be parsed into a DateTime object.',
+          (map['claims'] as Map<String, dynamic>)['u1'],
+          Timestamp.fromDate(claimedAt),
         );
-      },
-    );
-
-    test(
-      'toFirestore and fromFirestore should correctly handle a null claimedAt',
-      () async {
-        // ARRANGE: Create an item with a null claimedAt.
-        final itemWithNullClaimedAt = Item(
-          id: 'test_item_null',
-          name: 'Test Item',
-          claimedAt: null,
-        );
-
-        // ACT (toFirestore): Convert the item to a Firestore map.
-        final firestoreMap = itemRepository.toFirestore(itemWithNullClaimedAt);
-
-        // ASSERT (toFirestore): Check that the claimedAt field is null in the map.
-        expect(
-          firestoreMap['claimedAt'],
-          isNull,
-          reason: 'A null claimedAt in the model should result in a null value in the Firestore map.',
-        );
-
-        // ARRANGE (fromFirestore): Add the map to the fake Firestore instance.
-        final docRef = await fakeFirestore
-            .collection(itemsCollectionPath)
-            .add(firestoreMap);
-
-        // ACT (fromFirestore): Retrieve the document and parse it.
-        final doc = await docRef.get();
-        final retrievedItem = itemRepository.fromFirestore(doc);
-
-        // ASSERT (fromFirestore): Check that the claimedAt field is still null in the final Item object.
-        expect(
-          retrievedItem.claimedAt,
-          isNull,
-          reason: 'A null claimedAt in Firestore should result in a null value in the Item model.',
-        );
-      },
-    );
-
-    test('unclaim should set claimedBy and claimedAt to null', () async {
-      // ARRANGE: Create a claimed item and add it to the database with a specific ID.
-      final claimedItem = Item(
-        id: 'claimed_item',
-        name: 'Claimed Item',
-        claimedBy: 'user123',
-        claimedAt: DateTime.now(),
-      );
-      // Use the fake firestore instance directly to set up the test data.
-      await fakeFirestore
-          .collection(itemsCollectionPath)
-          .doc(claimedItem.id)
-          .set(itemRepository.toFirestore(claimedItem));
-
-      // ACT: Call the unclaim method.
-      await itemRepository.unclaim(claimedItem.id!);
-
-      // ASSERT: Retrieve the item and verify it's unclaimed.
-      final updatedItemDoc = await fakeFirestore
-          .collection(itemsCollectionPath)
-          .doc(claimedItem.id)
-          .get();
-      final updatedItem = itemRepository.fromFirestore(updatedItemDoc);
-
-      expect(
-        updatedItem.claimedBy,
-        isNull,
-        reason: 'claimedBy should be null after unclaiming.',
-      );
-      expect(
-        updatedItem.claimedAt,
-        isNull,
-        reason: 'claimedAt should be null after unclaiming.',
-      );
-      expect(
-        updatedItem.name,
-        claimedItem.name,
-        reason: 'Other fields should not be changed.',
-      );
-    });
-
-    test('claim writes only the claim fields', () async {
-      // ARRANGE: the stored document has content a stale reader copy lacks.
-      const String itemId = 'stale_item';
-      const String storedName = 'Renamed by the owner';
-      const String storedDescription = 'Stored description';
-      const String storedUrl = 'https://example.com/stored';
-      const String claimedBy = 'reader-1';
-      await fakeFirestore.collection(itemsCollectionPath).doc(itemId).set({
-        'name': storedName,
-        'description': storedDescription,
-        'url': storedUrl,
+        expect(map['claimLimit'], 2);
       });
 
-      // ACT
-      await itemRepository.claim(itemId, claimedBy: claimedBy);
+      test('fromFirestore reads claim times back as DateTimes', () async {
+        await seed('item', <String, dynamic>{
+          'name': 'Gift',
+          'claims': <String, dynamic>{
+            'u1': Timestamp.fromDate(claimedAt),
+            'u2': Timestamp.fromDate(claimedAt.add(const Duration(hours: 1))),
+          },
+          'claimLimit': 3,
+        });
 
-      // ASSERT
-      final doc = await fakeFirestore
-          .collection(itemsCollectionPath)
-          .doc(itemId)
-          .get();
-      final data = doc.data()!;
-      expect(data['claimedBy'], claimedBy);
-      expect(data['claimedAt'], isA<Timestamp>());
-      expect(data['name'], storedName);
-      expect(data['description'], storedDescription);
-      expect(data['url'], storedUrl);
+        final doc = await fakeFirestore
+            .collection(itemsCollectionPath)
+            .doc('item')
+            .get();
+        final item = itemRepository.fromFirestore(doc);
+
+        expect(item.claims['u1'], claimedAt);
+        expect(item.claimCount, 2);
+        expect(item.claimLimit, 3);
+      });
+
+      test('fromFirestore drops a stored claim value that is not a '
+          'Timestamp instead of failing the read', () async {
+        await seed('item', <String, dynamic>{
+          'name': 'Gift',
+          'claims': <String, dynamic>{
+            'u1': 'not-a-date',
+            'u2': 7,
+            'u3': Timestamp.fromDate(claimedAt),
+          },
+          'claimLimit': 1,
+        });
+
+        final doc = await fakeFirestore
+            .collection(itemsCollectionPath)
+            .doc('item')
+            .get();
+        final item = itemRepository.fromFirestore(doc);
+
+        expect(item.claims.keys, orderedEquals(<String>['u3']));
+        expect(item.claims['u3'], claimedAt);
+      });
+    });
+
+    group('claim', () {
+      test(
+        'adds only the claim key and leaves the content untouched',
+        () async {
+          const itemId = 'stale_item';
+          const storedName = 'Renamed by the owner';
+          const storedDescription = 'Stored description';
+          const storedUrl = 'https://example.com/stored';
+          const readerUid = 'reader-1';
+          await seed(itemId, <String, dynamic>{
+            'name': storedName,
+            'description': storedDescription,
+            'url': storedUrl,
+            'claims': <String, dynamic>{},
+            'claimLimit': 1,
+          });
+
+          await itemRepository.claim(itemId, claimedBy: readerUid);
+
+          final data = await stored(itemId);
+          final claims = data['claims'] as Map<String, dynamic>;
+          expect(claims[readerUid], isA<Timestamp>());
+          expect(data['name'], storedName);
+          expect(data['description'], storedDescription);
+          expect(data['url'], storedUrl);
+        },
+      );
+
+      test('does not add an optional field the stored item lacks', () async {
+        const itemId = 'sparse_item';
+        await seed(itemId, <String, dynamic>{
+          'name': 'Gift',
+          'claims': <String, dynamic>{},
+          'claimLimit': 1,
+        });
+
+        await itemRepository.claim(itemId, claimedBy: 'reader-1');
+
+        final data = await stored(itemId);
+        expect(data.containsKey('description'), isFalse);
+        expect(data.containsKey('url'), isFalse);
+      });
+
+      test(
+        'claiming twice for the same uid keeps one key and the original time',
+        () async {
+          const itemId = 'double_tap';
+          const readerUid = 'reader-1';
+          final firstClaimAt = DateTime.utc(2026, 1, 1);
+          await seed(itemId, <String, dynamic>{
+            'name': 'Gift',
+            'claims': <String, dynamic>{
+              readerUid: Timestamp.fromDate(firstClaimAt),
+            },
+            'claimLimit': 1,
+          });
+
+          await itemRepository.claim(itemId, claimedBy: readerUid);
+
+          final claims =
+              (await stored(itemId))['claims'] as Map<String, dynamic>;
+          expect(claims.keys, orderedEquals(<String>[readerUid]));
+          expect(claims[readerUid], Timestamp.fromDate(firstClaimAt));
+        },
+      );
+
+      test(
+        'rejects a claim on a full finite item and writes nothing',
+        () async {
+          const itemId = 'full_item';
+          await seed(itemId, <String, dynamic>{
+            'name': 'Gift',
+            'claims': <String, dynamic>{
+              'someone-else': Timestamp.fromDate(claimedAt),
+            },
+            'claimLimit': 1,
+          });
+
+          await expectLater(
+            itemRepository.claim(itemId, claimedBy: 'reader-1'),
+            throwsA(isA<ClaimLimitReachedException>()),
+          );
+
+          final claims =
+              (await stored(itemId))['claims'] as Map<String, dynamic>;
+          expect(claims.containsKey('reader-1'), isFalse);
+          expect(claims.keys, orderedEquals(<String>['someone-else']));
+        },
+      );
+
+      test('accepts a claim one below the limit', () async {
+        const itemId = 'room_left';
+        await seed(itemId, <String, dynamic>{
+          'name': 'Gift',
+          'claims': <String, dynamic>{
+            'someone-else': Timestamp.fromDate(claimedAt),
+          },
+          'claimLimit': 2,
+        });
+
+        await itemRepository.claim(itemId, claimedBy: 'reader-1');
+
+        final claims = (await stored(itemId))['claims'] as Map<String, dynamic>;
+        expect(claims.keys, containsAll(<String>['someone-else', 'reader-1']));
+      });
+
+      test('accepts several distinct uids on an unlimited item', () async {
+        const itemId = 'unlimited_item';
+        await seed(itemId, <String, dynamic>{
+          'name': 'Gift',
+          'claims': <String, dynamic>{},
+          'claimLimit': 0,
+        });
+
+        await itemRepository.claim(itemId, claimedBy: 'reader-1');
+        await itemRepository.claim(itemId, claimedBy: 'reader-2');
+        await itemRepository.claim(itemId, claimedBy: 'reader-3');
+
+        final claims = (await stored(itemId))['claims'] as Map<String, dynamic>;
+        expect(
+          claims.keys,
+          unorderedEquals(<String>['reader-1', 'reader-2', 'reader-3']),
+        );
+      });
+
+      test('reports a missing item as not-found', () async {
+        await expectLater(
+          itemRepository.claim('missing_item', claimedBy: 'reader-1'),
+          throwsA(
+            isA<FirebaseException>().having(
+              (error) => error.code,
+              'code',
+              'not-found',
+            ),
+          ),
+        );
+      });
+    });
+
+    group('unclaim', () {
+      test(
+        'removes only the caller key and leaves another claim intact',
+        () async {
+          const itemId = 'two_claims';
+          final otherClaimAt = DateTime.utc(2026, 10, 1);
+          await seed(itemId, <String, dynamic>{
+            'name': 'Gift',
+            'claims': <String, dynamic>{
+              'reader-1': Timestamp.fromDate(claimedAt),
+              'reader-2': Timestamp.fromDate(otherClaimAt),
+            },
+            'claimLimit': 2,
+          });
+
+          await itemRepository.unclaim(itemId, claimedBy: 'reader-1');
+
+          final data = await stored(itemId);
+          final claims = data['claims'] as Map<String, dynamic>;
+          expect(claims.keys, orderedEquals(<String>['reader-2']));
+          expect(claims['reader-2'], Timestamp.fromDate(otherClaimAt));
+          expect(data['name'], 'Gift');
+        },
+      );
+    });
+
+    group('updateContent', () {
+      test('writes the four content fields and preserves the claims', () async {
+        const itemId = 'content_edit';
+        await seed(itemId, <String, dynamic>{
+          'name': 'Old name',
+          'description': 'Old description',
+          'url': 'https://old.example.com',
+          'claims': <String, dynamic>{
+            'reader-1': Timestamp.fromDate(claimedAt),
+          },
+          'claimLimit': 1,
+        });
+
+        await itemRepository.updateContent(
+          itemId,
+          name: 'New name',
+          description: 'New description',
+          url: 'https://new.example.com',
+          claimLimit: 3,
+        );
+
+        final data = await stored(itemId);
+        expect(data['name'], 'New name');
+        expect(data['description'], 'New description');
+        expect(data['url'], 'https://new.example.com');
+        expect(data['claimLimit'], 3);
+        final claims = data['claims'] as Map<String, dynamic>;
+        expect(claims.keys, orderedEquals(<String>['reader-1']));
+        expect(claims['reader-1'], Timestamp.fromDate(claimedAt));
+      });
+
+      test('writes null when the description and url are cleared', () async {
+        const itemId = 'clear_content';
+        await seed(itemId, <String, dynamic>{
+          'name': 'Gift',
+          'description': 'Old description',
+          'url': 'https://old.example.com',
+          'claims': <String, dynamic>{},
+          'claimLimit': 1,
+        });
+
+        await itemRepository.updateContent(
+          itemId,
+          name: 'Gift',
+          description: null,
+          url: null,
+          claimLimit: 1,
+        );
+
+        final data = await stored(itemId);
+        expect(data['description'], isNull);
+        expect(data['url'], isNull);
+      });
+    });
+  });
+
+  group('ItemRepository diagnostics', () {
+    const String wishlistId = 'diagnostic_wishlist';
+    final String itemsCollectionPath =
+        '${Wishlist.collectionName}/$wishlistId/${Item.collectionName}';
+    final DateTime claimedAt = DateTime.utc(2026, 11, 1, 12);
+
+    late RecordingSink sink;
+    late FakeFirebaseFirestore firestore;
+    late ItemRepository repository;
+
+    setUp(() async {
+      await getIt.reset();
+      sink = RecordingSink();
+      getIt.registerSingleton<AppLog>(
+        AppLog(session: testSession, sinks: <LogSink>[sink]),
+      );
+      firestore = FakeFirebaseFirestore();
+      repository = ItemRepository(wishlistId, firestore: firestore);
+    });
+
+    tearDown(getIt.reset);
+
+    test('a full item is not reported as a Firestore error', () async {
+      // ARRANGE
+      await firestore.collection(itemsCollectionPath).doc('full').set({
+        'name': 'Gift',
+        'claims': <String, dynamic>{
+          'someone-else': Timestamp.fromDate(claimedAt),
+        },
+        'claimLimit': 1,
+      });
+
+      // ACT & ASSERT: an expected outcome, not a write failure.
+      await expectLater(
+        repository.claim('full', claimedBy: 'reader-1'),
+        throwsA(isA<ClaimLimitReachedException>()),
+      );
+      expect(sink.eventsOf<FirestoreErrorEvent>(), isEmpty);
     });
 
     test(
-      'claim does not add an optional field the stored item lacks',
+      'a missing item is reported with the claim op and not-found',
       () async {
-        // ARRANGE
-        const String itemId = 'sparse_item';
-        const String storedName = 'Gift';
-        const String claimedBy = 'reader-1';
-        await fakeFirestore.collection(itemsCollectionPath).doc(itemId).set({
-          'name': storedName,
-        });
-
         // ACT
-        await itemRepository.claim(itemId, claimedBy: claimedBy);
+        await expectLater(
+          repository.claim('missing', claimedBy: 'reader-1'),
+          throwsA(isA<FirebaseException>()),
+        );
 
         // ASSERT
-        final doc = await fakeFirestore
-            .collection(itemsCollectionPath)
-            .doc(itemId)
-            .get();
-        final data = doc.data()!;
-        expect(data['claimedBy'], claimedBy);
-        expect(data['name'], storedName);
-        expect(data.containsKey('description'), isFalse);
-        expect(data.containsKey('url'), isFalse);
+        final event = sink.eventsOf<FirestoreErrorEvent>().single;
+        expect(event.op, FirestoreOp.claim);
+        expect(event.code, 'not-found');
       },
     );
   });

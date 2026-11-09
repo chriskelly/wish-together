@@ -44,25 +44,43 @@ final DevFixture defaultFixture = DevFixture(
     'wishlists/dev-l1/items/dev-i1': <String, dynamic>{
       'name': 'Board game',
       'description': 'A two-player strategy game.',
+      'claims': <String, dynamic>{},
+      'claimLimit': 1,
     },
     'wishlists/dev-l1/items/dev-i2': <String, dynamic>{
       'name': 'Wool scarf',
       'url': 'https://example.com/wool-scarf',
+      'claims': <String, dynamic>{},
+      'claimLimit': 1,
     },
     'wishlists/dev-l1/items/dev-i3': <String, dynamic>{
       'name': 'Coffee grinder',
+      'claims': <String, dynamic>{},
+      'claimLimit': 1,
     },
-    'wishlists/dev-l2/items/dev-i4': <String, dynamic>{'name': 'Cookbook'},
-    'wishlists/dev-l2/items/dev-i5': <String, dynamic>{'name': 'Hiking boots'},
+    'wishlists/dev-l2/items/dev-i4': <String, dynamic>{
+      'name': 'Cookbook',
+      'claims': <String, dynamic>{},
+      'claimLimit': 1,
+    },
+    'wishlists/dev-l2/items/dev-i5': <String, dynamic>{
+      'name': 'Hiking boots',
+      'claims': <String, dynamic>{},
+      'claimLimit': 1,
+    },
     'wishlists/dev-l3/items/dev-i6': <String, dynamic>{
       'name': 'Garden trowel',
-      'claimedBy': 'dev-u3',
-      // Stored the way the app stores it: the repository casts this field to a
-      // Timestamp, so an ISO-8601 string would throw on the way in.
-      'claimedAt': Timestamp.fromDate(DateTime.utc(2026, 10, 1)),
+      // Stored the way the app stores it: the repository casts each value to
+      // a Timestamp, so an ISO-8601 string would be dropped on the way in.
+      'claims': <String, dynamic>{
+        'dev-u3': Timestamp.fromDate(DateTime.utc(2026, 10, 1)),
+      },
+      'claimLimit': 1,
     },
     'wishlists/dev-l3/items/dev-i7': <String, dynamic>{
       'name': 'Pruning shears',
+      'claims': <String, dynamic>{},
+      'claimLimit': 1,
     },
   },
 );

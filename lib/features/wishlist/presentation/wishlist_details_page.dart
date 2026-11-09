@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:wishtogether/common/widgets/brand_card.dart';
 import 'package:wishtogether/common/widgets/confirmation_dialog.dart';
 import 'package:wishtogether/common/widgets/list_item_actions.dart';
@@ -125,10 +124,11 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
     bool isOwner,
   ) {
     final scheme = Theme.of(context).colorScheme;
-    // The owner's view never changes: the claimed-date text is the only claim
-    // signal there. A reader always sees claims, so the card itself carries the
-    // state.
-    final applyClaimedTreatment = !isOwner && item.claimedBy != null;
+    // An owner's card never carries the claimed treatment; the spoiler toggle
+    // only controls the status text. A reader always sees claims, so the card
+    // itself carries the state.
+    final applyClaimedTreatment =
+        !isOwner && (item.isClaimedBy(_currentUserId) || !item.hasClaimRoom);
     final claimedText = applyClaimedTreatment
         ? (color: scheme.onSurfaceVariant, strikeThrough: true)
         : null;
@@ -142,7 +142,7 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
           // description. The action row stays outside it, so its buttons keep
           // their own long-press behaviour.
           SelectionArea(child: _buildItemText(item, claimedText: claimedText)),
-          _buildItemActions(item, isOwner, context),
+          _buildItemActions(item, isOwner),
         ],
       ),
     );
@@ -224,28 +224,28 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
     return Text(item.description!, style: style);
   }
 
-  Widget _buildItemActions(Item item, bool isOwner, BuildContext context) {
-    final bool isClaimed = item.claimedBy != null;
-    final bool claimedByCurrentUser = item.claimedBy == _currentUserId;
+  Widget _buildItemActions(Item item, bool isOwner) {
+    final bool viewerClaimed = item.isClaimedBy(_currentUserId);
 
     if (isOwner) {
-      return _buildOwnerActions(item, isClaimed);
+      return _buildOwnerActions(item);
     }
 
-    if (isClaimed) {
-      if (claimedByCurrentUser) {
-        return _buildUserClaimedView(item);
-      }
+    if (viewerClaimed) {
+      return _buildUserClaimedView(item);
+    }
+
+    if (!item.hasClaimRoom) {
       return _buildClaimedPill();
     }
 
     return _buildClaimButton(item);
   }
 
-  Widget _buildOwnerActions(Item item, bool isClaimed) => Row(
+  Widget _buildOwnerActions(Item item) => Row(
     mainAxisAlignment: MainAxisAlignment.spaceBetween,
     children: [
-      _buildClaimedStatus(item, isClaimed),
+      _buildClaimedStatus(item),
       ListItemActions(
         onEdit: () {
           context.pushNamed(
@@ -259,14 +259,14 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
     ],
   );
 
-  Widget _buildClaimedStatus(Item item, bool isClaimed) {
+  Widget _buildClaimedStatus(Item item) {
     if (_isSpoilerFree) {
       return const Spacer();
     }
     final scheme = Theme.of(context).colorScheme;
-    if (isClaimed) {
+    if (item.claimCount > 0) {
       return Text(
-        'Claimed on ${DateFormat.yMMMd().format(item.claimedAt!)}',
+        'Claimed',
         style: TextStyle(
           color: scheme.onSurfaceVariant,
           fontStyle: FontStyle.italic,
@@ -353,9 +353,13 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
       if (mounted) {
         _showSuccessSnackbar('Item unclaimed.');
       }
-    } catch (e) {
+    } catch (error) {
       if (mounted) {
-        _showErrorSnackbar('Failed to unclaim item: $e');
+        _showErrorSnackbar(
+          error is ClaimFailure
+              ? claimFailureMessage(error)
+              : "Couldn't unclaim this item. Please try again.",
+        );
       }
     }
   }

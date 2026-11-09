@@ -90,35 +90,35 @@ void main() {
   });
 
   group('devItemFields', () {
-    test('omits the optional fields an item does not set', () {
+    test('writes the new-item defaults alongside the name', () {
       const name = 'Board game';
 
       final fields = devItemFields(name);
 
-      expect(fields, <String, dynamic>{'name': name});
+      expect(fields, <String, dynamic>{
+        'name': name,
+        'claims': <String, Timestamp>{},
+        'claimLimit': 1,
+      });
     });
 
-    test('carries a claim as a uid and a Timestamp', () {
+    test('carries a claim under its uid with a Timestamp', () {
       const claimedBy = 'fam-u4';
       final claimedAt = Timestamp.fromDate(DateTime.utc(2026, 9, 20));
 
       final fields = devItemFields(
         'Dance heels',
-        claimedBy: claimedBy,
-        claimedAt: claimedAt,
+        claims: <String, Timestamp>{claimedBy: claimedAt},
       );
 
-      expect(fields['claimedBy'], claimedBy);
-      expect(fields['claimedAt'], same(claimedAt));
+      expect(fields['claims'], <String, Timestamp>{claimedBy: claimedAt});
+      expect(fields['claimLimit'], 1);
     });
 
-    test('rejects a claim that has no timestamp', () {
-      // The repository casts the stored timestamp, and the rules treat the two
-      // fields as a pair, so half a claim is a fixture that cannot be read back.
-      expect(
-        () => devItemFields('Dance heels', claimedBy: 'fam-u4'),
-        throwsA(isA<AssertionError>()),
-      );
+    test('writes an explicit claim limit', () {
+      final fields = devItemFields('Dance heels', claimLimit: 0);
+
+      expect(fields['claimLimit'], 0);
     });
   });
 
@@ -153,7 +153,8 @@ void main() {
     test('claims items on a list the viewer owns and on one they do not', () {
       final ownersOfClaimedLists = <String>{
         for (final item in itemsIn(familyFixture))
-          if (item.fields['claimedBy'] != null)
+          if (item.fields['claims'] is Map &&
+              (item.fields['claims'] as Map).isNotEmpty)
             Wishlist.fromMap(
               familyFixture.documents['wishlists/${item.wishlistId}']!,
               item.wishlistId,
@@ -287,16 +288,23 @@ void main() {
       'carries claims by another member, by the viewer and no claim at all',
       () {
         final items = itemsIn(sharedFixture).toList();
-        final claimedBy = items
-            .map((item) => item.fields['claimedBy'])
-            .whereType<String>();
+        final claimants = items.expand((item) {
+          final claims = item.fields['claims'];
+          return claims is Map ? claims.keys.cast<String>() : const <String>[];
+        });
 
         expect(
-          claimedBy.where((uid) => uid == sharedClaimerUid).length,
+          claimants.where((uid) => uid == sharedClaimerUid).length,
           greaterThanOrEqualTo(2),
         );
-        expect(claimedBy, contains(sharedFixture.viewerUid));
-        expect(items.any((item) => item.fields['claimedBy'] == null), isTrue);
+        expect(claimants, contains(sharedFixture.viewerUid));
+        expect(
+          items.any((item) {
+            final claims = item.fields['claims'];
+            return claims is Map && claims.isEmpty;
+          }),
+          isTrue,
+        );
       },
     );
   });

@@ -1,4 +1,5 @@
 import 'package:wishtogether/core/logging/redaction.dart';
+import 'package:wishtogether/features/wishlist/domain/claim_limit_reached_exception.dart';
 
 /// The failure code used both for a missing signed-in user and for a write
 /// Firestore rejects as unauthenticated, so the two paths classify the same.
@@ -10,6 +11,7 @@ enum ClaimFailureReason {
   offline,
   itemMissing,
   signedOut,
+  fullyClaimed,
   unknown,
 }
 
@@ -26,6 +28,11 @@ class ClaimFailure implements Exception {
   factory ClaimFailure.from(Object error) {
     if (error is ClaimFailure) {
       return error;
+    }
+    // The repository raises this for a full item; it has no Firestore code, and
+    // the code table would map it to `unknown`.
+    if (error is ClaimLimitReachedException) {
+      return const ClaimFailure(ClaimFailureReason.fullyClaimed);
     }
     final code = readErrorCode(error);
     return ClaimFailure(_reasonForCode(code), code: code);

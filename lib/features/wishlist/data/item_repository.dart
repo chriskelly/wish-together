@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:wishtogether/core/data/firebase_repository.dart';
+import 'package:wishtogether/core/logging/app_event.dart';
+import 'package:wishtogether/features/wishlist/domain/claim_limit_reached_exception.dart';
 import 'package:wishtogether/features/wishlist/domain/item.dart';
 import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
 
@@ -9,12 +11,20 @@ class ItemRepository extends FirebaseRepository<Item> {
 
   @override
   Item fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    // Handle Firestore Timestamps, which can be returned by the database.
-    // The testing library, in particular, may return these.
-    final claimedAtTimestamp = data['claimedAt'] as Timestamp?;
-    if (claimedAtTimestamp != null) {
-      data['claimedAt'] = claimedAtTimestamp.toDate().toIso8601String();
+    final data = Map<String, dynamic>.from(doc.data() as Map<String, dynamic>);
+    // Firestore returns claim times as Timestamps. Convert each one here, at
+    // the boundary; the model keeps DateTimes. A value that is not a Timestamp
+    // is passed through so `Item.fromMap` can drop it without failing the
+    // whole read.
+    final rawClaims = data['claims'];
+    if (rawClaims is Map) {
+      data['claims'] = <String, dynamic>{
+        for (final entry in rawClaims.entries)
+          if (entry.key is String)
+            entry.key as String: entry.value is Timestamp
+                ? (entry.value as Timestamp).toDate().toUtc().toIso8601String()
+                : entry.value,
+      };
     }
     return Item.fromMap(data, doc.id);
   }
@@ -22,28 +32,70 @@ class ItemRepository extends FirebaseRepository<Item> {
   @override
   Map<String, dynamic> toFirestore(Item item) {
     final map = item.toMap();
-    // The `claimedAt` field is stored as an ISO 8601 string in the Item model.
-    // It needs to be converted to a Firestore Timestamp before being saved.
-    if (map['claimedAt'] != null) {
-      map['claimedAt'] = Timestamp.fromDate(DateTime.parse(map['claimedAt']));
+    // `Item.toMap` carries claim times as ISO-8601 strings; Firestore stores
+    // them as Timestamps.
+    final claims = map['claims'];
+    if (claims is Map) {
+      map['claims'] = <String, dynamic>{
+        for (final entry in claims.entries)
+          entry.key as String: Timestamp.fromDate(
+            DateTime.parse(entry.value as String),
+          ),
+      };
     }
     return map;
   }
 
-  Future<void> unclaim(String itemId) {
-    return updateData(itemId, {'claimedBy': null, 'claimedAt': null});
+  /// Removes only [claimedBy]'s claim, leaving other claimants untouched.
+  Future<void> unclaim(String itemId, {required String claimedBy}) {
+    return updateData(itemId, {'claims.$claimedBy': FieldValue.delete()});
   }
 
   /// Claims [itemId] for [claimedBy], touching no other field.
   ///
-  /// A reader's copy of the item can be stale, or can lack an optional field
-  /// that the stored document already has, and the rules only allow a reader to
-  /// change the claim pair. Writing both in one update keeps the write valid
-  /// whatever else the owner changed meanwhile.
-  Future<void> claim(String itemId, {required String claimedBy}) {
+  /// A transaction keeps the cap honest: two readers racing for the last slot
+  /// cannot both commit, and the same uid claiming twice is an idempotent
+  /// success that keeps its original timestamp. Unlimited items skip the cap
+  /// check, not the transaction. A missing item is reported as `not-found`, and
+  /// a full item as [ClaimLimitReachedException]; neither is a Firestore error.
+  Future<void> claim(String itemId, {required String claimedBy}) async {
+    final doc = instance.collection(collectionPath).doc(itemId);
+    final full = await reportingFuture(
+      FirestoreOp.claim,
+      () => instance.runTransaction<bool>((transaction) async {
+        final snapshot = await transaction.get(doc);
+        if (!snapshot.exists) {
+          throw FirebaseException(plugin: 'cloud_firestore', code: 'not-found');
+        }
+        final current = fromFirestore(snapshot);
+        if (current.isClaimedBy(claimedBy)) {
+          return false;
+        }
+        if (!current.hasClaimRoom) {
+          return true;
+        }
+        transaction.update(doc, {'claims.$claimedBy': Timestamp.now()});
+        return false;
+      }),
+    );
+    if (full) {
+      throw const ClaimLimitReachedException();
+    }
+  }
+
+  /// Writes the owner-editable fields and never the claims map.
+  Future<void> updateContent(
+    String itemId, {
+    required String name,
+    String? description,
+    String? url,
+    required int claimLimit,
+  }) {
     return updateData(itemId, {
-      'claimedBy': claimedBy,
-      'claimedAt': Timestamp.now(),
+      'name': name,
+      'description': description,
+      'url': url,
+      'claimLimit': claimLimit,
     });
   }
 }

@@ -70,8 +70,9 @@ final DevFixture sharedFixture = DevFixture(
     'wishlists/$sharedViewerWishlistId/items/shr-i2': devItemFields(
       'Hiking boots',
       description: 'Size 10, waterproof.',
-      claimedBy: sharedClaimerUid,
-      claimedAt: Timestamp.fromDate(DateTime.utc(2026, 9, 21, 9)),
+      claims: <String, Timestamp>{
+        sharedClaimerUid: Timestamp.fromDate(DateTime.utc(2026, 9, 21, 9)),
+      },
     ),
     'wishlists/$sharedOtherWishlistId/items/shr-i3': devItemFields(
       'Serving platter',
@@ -84,13 +85,15 @@ final DevFixture sharedFixture = DevFixture(
     'wishlists/$sharedOtherWishlistId/items/shr-i5': devItemFields(
       'Cast iron skillet',
       description: 'Twelve inch, pre-seasoned.',
-      claimedBy: sharedClaimerUid,
-      claimedAt: Timestamp.fromDate(DateTime.utc(2026, 9, 22, 17)),
+      claims: <String, Timestamp>{
+        sharedClaimerUid: Timestamp.fromDate(DateTime.utc(2026, 9, 22, 17)),
+      },
     ),
     'wishlists/$sharedOtherWishlistId/items/shr-i6': devItemFields(
       'Tea towel set',
-      claimedBy: sharedViewerUid,
-      claimedAt: Timestamp.fromDate(DateTime.utc(2026, 9, 23, 11)),
+      claims: <String, Timestamp>{
+        sharedViewerUid: Timestamp.fromDate(DateTime.utc(2026, 9, 23, 11)),
+      },
     ),
   },
 );

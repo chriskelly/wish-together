@@ -157,7 +157,7 @@ void main() {
     await tester.tap(find.text('Unclaim'));
     await pumpFrames(tester);
 
-    // ASSERT: both fields are cleared, so the item is claimable again.
+    // ASSERT: the caller's claim is gone, so the item is claimable again.
     expect(find.text('Claim'), findsOneWidget);
     expect(find.text('You claimed this!'), findsNothing);
   });

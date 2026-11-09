@@ -5,7 +5,6 @@ import 'package:wishtogether/dev/fixtures/dev_fixture.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
 import 'package:wishtogether/features/group/data/group_repository.dart';
 import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
-import 'package:wishtogether/features/wishlist/domain/item.dart';
 import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
 
 /// Harness-contract tests: every repository operation a signed-in page issues,
@@ -297,57 +296,53 @@ void main() {
 
     test('claiming an item stores a timestamp the model reads back', () async {
       // ARRANGE
-      final claimedAt = DateTime.utc(2026, 10, 1);
       final firestore = await seededStore(<String, Map<String, dynamic>>{
-        'wishlists/l1/items/i1': <String, dynamic>{'name': 'Board game'},
+        'wishlists/l1/items/i1': <String, dynamic>{
+          'name': 'Board game',
+          'claims': <String, dynamic>{},
+          'claimLimit': 1,
+        },
       });
       final items = WishlistRepository(firestore: firestore).items('l1');
 
-      // ACT: the claim use case writes the whole model through `update`.
-      await items.update(
-        'i1',
-        Item(
-          id: 'i1',
-          name: 'Board game',
-          claimedBy: viewerUid,
-          claimedAt: claimedAt,
-        ),
-      );
+      // ACT: the claim path the page uses.
+      await items.claim('i1', claimedBy: viewerUid);
 
       // ASSERT: the field is a Firestore Timestamp on disk and a DateTime in
       // the model, which is the conversion `ItemRepository` owns.
       final stored = await firestore.doc('wishlists/l1/items/i1').get();
-      expect(stored.data()!['claimedAt'], isA<Timestamp>());
+      final storedClaims = stored.data()!['claims'] as Map<String, dynamic>;
+      expect(storedClaims[viewerUid], isA<Timestamp>());
       final item = await items.streamOne('i1').first;
-      expect(item.claimedBy, viewerUid);
-      expect(item.claimedAt!.toUtc(), claimedAt);
+      expect(item.isClaimedBy(viewerUid), isTrue);
+      expect(item.claims[viewerUid], isA<DateTime>());
     });
 
-    test('unclaiming an item sets both claim fields to null', () async {
-      // ARRANGE: a claimed item.
+    test('unclaiming an item removes only the caller key', () async {
+      // ARRANGE: a claimed item with a second claimant.
       final firestore = await seededStore(<String, Map<String, dynamic>>{
         'wishlists/l1/items/i1': <String, dynamic>{
           'name': 'Board game',
-          'claimedBy': viewerUid,
-          'claimedAt': Timestamp.fromDate(DateTime.utc(2026, 10, 1)),
+          'claims': <String, dynamic>{
+            viewerUid: Timestamp.fromDate(DateTime.utc(2026, 10, 1)),
+            otherUid: Timestamp.fromDate(DateTime.utc(2026, 10, 2)),
+          },
+          'claimLimit': 2,
         },
       });
       final items = WishlistRepository(firestore: firestore).items('l1');
 
       // ACT
-      await items.unclaim('i1');
+      await items.unclaim('i1', claimedBy: viewerUid);
 
-      // ASSERT: both fields exist and are null. `firestore.rules` accepts an
-      // unclaimed item only when the pair is absent together, so a partial
-      // update would be denied in production.
+      // ASSERT: only the caller's key is gone.
       final stored = await firestore.doc('wishlists/l1/items/i1').get();
-      expect(stored.data()!.containsKey('claimedBy'), isTrue);
-      expect(stored.data()!['claimedBy'], isNull);
-      expect(stored.data()!.containsKey('claimedAt'), isTrue);
-      expect(stored.data()!['claimedAt'], isNull);
+      final storedClaims = stored.data()!['claims'] as Map<String, dynamic>;
+      expect(storedClaims.containsKey(viewerUid), isFalse);
+      expect(storedClaims.containsKey(otherUid), isTrue);
       final item = await items.streamOne('i1').first;
-      expect(item.claimedBy, isNull);
-      expect(item.claimedAt, isNull);
+      expect(item.isClaimedBy(viewerUid), isFalse);
+      expect(item.isClaimedBy(otherUid), isTrue);
     });
 
     test('deleting an item removes it from the nested collection', () async {

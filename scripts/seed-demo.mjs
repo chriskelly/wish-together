@@ -454,8 +454,10 @@ async function seed() {
             name,
             description: description ?? null,
             url: slug ? link(slug) : null,
-            claimedBy: claimedBy ? uidOf(claimedBy) : null,
-            claimedAt: claimedBy ? claimedAtFor(claimHours++) : null,
+            claims: claimedBy
+              ? { [uidOf(claimedBy)]: claimedAtFor(claimHours++) }
+              : {},
+            claimLimit: 1,
           }),
       );
       counts.items += 1;

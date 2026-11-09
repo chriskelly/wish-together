@@ -148,9 +148,9 @@ A **committed** scenario is one Dart module plus one registry line:
    `viewerUid` a `users/<uid>` document with a non-empty `displayName`, or every
    route redirects to onboarding.
 2. Write documents as Firestore-shaped maps keyed by full path. Use `devItems`
-   for N generated items and `devItemFields` for one. A claim needs both
-   `claimedBy` and a `Timestamp` `claimedAt`; an ISO-8601 string throws when the
-   item is read back.
+   for N generated items and `devItemFields` for one. A claim is one entry in
+   the item's `claims` map, `{uid: Timestamp}`; an ISO-8601 string is dropped
+   when the item is read back.
 3. Add one import and one map entry in `lib/dev/fixtures/registry.dart`.
 4. Run `flutter test test/dev/dev_fixture_test.dart test/dev/scenario_library_test.dart`
    and add a mount test in `test/dev/scenario_urls_test.dart` for its start URL.

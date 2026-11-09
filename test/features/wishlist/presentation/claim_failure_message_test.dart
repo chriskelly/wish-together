@@ -51,6 +51,17 @@ void main() {
       expect(message, 'This item no longer exists.');
     });
 
+    test('reports a full item as no longer available', () {
+      // Arrange
+      const error = ClaimFailure(ClaimFailureReason.fullyClaimed);
+
+      // Act
+      final message = claimFailureMessage(error);
+
+      // Assert
+      expect(message, 'This item is no longer available.');
+    });
+
     test('asks a signed-out reader to sign in again', () {
       // Arrange
       const error = ClaimFailure(ClaimFailureReason.signedOut);

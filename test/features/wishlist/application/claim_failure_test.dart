@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wishtogether/features/wishlist/application/claim_failure.dart';
+import 'package:wishtogether/features/wishlist/domain/claim_limit_reached_exception.dart';
 
 import '../../../core/logging/recording_sink.dart';
 
@@ -41,6 +42,15 @@ void main() {
 
       // Assert
       expect(failure.reason, ClaimFailureReason.unknown);
+      expect(failure.code, isNull);
+    });
+
+    test('maps a full item to fullyClaimed without a code', () {
+      // Act
+      final failure = ClaimFailure.from(const ClaimLimitReachedException());
+
+      // Assert
+      expect(failure.reason, ClaimFailureReason.fullyClaimed);
       expect(failure.code, isNull);
     });
 

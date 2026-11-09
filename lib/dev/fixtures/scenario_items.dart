@@ -6,26 +6,22 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// stored form: optional fields are absent rather than null, which is how an
 /// item document looks when the app never wrote those keys.
 ///
-/// A claim carries both [claimedBy] and [claimedAt]. `ItemRepository` casts the
-/// stored `claimedAt` to a `Timestamp`, so [claimedAt] has to be one; an
-/// ISO-8601 string throws when the repository reads the item back.
+/// A claim is one entry in the `claims` map: `{uid: Timestamp}`. The claim
+/// limit is always written, because every item the app creates carries one;
+/// `1` is the single-claim default and `0` means unlimited.
 Map<String, dynamic> devItemFields(
   String name, {
   String? description,
   String? url,
-  String? claimedBy,
-  Timestamp? claimedAt,
+  Map<String, Timestamp> claims = const {},
+  int claimLimit = 1,
 }) {
-  assert(
-    (claimedBy == null) == (claimedAt == null),
-    'an item is claimed by a uid with a Timestamp, or unclaimed with neither',
-  );
   return <String, dynamic>{
     'name': name,
     if (description != null) 'description': description,
     if (url != null) 'url': url,
-    if (claimedBy != null) 'claimedBy': claimedBy,
-    if (claimedAt != null) 'claimedAt': claimedAt,
+    'claims': claims,
+    'claimLimit': claimLimit,
   };
 }
 

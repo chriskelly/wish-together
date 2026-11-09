@@ -8,7 +8,8 @@ the product.
 - Items live only in the `wishlists/{id}/items` sub-collection; never query items globally.
 - Deleting a wishlist goes through `deleteWithItems`, because Firestore does not remove a
   sub-collection with its parent.
-- A claim writes only `claimedBy` and `claimedAt`, as a pair, and never the rest of the item.
+- A claim writes only the caller's own key in `claims`, and never the rest of the item. An
+  owner's edit writes content and `claimLimit` only, never `claims`.
 - The owner's details page hides claimed status by default; a reader of a shared list always
   sees it.
 

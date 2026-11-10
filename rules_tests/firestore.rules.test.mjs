@@ -951,7 +951,7 @@ test('the owner changes content and the claim limit', async () => {
   await assertSucceeds(item.update({ claimLimit: 3 }));
 });
 
-test('the owner cannot drop a claim with a whole-document write', async () => {
+test('the owner cannot drop claims in a write that also changes content', async () => {
   const wishlistId = 'wishlist-owner-drop-claim';
   const itemId = 'item';
   await seed((s) =>
@@ -970,6 +970,231 @@ test('the owner cannot drop a claim with a whole-document write', async () => {
       claims: {},
     }),
   );
+});
+
+// The owner may clear every claim in one write, but only down to empty. The
+// reset cannot add or rewrite a claim, and it is not a content edit.
+test('the owner clears every claim in one write', async () => {
+  const wishlistId = 'wishlist-owner-reset';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      item: {
+        name: 'Gift',
+        description: 'Kept description',
+        url: 'https://example.com/kept',
+        claims: { [MEMBER]: claimAt(), [OUTSIDER]: claimAt() },
+        claimLimit: 2,
+      },
+    }),
+  );
+
+  await assertSucceeds(
+    itemRef(OWNER, wishlistId, itemId).update({ claims: deleteField() }),
+  );
+
+  const data = (await itemRef(OWNER, wishlistId, itemId).get()).data();
+  assert.deepEqual(Object.keys(data.claims ?? {}), []);
+  assert.equal(data.name, 'Gift');
+  assert.equal(data.description, 'Kept description');
+  assert.equal(data.url, 'https://example.com/kept');
+  assert.equal(data.claimLimit, 2);
+});
+
+test('the owner clears claims by writing an empty map', async () => {
+  const wishlistId = 'wishlist-owner-reset-empty-map';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      item: {
+        name: 'Gift',
+        claims: { [MEMBER]: claimAt() },
+        claimLimit: 2,
+      },
+    }),
+  );
+
+  await assertSucceeds(
+    itemRef(OWNER, wishlistId, itemId).update({ claims: {} }),
+  );
+
+  const data = (await itemRef(OWNER, wishlistId, itemId).get()).data();
+  assert.deepEqual(Object.keys(data.claims ?? {}), []);
+});
+
+test('resetting an item with no claims is allowed', async () => {
+  const wishlistId = 'wishlist-owner-reset-empty';
+  const itemId = 'item';
+  await seed((s) => seedWishlistWithItem(s, wishlistId, itemId));
+
+  await assertSucceeds(
+    itemRef(OWNER, wishlistId, itemId).update({ claims: deleteField() }),
+  );
+});
+
+test('the owner resets an unlimited item', async () => {
+  const wishlistId = 'wishlist-owner-reset-unlimited';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      item: {
+        name: 'Gift',
+        claims: { [MEMBER]: claimAt(), [OUTSIDER]: claimAt() },
+        claimLimit: 0,
+      },
+    }),
+  );
+
+  await assertSucceeds(
+    itemRef(OWNER, wishlistId, itemId).update({ claims: deleteField() }),
+  );
+
+  const data = (await itemRef(OWNER, wishlistId, itemId).get()).data();
+  assert.deepEqual(Object.keys(data.claims ?? {}), []);
+});
+
+test('the owner clears a claim left by a deleted user', async () => {
+  const wishlistId = 'wishlist-owner-reset-stale';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      item: {
+        name: 'Gift',
+        claims: { 'uid-deleted': claimAt() },
+        claimLimit: 1,
+      },
+    }),
+  );
+
+  await assertSucceeds(
+    itemRef(OWNER, wishlistId, itemId).update({ claims: deleteField() }),
+  );
+
+  const data = (await itemRef(OWNER, wishlistId, itemId).get()).data();
+  assert.deepEqual(Object.keys(data.claims ?? {}), []);
+});
+
+test('the owner cannot clear only some claims', async () => {
+  const wishlistId = 'wishlist-owner-reset-partial';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      item: {
+        name: 'Gift',
+        claims: { [MEMBER]: claimAt(), [OUTSIDER]: claimAt() },
+        claimLimit: 2,
+      },
+    }),
+  );
+
+  await assertFails(
+    itemRef(OWNER, wishlistId, itemId).update({
+      [`claims.${MEMBER}`]: deleteField(),
+    }),
+  );
+});
+
+test("the owner cannot rewrite another user's claim while clearing", async () => {
+  const wishlistId = 'wishlist-owner-reset-rewrite';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      item: {
+        name: 'Gift',
+        claims: { [MEMBER]: claimAt(), [OUTSIDER]: claimAt() },
+        claimLimit: 2,
+      },
+    }),
+  );
+
+  await assertFails(
+    itemRef(OWNER, wishlistId, itemId).update({
+      claims: { [MEMBER]: claimAt() },
+    }),
+  );
+});
+
+test('the owner cannot reset claims and change content in one write', async () => {
+  const wishlistId = 'wishlist-owner-reset-with-content';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      item: {
+        name: 'Gift',
+        claims: { [MEMBER]: claimAt(), [OUTSIDER]: claimAt() },
+        claimLimit: 5,
+      },
+    }),
+  );
+
+  const item = itemRef(OWNER, wishlistId, itemId);
+  await assertFails(item.update({ name: 'Renamed', claims: deleteField() }));
+  await assertFails(item.update({ claimLimit: 3, claims: deleteField() }));
+});
+
+test('a reader cannot clear every claim', async () => {
+  const wishlistId = 'wishlist-reader-reset';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      sharedWithGroups: ['group-1'],
+      item: {
+        name: 'Gift',
+        claims: { [OUTSIDER]: claimAt(), [MEMBER]: claimAt() },
+        claimLimit: 2,
+      },
+    }),
+  );
+
+  const item = itemRef(OUTSIDER, wishlistId, itemId);
+  await assertFails(item.update({ claims: deleteField() }));
+  await assertFails(item.update({ claims: {} }));
+});
+
+test('an unauthenticated visitor cannot reset claims', async () => {
+  const wishlistId = 'wishlist-anon-reset';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      sharedWithGroups: ['group-1'],
+      item: {
+        name: 'Gift',
+        claims: { [MEMBER]: claimAt() },
+        claimLimit: 2,
+      },
+    }),
+  );
+
+  await assertFails(
+    anonItemRef(wishlistId, itemId).update({ claims: deleteField() }),
+  );
+});
+
+test('a reader can claim again after the owner resets', async () => {
+  const wishlistId = 'wishlist-reset-then-claim';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      sharedWithGroups: ['group-1'],
+      item: {
+        name: 'Gift',
+        claims: { [MEMBER]: claimAt() },
+        claimLimit: 2,
+      },
+    }),
+  );
+
+  await assertSucceeds(
+    itemRef(OWNER, wishlistId, itemId).update({ claims: deleteField() }),
+  );
+  await assertSucceeds(
+    itemRef(OUTSIDER, wishlistId, itemId).update({
+      [`claims.${OUTSIDER}`]: claimAt(),
+    }),
+  );
+
+  const data = (await itemRef(OWNER, wishlistId, itemId).get()).data();
+  assert.deepEqual(Object.keys(data.claims), [OUTSIDER]);
 });
 
 test('the owner cannot set a non-integer or negative limit', async () => {
@@ -1130,7 +1355,7 @@ test('a legacy item without a limit is write-denied until migrated', async () =>
   await seed((s) =>
     seedWishlistWithItem(s, wishlistId, itemId, {
       sharedWithGroups: ['group-1'],
-      item: { name: 'Gift' },
+      item: { name: 'Gift', claims: { [MEMBER]: claimAt() } },
     }),
   );
 
@@ -1141,6 +1366,10 @@ test('a legacy item without a limit is write-denied until migrated', async () =>
   );
   await assertFails(
     itemRef(OWNER, wishlistId, itemId).update({ name: 'Renamed' }),
+  );
+  // The reset path is fenced on the same stored limit, so it is denied too.
+  await assertFails(
+    itemRef(OWNER, wishlistId, itemId).update({ claims: deleteField() }),
   );
   // The app's own field-scoped payload supplies `claimLimit`, but the stored
   // document still has no limit, so the owner branch refuses it too.

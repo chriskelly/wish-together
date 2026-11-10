@@ -1,9 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:wishtogether/common/widgets/button_loading_indicator.dart';
 import 'package:wishtogether/core/service_locator.dart';
+import 'package:wishtogether/features/wishlist/application/claim_failure.dart';
 import 'package:wishtogether/features/wishlist/application/create_item_use_case.dart';
+import 'package:wishtogether/features/wishlist/application/reset_claims_use_case.dart';
 import 'package:wishtogether/features/wishlist/application/update_item_use_case.dart';
 import 'package:wishtogether/features/wishlist/domain/item.dart';
 import 'package:wishtogether/features/wishlist/presentation/item_form_page.dart';
@@ -12,12 +17,15 @@ class MockCreateItemUseCase extends Mock implements CreateItemUseCase {}
 
 class MockUpdateItemUseCase extends Mock implements UpdateItemUseCase {}
 
+class MockResetClaimsUseCase extends Mock implements ResetClaimsUseCase {}
+
 void main() {
   const wishlistId = 'wishlist-1';
   const itemName = 'Desk lamp';
 
   late MockCreateItemUseCase createItemUseCase;
   late MockUpdateItemUseCase updateItemUseCase;
+  late MockResetClaimsUseCase resetClaimsUseCase;
 
   setUpAll(() {
     registerFallbackValue(Item(name: 'fallback item'));
@@ -27,6 +35,7 @@ void main() {
     getIt.reset();
     createItemUseCase = MockCreateItemUseCase();
     updateItemUseCase = MockUpdateItemUseCase();
+    resetClaimsUseCase = MockResetClaimsUseCase();
     when(
       () => createItemUseCase.execute(
         any(),
@@ -46,8 +55,11 @@ void main() {
         claimLimit: any(named: 'claimLimit'),
       ),
     ).thenAnswer((_) async {});
+    when(() => resetClaimsUseCase.execute(any(), any()))
+        .thenAnswer((_) async {});
     getIt.registerSingleton<CreateItemUseCase>(createItemUseCase);
     getIt.registerSingleton<UpdateItemUseCase>(updateItemUseCase);
+    getIt.registerSingleton<ResetClaimsUseCase>(resetClaimsUseCase);
   });
 
   tearDown(getIt.reset);
@@ -114,6 +126,19 @@ void main() {
   Future<void> save(WidgetTester tester, {String label = 'Save Item'}) async {
     await tester.ensureVisible(find.text(label));
     await tester.tap(find.text(label));
+    await tester.pumpAndSettle();
+  }
+
+  Finder resetButton() => find.widgetWithText(OutlinedButton, 'Reset claims');
+
+  Future<void> openResetDialog(WidgetTester tester) async {
+    await tester.ensureVisible(resetButton());
+    await tester.tap(resetButton());
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> confirmReset(WidgetTester tester) async {
+    await tester.tap(find.widgetWithText(TextButton, 'Reset claims'));
     await tester.pumpAndSettle();
   }
 
@@ -401,5 +426,234 @@ void main() {
         claimLimit: 0,
       ),
     ).called(1);
+  });
+
+  testWidgets('hides reset claims while creating an item', (tester) async {
+    await pumpForm(tester);
+
+    expect(find.text('Reset claims'), findsNothing);
+  });
+
+  testWidgets('offers reset claims on an edit even with no claims', (
+    tester,
+  ) async {
+    await pumpForm(
+      tester,
+      item: Item(id: 'item-1', name: itemName),
+    );
+
+    expect(resetButton(), findsOneWidget);
+    expect(
+      find.text(
+        "Resetting removes all claims on the item if there are any. "
+        "This can't be undone.",
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('offers reset claims on an edit with claims', (tester) async {
+    await pumpForm(
+      tester,
+      item: Item(id: 'item-1', name: itemName, claims: claimsBy(2)),
+    );
+
+    expect(resetButton(), findsOneWidget);
+  });
+
+  testWidgets('cancelling the reset leaves the claims untouched', (
+    tester,
+  ) async {
+    await pumpForm(
+      tester,
+      item: Item(id: 'item-1', name: itemName, claims: claimsBy(2)),
+    );
+
+    await openResetDialog(tester);
+    expect(find.text('Reset claims?'), findsOneWidget);
+    expect(
+      find.textContaining(
+        'This closes the form, so any unsaved changes will be lost.',
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+
+    verifyNever(() => resetClaimsUseCase.execute(any(), any()));
+  });
+
+  testWidgets('confirming the reset clears claims and returns to the list', (
+    tester,
+  ) async {
+    await pumpForm(
+      tester,
+      item: Item(id: 'item-1', name: itemName, claims: claimsBy(2)),
+    );
+
+    await openResetDialog(tester);
+    await confirmReset(tester);
+
+    verify(() => resetClaimsUseCase.execute(wishlistId, 'item-1')).called(1);
+    expect(find.text('Claims reset.'), findsOneWidget);
+    expect(find.text('wishlist'), findsOneWidget);
+  });
+
+  testWidgets('shows the fallback copy when a reset fails', (tester) async {
+    when(() => resetClaimsUseCase.execute(wishlistId, 'item-1'))
+        .thenThrow(Exception('server says no'));
+    await pumpForm(
+      tester,
+      item: Item(id: 'item-1', name: itemName, claims: claimsBy(1)),
+    );
+
+    await openResetDialog(tester);
+    await confirmReset(tester);
+
+    expect(
+      find.text("Couldn't reset claims. Please try again."),
+      findsOneWidget,
+    );
+    expect(find.textContaining('server says no'), findsNothing);
+  });
+
+  testWidgets('shows the signed-out copy when a reset is refused', (
+    tester,
+  ) async {
+    when(() => resetClaimsUseCase.execute(wishlistId, 'item-1'))
+        .thenThrow(const ClaimFailure(ClaimFailureReason.signedOut));
+    await pumpForm(
+      tester,
+      item: Item(id: 'item-1', name: itemName, claims: claimsBy(1)),
+    );
+
+    await openResetDialog(tester);
+    await confirmReset(tester);
+
+    expect(find.text('Please sign in again to reset claims.'), findsOneWidget);
+  });
+
+  testWidgets('shows the offline copy when a reset cannot reach the server', (
+    tester,
+  ) async {
+    when(() => resetClaimsUseCase.execute(wishlistId, 'item-1'))
+        .thenThrow(const ClaimFailure(ClaimFailureReason.offline));
+    await pumpForm(
+      tester,
+      item: Item(id: 'item-1', name: itemName, claims: claimsBy(1)),
+    );
+
+    await openResetDialog(tester);
+    await confirmReset(tester);
+
+    expect(
+      find.text(
+        "Couldn't reach the server. Check your connection and try again.",
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('shows the denied copy when the owner is no longer allowed', (
+    tester,
+  ) async {
+    when(() => resetClaimsUseCase.execute(wishlistId, 'item-1'))
+        .thenThrow(const ClaimFailure(ClaimFailureReason.accessDenied));
+    await pumpForm(
+      tester,
+      item: Item(id: 'item-1', name: itemName, claims: claimsBy(1)),
+    );
+
+    await openResetDialog(tester);
+    await confirmReset(tester);
+
+    expect(
+      find.text("You don't have permission to reset this item's claims."),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('keeps update usable while a reset is pending', (tester) async {
+    final pending = Completer<void>();
+    when(() => resetClaimsUseCase.execute(wishlistId, 'item-1'))
+        .thenAnswer((_) => pending.future);
+    await pumpForm(
+      tester,
+      item: Item(id: 'item-1', name: itemName, claims: claimsBy(1)),
+    );
+
+    await openResetDialog(tester);
+    await tester.tap(find.widgetWithText(TextButton, 'Reset claims'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(
+      tester.widget<OutlinedButton>(find.byType(OutlinedButton)).onPressed,
+      isNull,
+    );
+    expect(find.byType(ButtonLoadingIndicator), findsOneWidget);
+    expect(
+      tester
+          .widget<ElevatedButton>(
+            find.widgetWithText(ElevatedButton, 'Update Item'),
+          )
+          .onPressed,
+      isNotNull,
+    );
+
+    pending.complete();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('does not pop twice when save and reset finish together', (
+    tester,
+  ) async {
+    final resetPending = Completer<void>();
+    final savePending = Completer<void>();
+    when(() => resetClaimsUseCase.execute(wishlistId, 'item-1'))
+        .thenAnswer((_) => resetPending.future);
+    when(
+      () => updateItemUseCase.execute(
+        any(),
+        any(),
+        name: any(named: 'name'),
+        description: any(named: 'description'),
+        url: any(named: 'url'),
+        claimLimit: any(named: 'claimLimit'),
+      ),
+    ).thenAnswer((_) => savePending.future);
+    await pumpForm(
+      tester,
+      item: Item(id: 'item-1', name: itemName, claims: claimsBy(1)),
+    );
+
+    await openResetDialog(tester);
+    await tester.tap(find.widgetWithText(TextButton, 'Reset claims'));
+    await tester.pump();
+    await tester.pump();
+    final updateButton = tester.widget<ElevatedButton>(
+      find.widgetWithText(ElevatedButton, 'Update Item'),
+    );
+    updateButton.onPressed!();
+    await tester.pump();
+
+    verify(
+      () => updateItemUseCase.execute(
+        any(),
+        any(),
+        name: any(named: 'name'),
+        description: any(named: 'description'),
+        url: any(named: 'url'),
+        claimLimit: any(named: 'claimLimit'),
+      ),
+    ).called(1);
+
+    resetPending.complete();
+    await tester.pump();
+    savePending.complete();
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('wishlist'), findsOneWidget);
   });
 }

@@ -164,6 +164,23 @@ service cloud.firestore {
           return limitIsValid() && claimsFitLimit();
         }
 
+        // The owner's content edit is field-scoped so a whole-document write
+        // cannot drop a reader's claim, and the limit holds.
+        function ownerEditsContent() {
+          return changed().hasOnly(
+                   ['name', 'description', 'url', 'claimLimit'])
+                 && ownerLimitIsValid();
+        }
+
+        // The owner may also clear every claim in one write. The value must
+        // stay a map and must end empty, so an owner can remove claims but
+        // never add or rewrite one.
+        function ownerClearsClaims() {
+          return changed().hasOnly(['claims'])
+                 && requestClaims() is map
+                 && requestClaims().size() == 0;
+        }
+
         // Narrower than the wishlist read above: an item is readable only by its
         // wishlist's owner, or when that wishlist has been shared with a group.
         allow read: if canReadParent();
@@ -180,12 +197,11 @@ service cloud.firestore {
 
         // The owner's update is field-scoped so a whole-document write cannot
         // drop a reader's claim, and it is refused until the document has a
-        // limit (a legacy document is migrated before these rules deploy).
+        // limit (a legacy document is migrated before these rules deploy). A
+        // separate reset path clears every claim, and only down to empty.
         allow update: if (isParentOwner()
                           && resource.data.keys().hasAny(['claimLimit'])
-                          && changed().hasOnly(
-                               ['name', 'description', 'url', 'claimLimit'])
-                          && ownerLimitIsValid())
+                          && (ownerEditsContent() || ownerClearsClaims()))
                       || (canReadParent()
                           && changed().hasOnly(['claims'])
                           && ownClaimOnly()

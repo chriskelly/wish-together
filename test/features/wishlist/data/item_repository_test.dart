@@ -262,6 +262,52 @@ void main() {
       );
     });
 
+    group('resetClaims', () {
+      test(
+        'removes every claim and leaves the content and limit untouched',
+        () async {
+          const itemId = 'reset_item';
+          await seed(itemId, <String, dynamic>{
+            'name': 'Gift',
+            'description': 'Kept description',
+            'url': 'https://example.com/kept',
+            'claims': <String, dynamic>{
+              'reader-1': Timestamp.fromDate(claimedAt),
+              'reader-2': Timestamp.fromDate(
+                claimedAt.add(const Duration(hours: 1)),
+              ),
+            },
+            'claimLimit': 2,
+          });
+
+          await itemRepository.resetClaims(itemId);
+
+          final data = await stored(itemId);
+          expect(data.containsKey('claims'), isFalse);
+          expect(data['name'], 'Gift');
+          expect(data['description'], 'Kept description');
+          expect(data['url'], 'https://example.com/kept');
+          expect(data['claimLimit'], 2);
+        },
+      );
+
+      test('does nothing when the item has no claims', () async {
+        const itemId = 'already_clear';
+        await seed(itemId, <String, dynamic>{
+          'name': 'Gift',
+          'claims': <String, dynamic>{},
+          'claimLimit': 1,
+        });
+
+        await itemRepository.resetClaims(itemId);
+
+        final data = await stored(itemId);
+        expect(data.containsKey('claims'), isFalse);
+        expect(data['name'], 'Gift');
+        expect(data['claimLimit'], 1);
+      });
+    });
+
     group('updateContent', () {
       test('writes the four content fields and preserves the claims', () async {
         const itemId = 'content_edit';

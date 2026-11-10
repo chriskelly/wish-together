@@ -9,7 +9,8 @@ the product.
 - Deleting a wishlist goes through `deleteWithItems`, because Firestore does not remove a
   sub-collection with its parent.
 - A claim writes only the caller's own key in `claims`, and never the rest of the item. An
-  owner's edit writes content and `claimLimit` only, never `claims`.
+  owner's content edit writes content and `claimLimit` only, never `claims`; a separate reset
+  deletes every claim in one write, and the rules accept it only when the map ends empty.
 - A finite claim limit never drops below the item's current claim count; the item form's
   minimum on edit is `max(1, claimCount)`.
 - The owner's details page hides claimed status by default and shows the configured limit

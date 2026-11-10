@@ -18,11 +18,14 @@ if you own it. The owner is `ownerId` on a wishlist or a group, the parent wishl
   shared with a group. A reader may add or remove only their own key in the item's `claims`
   map, whose value is a timestamp; their write may not change anything else. They cannot take
   over, remove or rewrite another person's claim. A finite `claimLimit` caps how many claims an
-  item may hold (`0` is unlimited). The owner edits content and the limit only, and cannot
-  lower a finite limit below the current number of claims. An item cannot be created already
-  claimed, and create requires a non-negative integer limit. A stored item without `claimLimit`
-  (written before the migration) is write-denied, including owner edits, until the migration adds
-  it; rerunning the migration is the repair.
+  item may hold (`0` is unlimited). The owner edits content and the limit, and may also clear
+  every claim in one write; that write is accepted only when the `claims` map ends empty, so it
+  can remove claims but cannot add or rewrite one. The owner is also a reader for their own key,
+  so they may add or remove that one key through the reader branch. The owner cannot lower a
+  finite limit below the current number of claims. An item cannot be created already claimed,
+  and create requires a non-negative integer limit. A stored item without `claimLimit` (written
+  before the migration) is write-denied, including owner edits, until the migration adds it;
+  rerunning the migration is the repair.
 
 Group membership is the one other writable edge, and it is bounded to exactly that: a
 signed-in user who has a group's id may add themselves to the group or remove themselves
@@ -45,7 +48,8 @@ of every shared wishlist — no invite, group join or membership needed. Item re
 writes are still gated on the parent wishlist, which is narrower than the wishlist read.
 Because any reader of a shared wishlist can add their own claim, any signed-in user can claim
 every unclaimed item in every shared wishlist. An owner's content edit no longer drops claims,
-so a claim persists until that reader removes it (or the item is deleted). The cap is a count,
+so a claim persists until that reader removes it, the owner resets the item's claims, or the item
+is deleted. The cap is a count,
 not a lock: the rules cannot serialise it, so two hostile clients racing for the last slot can
 overshoot by one; the client transaction closes that for cooperating clients. The impact is an
 extra gift, not data loss.

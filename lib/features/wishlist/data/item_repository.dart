@@ -51,6 +51,15 @@ class ItemRepository extends FirebaseRepository<Item> {
     return updateData(itemId, {'claims.$claimedBy': FieldValue.delete()});
   }
 
+  /// Removes every claim from [itemId], touching no other field.
+  ///
+  /// One write deletes the whole `claims` map, so a key left by a deleted user
+  /// goes too. A claim a reader commits after this write survives, because the
+  /// reset deletes the map rather than blocking future claims.
+  Future<void> resetClaims(String itemId) {
+    return updateData(itemId, {'claims': FieldValue.delete()});
+  }
+
   /// Claims [itemId] for [claimedBy], touching no other field.
   ///
   /// A transaction keeps the cap honest: two readers racing for the last slot

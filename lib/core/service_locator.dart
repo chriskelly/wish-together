@@ -18,6 +18,7 @@ import 'package:wishtogether/features/group/data/group_repository.dart';
 import 'package:wishtogether/features/wishlist/application/claim_item_use_case.dart';
 import 'package:wishtogether/features/wishlist/application/create_item_use_case.dart';
 import 'package:wishtogether/features/wishlist/application/create_wishlist_use_case.dart';
+import 'package:wishtogether/features/wishlist/application/reset_claims_use_case.dart';
 import 'package:wishtogether/features/wishlist/application/unclaim_item_use_case.dart';
 import 'package:wishtogether/features/wishlist/application/update_item_use_case.dart';
 import 'package:wishtogether/features/wishlist/application/update_wishlist_use_case.dart';
@@ -112,4 +113,5 @@ void setupServiceLocator({
   getIt.registerLazySingleton<UpdateItemUseCase>(() => UpdateItemUseCase());
   getIt.registerLazySingleton<ClaimItemUseCase>(() => ClaimItemUseCase());
   getIt.registerLazySingleton<UnclaimItemUseCase>(() => UnclaimItemUseCase());
+  getIt.registerLazySingleton<ResetClaimsUseCase>(() => ResetClaimsUseCase());
 }

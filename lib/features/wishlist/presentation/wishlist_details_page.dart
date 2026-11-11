@@ -1,29 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wishtogether/common/widgets/brand_card.dart';
 import 'package:wishtogether/common/widgets/confirmation_dialog.dart';
+import 'package:wishtogether/common/widgets/list_content_builder.dart';
 import 'package:wishtogether/common/widgets/list_item_actions.dart';
 import 'package:wishtogether/common/widgets/primary_app_bar.dart';
 import 'package:wishtogether/common/widgets/status_pill.dart';
-import 'package:wishtogether/common/widgets/stream_list_builder.dart';
 import 'package:wishtogether/core/logging/diagnostics.dart';
-import 'package:wishtogether/core/service_locator.dart';
-import 'package:wishtogether/features/auth/domain/auth_session.dart';
+import 'package:wishtogether/core/providers.dart';
 import 'package:wishtogether/features/wishlist/application/claim_failure.dart';
-import 'package:wishtogether/features/wishlist/application/claim_item_use_case.dart';
-import 'package:wishtogether/features/wishlist/application/unclaim_item_use_case.dart';
-import 'package:wishtogether/features/wishlist/data/item_repository.dart';
-import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 import 'package:wishtogether/features/wishlist/domain/item.dart';
 import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
 import 'package:wishtogether/features/wishlist/presentation/claim_failure_message.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:wishtogether/features/wishlist/presentation/item_form_page.dart';
+import 'package:wishtogether/features/wishlist/presentation/providers/wishlist_details_providers.dart';
 import 'package:wishtogether/features/wishlist/presentation/wishlist_form_page.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 typedef _ClaimedText = ({Color color, bool strikeThrough});
 
-class WishlistDetailsPage extends StatefulWidget {
+class WishlistDetailsPage extends ConsumerWidget {
   static const String routeName = 'wishlistDetails';
   static const String route = '/wishlist/:id';
 
@@ -32,103 +29,107 @@ class WishlistDetailsPage extends StatefulWidget {
   const WishlistDetailsPage({super.key, required this.wishlistId});
 
   @override
-  State<WishlistDetailsPage> createState() => _WishlistDetailsPageState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final wishlistAsync = ref.watch(wishlistProvider(wishlistId));
+    // AsyncValue.value keeps the previous value during an error. The old
+    // StreamBuilder cleared data on error, so check the error first.
+    if (wishlistAsync.hasError) {
+      return _notFoundScaffold();
+    }
+    final wishlist = wishlistAsync.value;
+    if (wishlist == null) {
+      return wishlistAsync.isLoading ? _loadingScaffold() : _notFoundScaffold();
+    }
 
-class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
-  final WishlistRepository _wishlistRepository = getIt<WishlistRepository>();
-  final ClaimItemUseCase _claimItemUseCase = getIt<ClaimItemUseCase>();
-  final UnclaimItemUseCase _unclaimItemUseCase = getIt<UnclaimItemUseCase>();
-  late final ItemRepository _itemRepository;
-  late final String? _currentUserId;
-  bool _isSpoilerFree = true; // Default to spoiler-free for the owner
+    final userId = ref.watch(currentUserIdProvider);
+    final isOwner = wishlist.ownerId == userId;
+    final isSpoilerFree = ref.watch(wishlistSpoilerFreeProvider(wishlistId));
+    final itemsAsync = ref.watch(wishlistItemsProvider(wishlistId));
 
-  @override
-  void initState() {
-    super.initState();
-    _itemRepository = _wishlistRepository.items(widget.wishlistId);
-    _currentUserId = getIt<AuthSession>().currentUserId;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<Wishlist>(
-      stream: _wishlistRepository.streamOne(widget.wishlistId),
-      builder: (context, wishlistSnapshot) {
-        if (wishlistSnapshot.connectionState == ConnectionState.waiting) {
-          return Scaffold(
-            appBar: AppBar(title: const Text('Loading...')),
-            body: const Center(child: CircularProgressIndicator()),
-          );
-        }
-        if (!wishlistSnapshot.hasData || wishlistSnapshot.data == null) {
-          return Scaffold(
-            appBar: AppBar(title: const Text('Wishlist Not Found')),
-            body: const Center(child: Text('Wishlist Not Found')),
-          );
-        }
-        final wishlist = wishlistSnapshot.data!;
-        final isOwner = wishlist.ownerId == _currentUserId;
-
-        return Scaffold(
-          appBar: _buildAppBar(wishlist, isOwner),
-          body: StreamListBuilder<Item>(
-            stream: _itemRepository.streamAll(),
-            entityWidgetBuilder: (context, item) =>
-                _buildItemCard(item, context, wishlist, isOwner),
-            emptyMessage: 'This wishlist has no items yet.',
-            listPadding: const EdgeInsets.only(bottom: 48),
-          ),
-          floatingActionButton: _buildFloatingActionButton(wishlist, isOwner),
-        );
-      },
+    return Scaffold(
+      appBar: _buildAppBar(context, ref, wishlist, isOwner, isSpoilerFree),
+      body: ListContentBuilder<Item>(
+        items: itemsAsync.value,
+        error: itemsAsync.error,
+        entityWidgetBuilder: (context, item) => _buildItemCard(
+          context,
+          ref,
+          item,
+          isOwner: isOwner,
+          isSpoilerFree: isSpoilerFree,
+          userId: userId,
+        ),
+        emptyMessage: 'This wishlist has no items yet.',
+        listPadding: const EdgeInsets.only(bottom: 48),
+      ),
+      floatingActionButton: _buildFloatingActionButton(context, isOwner),
     );
   }
 
-  PrimaryAppBar _buildAppBar(Wishlist wishlist, bool isOwner) => PrimaryAppBar(
+  Widget _loadingScaffold() => Scaffold(
+    appBar: AppBar(title: const Text('Loading...')),
+    body: const Center(child: CircularProgressIndicator()),
+  );
+
+  Widget _notFoundScaffold() => Scaffold(
+    appBar: AppBar(title: const Text('Wishlist Not Found')),
+    body: const Center(child: Text('Wishlist Not Found')),
+  );
+
+  PrimaryAppBar _buildAppBar(
+    BuildContext context,
+    WidgetRef ref,
+    Wishlist wishlist,
+    bool isOwner,
+    bool isSpoilerFree,
+  ) => PrimaryAppBar(
     title: wishlist.name,
     actions: [
       if (isOwner)
         Row(
-          children: [_buildSpoilerToggleButton(), _buildEditButton(wishlist)],
+          children: [
+            _buildSpoilerToggleButton(ref, isSpoilerFree),
+            _buildEditButton(context, wishlist),
+          ],
         ),
     ],
   );
 
-  Widget _buildSpoilerToggleButton() => IconButton(
-    icon: Icon(_isSpoilerFree ? Icons.visibility_off : Icons.visibility),
-    onPressed: () {
-      setState(() {
-        _isSpoilerFree = !_isSpoilerFree;
-      });
-    },
-    tooltip: _isSpoilerFree ? 'Show claimed status' : 'Hide claimed status',
-  );
-
-  Widget _buildEditButton(Wishlist wishlist) => IconButton(
-    icon: const Icon(Icons.edit),
-    onPressed: () {
-      context.pushNamed(
-        WishlistFormPage.editRouteName,
-        pathParameters: {'id': wishlist.id!},
-        extra: wishlist,
+  Widget _buildSpoilerToggleButton(WidgetRef ref, bool isSpoilerFree) =>
+      IconButton(
+        icon: Icon(isSpoilerFree ? Icons.visibility_off : Icons.visibility),
+        onPressed: () =>
+            ref.read(wishlistSpoilerFreeProvider(wishlistId).notifier).toggle(),
+        tooltip: isSpoilerFree ? 'Show claimed status' : 'Hide claimed status',
       );
-    },
-    tooltip: 'Edit Wishlist',
-  );
+
+  Widget _buildEditButton(BuildContext context, Wishlist wishlist) =>
+      IconButton(
+        icon: const Icon(Icons.edit),
+        onPressed: () {
+          context.pushNamed(
+            WishlistFormPage.editRouteName,
+            pathParameters: {'id': wishlist.id!},
+            extra: wishlist,
+          );
+        },
+        tooltip: 'Edit Wishlist',
+      );
 
   Widget _buildItemCard(
-    Item item,
     BuildContext context,
-    Wishlist wishlist,
-    bool isOwner,
-  ) {
+    WidgetRef ref,
+    Item item, {
+    required bool isOwner,
+    required bool isSpoilerFree,
+    required String? userId,
+  }) {
     final scheme = Theme.of(context).colorScheme;
     // An owner's card never carries the claimed treatment; the spoiler toggle
     // only controls the status text. A reader always sees claims, so the card
     // itself carries the state.
     final applyClaimedTreatment =
-        !isOwner && (item.isClaimedBy(_currentUserId) || !item.hasClaimRoom);
+        !isOwner && (item.isClaimedBy(userId) || !item.hasClaimRoom);
     final claimedText = applyClaimedTreatment
         ? (color: scheme.onSurfaceVariant, strikeThrough: true)
         : null;
@@ -141,8 +142,17 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
           // One area per card lets a drag select across the name, link and
           // description. The action row stays outside it, so its buttons keep
           // their own long-press behaviour.
-          SelectionArea(child: _buildItemText(item, claimedText: claimedText)),
-          _buildItemActions(item, isOwner),
+          SelectionArea(
+            child: _buildItemText(context, item, claimedText: claimedText),
+          ),
+          _buildItemActions(
+            context,
+            ref,
+            item,
+            isOwner: isOwner,
+            isSpoilerFree: isSpoilerFree,
+            userId: userId,
+          ),
         ],
       ),
     );
@@ -157,23 +167,31 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
     );
   }
 
-  Widget _buildItemText(Item item, {required _ClaimedText? claimedText}) =>
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildItemNameAndUrl(item, claimedText: claimedText),
-          (item.description != null && item.description!.isNotEmpty)
-              ? _buildItemDescription(
-                  item,
-                  claimedTextColor: claimedText?.color,
-                )
-              : (item.url != null && item.url!.isNotEmpty)
-              ? const SizedBox(height: 16) // Space between url and actions
-              : const SizedBox.shrink(),
-        ],
-      );
+  Widget _buildItemText(
+    BuildContext context,
+    Item item, {
+    required _ClaimedText? claimedText,
+  }) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _buildItemNameAndUrl(context, item, claimedText: claimedText),
+      (item.description != null && item.description!.isNotEmpty)
+          ? _buildItemDescription(
+              context,
+              item,
+              claimedTextColor: claimedText?.color,
+            )
+          : (item.url != null && item.url!.isNotEmpty)
+          ? const SizedBox(height: 16) // Space between url and actions
+          : const SizedBox.shrink(),
+    ],
+  );
 
-  Widget _buildItemNameAndUrl(Item item, {required _ClaimedText? claimedText}) {
+  Widget _buildItemNameAndUrl(
+    BuildContext context,
+    Item item, {
+    required _ClaimedText? claimedText,
+  }) {
     final titleStyle = Theme.of(context).textTheme.titleLarge?.copyWith(
       color: claimedText?.color,
       decoration: (claimedText?.strikeThrough ?? false)
@@ -197,7 +215,7 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
               child: Align(
                 alignment: Alignment.centerRight,
                 child: InkWell(
-                  onTap: () => _launchURL(item.url!),
+                  onTap: () => _launchURL(context, item.url!),
                   child: Text(
                     item.url!,
                     style: TextStyle(
@@ -216,7 +234,11 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
     );
   }
 
-  Widget _buildItemDescription(Item item, {required Color? claimedTextColor}) {
+  Widget _buildItemDescription(
+    BuildContext context,
+    Item item, {
+    required Color? claimedTextColor,
+  }) {
     final style = claimedTextColor == null
         ? null
         : Theme.of(context).textTheme.bodyMedium
@@ -224,49 +246,71 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
     return Text(item.description!, style: style);
   }
 
-  Widget _buildItemActions(Item item, bool isOwner) {
-    final bool viewerClaimed = item.isClaimedBy(_currentUserId);
-
+  Widget _buildItemActions(
+    BuildContext context,
+    WidgetRef ref,
+    Item item, {
+    required bool isOwner,
+    required bool isSpoilerFree,
+    required String? userId,
+  }) {
     if (isOwner) {
-      return _buildOwnerActions(item);
+      return _buildOwnerActions(
+        context,
+        ref,
+        item,
+        isSpoilerFree: isSpoilerFree,
+      );
     }
 
-    if (viewerClaimed) {
-      return _buildUserClaimedView(item);
+    if (item.isClaimedBy(userId)) {
+      return _buildUserClaimedView(context, ref, item);
     }
 
     if (!item.hasClaimRoom) {
       return _buildUnavailablePill();
     }
 
-    return _buildClaimButton(item);
+    return _buildClaimButton(context, ref, item);
   }
 
-  Widget _buildOwnerActions(Item item) => Row(
+  Widget _buildOwnerActions(
+    BuildContext context,
+    WidgetRef ref,
+    Item item, {
+    required bool isSpoilerFree,
+  }) => Row(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Expanded(child: _buildOwnerStatus(item)),
+      Expanded(
+        child: _buildOwnerStatus(context, item, isSpoilerFree: isSpoilerFree),
+      ),
       ListItemActions(
         onEdit: () {
           context.pushNamed(
             ItemFormPage.editRouteName,
-            pathParameters: {'id': widget.wishlistId, 'itemId': item.id!},
+            pathParameters: {'id': wishlistId, 'itemId': item.id!},
             extra: item,
           );
         },
-        onDelete: () => _deleteItem(item.id!),
+        onDelete: () => _deleteItem(context, ref, item.id!),
       ),
     ],
   );
 
-  Widget _buildOwnerStatus(Item item) =>
-      _isSpoilerFree ? _buildClaimLimitText(item) : _buildClaimedStatus(item);
+  Widget _buildOwnerStatus(
+    BuildContext context,
+    Item item, {
+    required bool isSpoilerFree,
+  }) => isSpoilerFree
+      ? _buildClaimLimitText(context, item)
+      : _buildClaimedStatus(context, item);
 
-  TextStyle get _mutedTextStyle =>
+  TextStyle _mutedTextStyle(BuildContext context) =>
       TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant);
 
-  Widget _buildClaimLimitText(Item item) =>
-      Text(_claimLimitLabel(item), style: _mutedTextStyle);
+  Widget _buildClaimLimitText(BuildContext context, Item item) =>
+      Text(_claimLimitLabel(item), style: _mutedTextStyle(context));
 
   String _claimLimitLabel(Item item) {
     if (item.isUnlimited) {
@@ -296,8 +340,9 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
   String? _readerClaimSummary(Item item) =>
       item.claimLimit == 1 ? null : _claimSummary(item);
 
-  Widget _buildClaimedStatus(Item item) {
-    final italic = _mutedTextStyle.copyWith(fontStyle: FontStyle.italic);
+  Widget _buildClaimedStatus(BuildContext context, Item item) {
+    final italic = _mutedTextStyle(context)
+        .copyWith(fontStyle: FontStyle.italic);
     if (item.claimLimit != 1) {
       return Text(_claimSummary(item), style: italic);
     }
@@ -306,7 +351,7 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
     }
     return Text(
       'Available',
-      style: _mutedTextStyle.copyWith(fontWeight: FontWeight.bold),
+      style: _mutedTextStyle(context).copyWith(fontWeight: FontWeight.bold),
     );
   }
 
@@ -314,26 +359,34 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
   // the action moves to the next run instead of the row overflowing. The pill
   // keeps its natural width there, so its label breaks between words rather
   // than inside one.
-  Widget _claimActionRow({String? summary, required List<Widget> trailing}) =>
-      Align(
-        alignment: Alignment.centerRight,
-        child: Wrap(
-          alignment: WrapAlignment.end,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 8,
-          children: [
-            if (summary != null) Text(summary, style: _mutedTextStyle),
-            ...trailing,
-          ],
-        ),
-      );
+  Widget _claimActionRow(
+    BuildContext context, {
+    String? summary,
+    required List<Widget> trailing,
+  }) => Align(
+    alignment: Alignment.centerRight,
+    child: Wrap(
+      alignment: WrapAlignment.end,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 8,
+      children: [
+        if (summary != null) Text(summary, style: _mutedTextStyle(context)),
+        ...trailing,
+      ],
+    ),
+  );
 
-  Widget _buildUserClaimedView(Item item) => _claimActionRow(
+  Widget _buildUserClaimedView(
+    BuildContext context,
+    WidgetRef ref,
+    Item item,
+  ) => _claimActionRow(
+    context,
     summary: _readerClaimSummary(item),
     trailing: [
       const StatusPill(label: 'You claimed this!', tone: StatusPillTone.accent),
       TextButton(
-        onPressed: () => _unclaimItem(item),
+        onPressed: () => _unclaimItem(context, ref, item),
         child: const Text('Unclaim'),
       ),
     ],
@@ -344,101 +397,131 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
     child: StatusPill(label: 'Unavailable', tone: StatusPillTone.neutral),
   );
 
-  Widget _buildClaimButton(Item item) => _claimActionRow(
-    summary: _readerClaimSummary(item),
-    trailing: [
-      ElevatedButton(
-        onPressed: () => _claimItem(item),
-        child: const Text('Claim'),
-      ),
-    ],
-  );
+  Widget _buildClaimButton(BuildContext context, WidgetRef ref, Item item) =>
+      _claimActionRow(
+        context,
+        summary: _readerClaimSummary(item),
+        trailing: [
+          ElevatedButton(
+            onPressed: () => _claimItem(context, ref, item),
+            child: const Text('Claim'),
+          ),
+        ],
+      );
 
-  Future<void> _launchURL(String url) async {
+  Future<void> _launchURL(BuildContext context, String url) async {
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
     } else {
-      if (mounted) {
-        _showErrorSnackbar('Could not launch $url');
+      if (context.mounted) {
+        _showErrorSnackbar(context, 'Could not launch $url');
       }
     }
   }
 
-  Future<void> _claimItem(Item item) async {
+  Future<void> _claimItem(
+    BuildContext context,
+    WidgetRef ref,
+    Item item,
+  ) async {
     try {
-      await _claimItemUseCase.execute(widget.wishlistId, item.id!);
-      if (mounted) {
-        _showSuccessSnackbar('Item claimed!');
+      final ran = await ref
+          .read(wishlistItemActionsProvider(wishlistId).notifier)
+          .claim(item.id!);
+      if (!ran || !context.mounted) {
+        return;
       }
+      _showSuccessSnackbar(context, 'Item claimed!');
     } catch (error, stackTrace) {
       if (error is! ClaimFailure) {
         // No repository seam saw this one, so it would otherwise leave no
         // trail; a classified failure is already reported by the write itself.
         appLogOrNull?.error(error, stackTrace);
       }
-      if (mounted) {
-        _showErrorSnackbar(claimFailureMessage(error));
+      if (!context.mounted) {
+        return;
       }
+      _showErrorSnackbar(context, claimFailureMessage(error));
     }
   }
 
-  Future<void> _unclaimItem(Item item) async {
+  Future<void> _unclaimItem(
+    BuildContext context,
+    WidgetRef ref,
+    Item item,
+  ) async {
     try {
-      await _unclaimItemUseCase.execute(widget.wishlistId, item.id!);
-      if (mounted) {
-        _showSuccessSnackbar('Item unclaimed.');
+      final ran = await ref
+          .read(wishlistItemActionsProvider(wishlistId).notifier)
+          .unclaim(item.id!);
+      if (!ran || !context.mounted) {
+        return;
       }
+      _showSuccessSnackbar(context, 'Item unclaimed.');
     } catch (error) {
-      if (mounted) {
-        _showErrorSnackbar(
-          error is ClaimFailure
-              ? claimFailureMessage(error)
-              : "Couldn't unclaim this item. Please try again.",
-        );
+      if (!context.mounted) {
+        return;
       }
+      _showErrorSnackbar(
+        context,
+        error is ClaimFailure
+            ? claimFailureMessage(error)
+            : "Couldn't unclaim this item. Please try again.",
+      );
     }
   }
 
-  Future<void> _deleteItem(String itemId) async {
-    final bool? confirm = await _showDeleteDialog();
-    if (confirm != true) return;
+  Future<void> _deleteItem(
+    BuildContext context,
+    WidgetRef ref,
+    String itemId,
+  ) async {
+    final bool? confirm = await _showDeleteDialog(context);
+    if (confirm != true || !context.mounted) {
+      return;
+    }
 
     try {
-      await _itemRepository.delete(itemId);
-      if (mounted) {
-        _showSuccessSnackbar('Item deleted.');
+      final ran = await ref
+          .read(wishlistItemActionsProvider(wishlistId).notifier)
+          .delete(itemId);
+      if (!ran || !context.mounted) {
+        return;
       }
+      _showSuccessSnackbar(context, 'Item deleted.');
     } catch (e) {
-      if (mounted) {
-        _showErrorSnackbar('Failed to delete item: $e');
+      if (!context.mounted) {
+        return;
       }
+      _showErrorSnackbar(context, 'Failed to delete item: $e');
     }
   }
 
-  Future<bool?> _showDeleteDialog() => showConfirmationDialog(
-    context: context,
-    title: 'Delete Item?',
-    content: 'Are you sure you want to delete this item? This action cannot be undone.',
-    confirmText: 'Delete',
-  );
+  Future<bool?> _showDeleteDialog(BuildContext context) =>
+      showConfirmationDialog(
+        context: context,
+        title: 'Delete Item?',
+        content: 'Are you sure you want to delete this item? This action cannot be undone.',
+        confirmText: 'Delete',
+      );
 
-  void _showSuccessSnackbar(String message) =>
+  void _showSuccessSnackbar(BuildContext context, String message) =>
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(message)));
 
-  void _showErrorSnackbar(String message) =>
+  void _showErrorSnackbar(BuildContext context, String message) =>
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(message)));
 
-  Widget _buildFloatingActionButton(Wishlist wishlist, bool isOwner) {
+  Widget _buildFloatingActionButton(BuildContext context, bool isOwner) {
     if (!isOwner) {
       return const SizedBox.shrink();
     }
     return FloatingActionButton(
       onPressed: () => context.pushNamed(
         ItemFormPage.createRouteName,
-        pathParameters: {'id': widget.wishlistId},
+        pathParameters: {'id': wishlistId},
       ),
       tooltip: 'Add item',
       child: const Icon(Icons.add),

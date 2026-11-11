@@ -13,10 +13,15 @@ feature; features import from `core/`.
   repositories and use cases deliberately.
 - Every Firestore operation goes through a repository's reporting wrapper, so a failure reports
   and then behaves exactly as before.
+- A getIt dependency reaches presentation only through a bridge provider in `lib/core/providers.dart`;
+  no page imports `service_locator.dart`.
+- One `ProviderScope` wraps `WishTogetherApp` with `retry: disableAutomaticRetry`. Every test
+  scope and `ProviderContainer` uses the same policy.
 
 ## Reference
 
 - What core is, key types, startup flow → `docs/architecture.md`
+- Screen state, the getIt bridge, retry and test patterns → `docs/state.md`
 - `FirebaseRepository<T>`, database selection, data invariants → `docs/data-access.md`
 - Colours, type, primitives → `docs/design-system.md`
 - Router, redirect contract, link mapping → `docs/router.md`

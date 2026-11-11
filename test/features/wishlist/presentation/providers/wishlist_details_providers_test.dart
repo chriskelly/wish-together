@@ -1,0 +1,210 @@
+import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:wishtogether/core/providers.dart';
+import 'package:wishtogether/features/wishlist/application/claim_failure.dart';
+import 'package:wishtogether/features/wishlist/application/claim_item_use_case.dart';
+import 'package:wishtogether/features/wishlist/application/unclaim_item_use_case.dart';
+import 'package:wishtogether/features/wishlist/data/item_repository.dart';
+import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
+import 'package:wishtogether/features/wishlist/domain/item.dart';
+import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
+import 'package:wishtogether/features/wishlist/presentation/providers/wishlist_details_providers.dart';
+
+class MockWishlistRepository extends Mock implements WishlistRepository {}
+
+class MockItemRepository extends Mock implements ItemRepository {}
+
+class MockClaimItemUseCase extends Mock implements ClaimItemUseCase {}
+
+class MockUnclaimItemUseCase extends Mock implements UnclaimItemUseCase {}
+
+void main() {
+  const wishlistId = 'wishlist-1';
+  const itemId = 'item-1';
+  final wishlist = Wishlist(
+    id: wishlistId,
+    name: 'Birthday list',
+    ownerId: 'owner-1',
+  );
+  final item = Item(id: itemId, name: 'Desk lamp');
+
+  late MockWishlistRepository wishlistRepository;
+  late MockItemRepository itemRepository;
+  late MockClaimItemUseCase claimItemUseCase;
+  late MockUnclaimItemUseCase unclaimItemUseCase;
+
+  setUp(() {
+    wishlistRepository = MockWishlistRepository();
+    itemRepository = MockItemRepository();
+    claimItemUseCase = MockClaimItemUseCase();
+    unclaimItemUseCase = MockUnclaimItemUseCase();
+  });
+
+  ProviderContainer containerWith({
+    WishlistRepository? wishlistRepo,
+    ItemRepository? itemRepo,
+    ClaimItemUseCase? claim,
+    UnclaimItemUseCase? unclaim,
+  }) {
+    return ProviderContainer.test(
+      retry: disableAutomaticRetry,
+      overrides: [
+        if (wishlistRepo != null)
+          wishlistRepositoryProvider.overrideWithValue(wishlistRepo),
+        if (itemRepo != null)
+          itemRepositoryProvider(wishlistId).overrideWithValue(itemRepo),
+        if (claim != null) claimItemUseCaseProvider.overrideWithValue(claim),
+        if (unclaim != null)
+          unclaimItemUseCaseProvider.overrideWithValue(unclaim),
+      ],
+    );
+  }
+
+  /// Keeps an auto-disposed provider alive for the test body.
+  void listen<T>(ProviderContainer container, ProviderListenable<T> provider) {
+    final subscription = container.listen(
+      provider,
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(subscription.close);
+  }
+
+  group('reads', () {
+    test('emits the wishlist from the repository stream', () async {
+      when(() => wishlistRepository.streamOne(wishlistId))
+          .thenAnswer((_) => Stream.value(wishlist));
+      final container = containerWith(wishlistRepo: wishlistRepository);
+      listen(container, wishlistProvider(wishlistId));
+
+      final emitted = await container.read(wishlistProvider(wishlistId).future);
+
+      expect(emitted, same(wishlist));
+      verify(() => wishlistRepository.streamOne(wishlistId)).called(1);
+    });
+
+    test('emits the item list from the item repository stream', () async {
+      when(() => itemRepository.streamAll())
+          .thenAnswer((_) => Stream.value([item]));
+      final container = containerWith(itemRepo: itemRepository);
+      listen(container, wishlistItemsProvider(wishlistId));
+
+      final emitted = await container.read(
+        wishlistItemsProvider(wishlistId).future,
+      );
+
+      expect(emitted, [item]);
+      verify(() => itemRepository.streamAll()).called(1);
+    });
+  });
+
+  group('spoiler toggle', () {
+    test('starts spoiler-free and flips on toggle', () {
+      final container = containerWith();
+      listen(container, wishlistSpoilerFreeProvider(wishlistId));
+
+      expect(container.read(wishlistSpoilerFreeProvider(wishlistId)), isTrue);
+
+      container.read(wishlistSpoilerFreeProvider(wishlistId).notifier).toggle();
+      expect(container.read(wishlistSpoilerFreeProvider(wishlistId)), isFalse);
+
+      container.read(wishlistSpoilerFreeProvider(wishlistId).notifier).toggle();
+      expect(container.read(wishlistSpoilerFreeProvider(wishlistId)), isTrue);
+    });
+  });
+
+  group('item actions', () {
+    test('claim runs the use case, reports busy and clears it', () async {
+      final completer = Completer<void>();
+      when(() => claimItemUseCase.execute(wishlistId, itemId))
+          .thenAnswer((_) => completer.future);
+      final container = containerWith(claim: claimItemUseCase);
+      listen(container, wishlistItemActionsProvider(wishlistId));
+
+      final running = container
+          .read(wishlistItemActionsProvider(wishlistId).notifier)
+          .claim(itemId);
+      expect(
+        container.read(wishlistItemActionsProvider(wishlistId)).busyItemId,
+        itemId,
+      );
+
+      completer.complete();
+      expect(await running, isTrue);
+      expect(
+        container.read(wishlistItemActionsProvider(wishlistId)).busyItemId,
+        isNull,
+      );
+      verify(() => claimItemUseCase.execute(wishlistId, itemId)).called(1);
+    });
+
+    test('claim rethrows a ClaimFailure and clears busy', () async {
+      when(() => claimItemUseCase.execute(wishlistId, itemId))
+          .thenThrow(const ClaimFailure(ClaimFailureReason.fullyClaimed));
+      final container = containerWith(claim: claimItemUseCase);
+      listen(container, wishlistItemActionsProvider(wishlistId));
+
+      await expectLater(
+        container
+            .read(wishlistItemActionsProvider(wishlistId).notifier)
+            .claim(itemId),
+        throwsA(isA<ClaimFailure>()),
+      );
+      expect(
+        container.read(wishlistItemActionsProvider(wishlistId)).busyItemId,
+        isNull,
+      );
+    });
+
+    test('ignores a second action while one is in flight', () async {
+      final completer = Completer<void>();
+      when(() => claimItemUseCase.execute(wishlistId, itemId))
+          .thenAnswer((_) => completer.future);
+      final container = containerWith(claim: claimItemUseCase);
+      listen(container, wishlistItemActionsProvider(wishlistId));
+
+      final first = container
+          .read(wishlistItemActionsProvider(wishlistId).notifier)
+          .claim(itemId);
+      final second = container
+          .read(wishlistItemActionsProvider(wishlistId).notifier)
+          .claim(itemId);
+
+      expect(await second, isFalse);
+      completer.complete();
+      expect(await first, isTrue);
+      verify(() => claimItemUseCase.execute(wishlistId, itemId)).called(1);
+    });
+
+    test('unclaim runs the unclaim use case', () async {
+      when(() => unclaimItemUseCase.execute(wishlistId, itemId))
+          .thenAnswer((_) async {});
+      final container = containerWith(unclaim: unclaimItemUseCase);
+      listen(container, wishlistItemActionsProvider(wishlistId));
+
+      final ran = await container
+          .read(wishlistItemActionsProvider(wishlistId).notifier)
+          .unclaim(itemId);
+
+      expect(ran, isTrue);
+      verify(() => unclaimItemUseCase.execute(wishlistId, itemId)).called(1);
+    });
+
+    test('delete removes the item through the item repository', () async {
+      when(() => itemRepository.delete(itemId)).thenAnswer((_) async {});
+      final container = containerWith(itemRepo: itemRepository);
+      listen(container, wishlistItemActionsProvider(wishlistId));
+
+      final ran = await container
+          .read(wishlistItemActionsProvider(wishlistId).notifier)
+          .delete(itemId);
+
+      expect(ran, isTrue);
+      verify(() => itemRepository.delete(itemId)).called(1);
+    });
+  });
+}

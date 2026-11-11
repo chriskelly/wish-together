@@ -17,7 +17,12 @@ the product.
   instead; a reader of a shared list always sees the state. Single-claim rows never show a
   count; multi and unlimited rows show the count summary while room remains, and a full reader
   row shows `Unavailable` with no count.
+- `WishlistDetailsPage` is a `ConsumerWidget`. Its wishlist and item reads are the
+  `StreamProvider`s in `presentation/providers/wishlist_details_providers.dart`, its
+  claim/unclaim/delete commands are `ItemActions`, and the spoiler toggle is `SpoilerFree`. The
+  page never imports `service_locator.dart`; collaborators arrive through `lib/core/providers.dart`.
 
 ## Reference
 
 - Models, repositories, claim states, the rules that gate a claim → `docs/claiming.md`
+- The provider pattern, retry policy and test shapes → `../core/docs/state.md`

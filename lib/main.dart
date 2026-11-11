@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart'
         TargetPlatform,
         visibleForTesting;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
@@ -18,6 +19,7 @@ import 'package:wishtogether/core/logging/app_event.dart';
 import 'package:wishtogether/core/logging/diagnostics.dart';
 import 'package:wishtogether/core/logging/sentry_sink.dart';
 import 'package:wishtogether/core/logging/sentry_startup.dart';
+import 'package:wishtogether/core/providers.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/app_update/application/check_for_update.dart';
 import 'package:wishtogether/features/app_update/application/retry_update_gate.dart';
@@ -255,31 +257,34 @@ class WishTogetherApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      routerConfig: router,
-      title: 'WishTogether',
-      // The DEBUG ribbon is noise in screenshots and demos. It only ever
-      // renders in debug builds, so this has no effect on release.
-      debugShowCheckedModeBanner: false,
-      theme: lightTheme,
-      darkTheme: darkTheme,
-      themeMode: ThemeMode.system,
-      builder: (context, child) {
-        final pages = Container(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1000),
-              child: child,
+    return ProviderScope(
+      retry: disableAutomaticRetry,
+      child: MaterialApp.router(
+        routerConfig: router,
+        title: 'WishTogether',
+        // The DEBUG ribbon is noise in screenshots and demos. It only ever
+        // renders in debug builds, so this has no effect on release.
+        debugShowCheckedModeBanner: false,
+        theme: lightTheme,
+        darkTheme: darkTheme,
+        themeMode: ThemeMode.system,
+        builder: (context, child) {
+          final pages = Container(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1000),
+                child: child,
+              ),
             ),
-          ),
-        );
-        final frame = pageFrame;
-        if (frame == null) {
-          return pages;
-        }
-        return frame(pages);
-      },
+          );
+          final frame = pageFrame;
+          if (frame == null) {
+            return pages;
+          }
+          return frame(pages);
+        },
+      ),
     );
   }
 }

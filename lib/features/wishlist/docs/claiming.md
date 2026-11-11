@@ -19,7 +19,7 @@ root.
 | `domain/` | `domain/wishlist.dart`, `domain/item.dart`, `domain/claim_limit_reached_exception.dart` |
 | `data/` | `data/wishlist_repository.dart`, `data/item_repository.dart` |
 | `application/` | `application/create_wishlist_use_case.dart`, `application/update_wishlist_use_case.dart`, `application/create_item_use_case.dart`, `application/update_item_use_case.dart`, `application/claim_item_use_case.dart`, `application/claim_failure.dart`, `application/unclaim_item_use_case.dart`, `application/reset_claims_use_case.dart` |
-| `presentation/` | `presentation/wishlist_form_page.dart`, `presentation/wishlist_details_page.dart`, `presentation/claim_failure_message.dart`, `presentation/item_form_page.dart` |
+| `presentation/` | `presentation/wishlist_form_page.dart`, `presentation/wishlist_details_page.dart`, `presentation/wishlist_item_row.dart`, `presentation/claim_failure_message.dart`, `presentation/item_form_page.dart`, `presentation/providers/wishlist_details_providers.dart` |
 
 ## Key types
 
@@ -88,7 +88,7 @@ root.
   cannot be lowered.
 - Owner-only UI: the add-item FAB, item edit/delete actions, wishlist edit, and the spoiler
   toggle appear only when `wishlist.ownerId == currentUserId`.
-- `WishlistDetailsPage` defaults `_isSpoilerFree` to true for the owner's controls. Spoiler-free
+- `WishlistDetailsPage` starts spoiler-free (`SpoilerFree.build()` returns true). Spoiler-free
   shows the configured limit (`Unlimited claims`, `1 person can claim`, `N people can claim`)
   instead of claim status; the revealed view shows `Available`/`Claimed` for a single-claim item,
   `No claims yet`/`N claimed` for unlimited, and `No claims yet`/`N of M claimed` for a finite
@@ -112,11 +112,12 @@ root.
 ## Data flow
 
 `HomePage` streams the user's wishlists with `streamWhere('ownerId', isEqualTo: uid)`.
-`WishlistDetailsPage` streams the wishlist and its items, computes `isOwner` from the
-current uid, and calls the claim/unclaim use cases from the item card actions. The owner's
-`ItemFormPage` carries the reset-claims action, which calls `ResetClaimsUseCase` and returns
-to the details page so the stream shows the item unclaimed. A wishlist shared with a group
-appears in that group's details page because of `sharedWithGroups`.
+`WishlistDetailsPage` watches `wishlistProvider(id)` and `wishlistItemsProvider(id)`, computes
+`isOwner` from `currentUserIdProvider`, and runs claim/unclaim/delete through `ItemActions`; the
+spoiler toggle is `SpoilerFree`. Each item card is a `WishlistItemRow`. The owner's `ItemFormPage`
+carries the reset-claims action, which calls `ResetClaimsUseCase` and returns to the details page
+so the stream shows the item unclaimed. A wishlist shared with a group appears in that group's
+details page because of `sharedWithGroups`.
 
 ## How it is tested
 
@@ -142,6 +143,13 @@ appears in that group's details page because of `sharedWithGroups`.
   multi/unlimited counts, `Unavailable`, the owner's spoiler-free limit labels and revealed
   status, the row fitting a 320 px phone at 1.3 text scale, the signed-out unclaim copy, and the
   owner's card never being restyled in either spoiler mode.
+- `test/features/wishlist/presentation/providers/` — `ProviderContainer` transitions with no
+  widgets: a read emits, the spoiler toggle flips, claim succeeds and fails (rethrow plus busy
+  cleared), a second action is ignored, and unclaim/delete call their collaborators.
+- `test/features/wishlist/presentation/wishlist_details_state_test.dart` — one subscription per
+  page lifetime (no re-listen after a toggle, a page rebuild, a text-scale change or an item
+  emission; a cancel on leave and one new listen on re-entry), the double-tap claim guard (one
+  use-case call and one snackbar), and the wishlist/item error branches.
 - `rules_tests/` — own-key-only adds and removes, the cap, unlimited items, the owner's
   field-scoped edit and limit invariant, an owner reset to empty (and the refusals for a partial
   clear, a rewritten claim, or a reset combined with a content edit), create validation, a

@@ -1,11 +1,12 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:wishtogether/common/widgets/brand_card.dart';
 import 'package:wishtogether/common/widgets/status_pill.dart';
-import 'package:wishtogether/core/service_locator.dart';
+import 'package:wishtogether/core/providers.dart';
 import 'package:wishtogether/core/theme.dart';
 import 'package:wishtogether/features/auth/domain/auth_session.dart';
 import 'package:wishtogether/features/wishlist/application/claim_failure.dart';
@@ -45,30 +46,21 @@ void main() {
     late MockItemRepository itemRepository;
     late MockClaimItemUseCase claimItemUseCase;
     late MockUnclaimItemUseCase unclaimItemUseCase;
+    late MockAuthSession authSession;
 
     setUp(() {
-      getIt.reset();
-
       wishlistRepository = MockWishlistRepository();
       when(() => wishlistRepository.streamOne(wishlistId))
           .thenAnswer((_) => Stream.value(wishlist));
 
       itemRepository = MockItemRepository();
-      when(() => wishlistRepository.items(wishlistId))
-          .thenReturn(itemRepository);
 
-      final authSession = MockAuthSession();
+      authSession = MockAuthSession();
       when(() => authSession.currentUserId).thenReturn(viewerId);
 
-      getIt.registerSingleton<WishlistRepository>(wishlistRepository);
-      getIt.registerSingleton<AuthSession>(authSession);
       claimItemUseCase = MockClaimItemUseCase();
-      getIt.registerSingleton<ClaimItemUseCase>(claimItemUseCase);
       unclaimItemUseCase = MockUnclaimItemUseCase();
-      getIt.registerSingleton<UnclaimItemUseCase>(unclaimItemUseCase);
     });
-
-    tearDown(getIt.reset);
 
     /// Pumps the page for an item stream that has already emitted [items].
     Future<void> pumpPage(
@@ -86,9 +78,20 @@ void main() {
           .thenAnswer((_) => Stream.value(items));
 
       await tester.pumpWidget(
-        MaterialApp(
-          theme: theme ?? lightTheme,
-          home: const WishlistDetailsPage(wishlistId: wishlistId),
+        ProviderScope(
+          retry: disableAutomaticRetry,
+          overrides: [
+            wishlistRepositoryProvider.overrideWithValue(wishlistRepository),
+            itemRepositoryProvider(wishlistId)
+                .overrideWithValue(itemRepository),
+            authSessionProvider.overrideWithValue(authSession),
+            claimItemUseCaseProvider.overrideWithValue(claimItemUseCase),
+            unclaimItemUseCaseProvider.overrideWithValue(unclaimItemUseCase),
+          ],
+          child: MaterialApp(
+            theme: theme ?? lightTheme,
+            home: const WishlistDetailsPage(wishlistId: wishlistId),
+          ),
         ),
       );
       await tester.pumpAndSettle();

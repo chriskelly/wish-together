@@ -257,34 +257,32 @@ class WishTogetherApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ProviderScope(
-      retry: disableAutomaticRetry,
-      child: MaterialApp.router(
-        routerConfig: router,
-        title: 'WishTogether',
-        // The DEBUG ribbon is noise in screenshots and demos. It only ever
-        // renders in debug builds, so this has no effect on release.
-        debugShowCheckedModeBanner: false,
-        theme: lightTheme,
-        darkTheme: darkTheme,
-        themeMode: ThemeMode.system,
-        builder: (context, child) {
-          final pages = Container(
-            color: Theme.of(context).scaffoldBackgroundColor,
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 1000),
-                child: child,
-              ),
+    final app = MaterialApp.router(
+      routerConfig: router,
+      title: 'WishTogether',
+      // The DEBUG ribbon is noise in screenshots and demos. It only ever
+      // renders in debug builds, so this has no effect on release.
+      debugShowCheckedModeBanner: false,
+      theme: lightTheme,
+      darkTheme: darkTheme,
+      themeMode: ThemeMode.system,
+      builder: (context, child) {
+        final pages = Container(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1000),
+              child: child,
             ),
-          );
-          final frame = pageFrame;
-          if (frame == null) {
-            return pages;
-          }
-          return frame(pages);
-        },
-      ),
+          ),
+        );
+        final frame = pageFrame;
+        if (frame == null) {
+          return pages;
+        }
+        return frame(pages);
+      },
     );
+    return ProviderScope(retry: disableAutomaticRetry, child: app);
   }
 }

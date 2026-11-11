@@ -144,12 +144,13 @@ details page because of `sharedWithGroups`.
   status, the row fitting a 320 px phone at 1.3 text scale, the signed-out unclaim copy, and the
   owner's card never being restyled in either spoiler mode.
 - `test/features/wishlist/presentation/providers/` — `ProviderContainer` transitions with no
-  widgets: a read emits, the spoiler toggle flips, claim succeeds and fails (rethrow plus busy
-  cleared), a second action is ignored, and unclaim/delete call their collaborators.
-- `test/features/wishlist/presentation/wishlist_details_state_test.dart` — one subscription per
-  page lifetime (no re-listen after a toggle, a page rebuild, a text-scale change or an item
-  emission; a cancel on leave and one new listen on re-entry), the double-tap claim guard (one
-  use-case call and one snackbar), and the wishlist/item error branches.
+  widgets: the spoiler toggle flips, claim succeeds and fails (rethrow plus busy cleared), and
+  unclaim runs its use case.
+- `test/features/wishlist/presentation/wishlist_details_state_test.dart` — the subscription
+  regression (no re-listen after a toggle, a page rebuild, a text-scale change, an item emission
+  or a wishlist emission; a cancel on leave; one new listen on re-entry), the double-tap claim
+  guard (one call and one snackbar), the empty list, the delete flow, and the wishlist/item error
+  branches.
 - `rules_tests/` — own-key-only adds and removes, the cap, unlimited items, the owner's
   field-scoped edit and limit invariant, an owner reset to empty (and the refusals for a partial
   clear, a rewritten claim, or a reset combined with a content edit), create validation, a

@@ -21,19 +21,16 @@ migrating another screen. Paths are relative to `lib/`, then to the repository r
 | `StreamProvider` / `FutureProvider` | Converts a stream/future to `AsyncValue` and owns the subscription. `isAutoDispose: true` disposes it when the page leaves. |
 | `Notifier` | Mutable screen state with methods. `state` is the value; `ref.read(provider.notifier)` calls commands. |
 | `AsyncValue` | `loading` / `data` / `error`. `.value` is nullable and **retains the previous value** during a reload or error, so a screen that must clear on error checks `hasError` first. |
-| `ProviderScope` | Stores provider state. One root scope wraps `WishTogetherApp`; tests add a nested scope with `overrides`. |
+| `ProviderScope` | Stores provider state. One root scope is created in `WishTogetherApp.build`; tests add a nested scope with `overrides`. |
 | `ref.watch` / `ref.read` / `ref.listen` | Subscribe (rebuild), read once (callbacks), or react without rebuilding (snackbars, navigation). |
 
 ## Root policy
 
 `WishTogetherApp.build` wraps `MaterialApp.router` in
-`ProviderScope(retry: disableAutomaticRetry, child: ...)`. Riverpod 3 retries a failed provider
-ten times over about 38 seconds by default; the app's retries are user-initiated, and a retry
-would re-subscribe a Firestore stream and repeat the repository's diagnostics.
-`disableAutomaticRetry` lives in `lib/core/providers.dart` and returns `null` for every error.
-
-Every test scope and `ProviderContainer` passes the same function. Without it an error test
-waits through the retry schedule or fails for the wrong reason.
+`ProviderScope(retry: disableAutomaticRetry, child: ...)`. `disableAutomaticRetry` lives in
+`lib/core/providers.dart` and returns `null` for every failure, so nothing is retried behind the
+user's back. Every test scope and `ProviderContainer` passes the same function; a non-`Error`
+failure would otherwise be retried ten times.
 
 ## The getIt bridge
 
@@ -90,3 +87,5 @@ getIt leaves presentation.
   feature is the place to close that gap.
 - The delete guard serialises the write, not the confirmation dialog: two quick taps can open two
   dialogs, and only the write that is still in flight is ignored.
+- A stream that completes without emitting leaves the list loading; Firestore `snapshots()` does
+  not complete, so the app does not reach it.

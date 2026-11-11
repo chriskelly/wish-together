@@ -62,8 +62,7 @@ void main() {
   });
 
   /// The page under a scope whose bridges are replaced by the mocks.
-  Widget app({Widget Function(Widget page)? frame}) {
-    final page = WishlistDetailsPage(wishlistId: wishlistId);
+  Widget app({Widget Function()? frame}) {
     return ProviderScope(
       retry: disableAutomaticRetry,
       overrides: [
@@ -73,7 +72,9 @@ void main() {
         claimItemUseCaseProvider.overrideWithValue(claimItemUseCase),
         unclaimItemUseCaseProvider.overrideWithValue(unclaimItemUseCase),
       ],
-      child: MaterialApp(home: frame?.call(page) ?? page),
+      child: MaterialApp(
+        home: frame?.call() ?? WishlistDetailsPage(wishlistId: wishlistId),
+      ),
     );
   }
 
@@ -120,18 +121,25 @@ void main() {
       'reuses the wishlist and item streams across rebuilds and re-entry',
       (tester) async {
         late StateSetter setHostState;
+        var pageBuilds = 0;
         await tester.pumpWidget(
           app(
-            frame: (page) => StatefulBuilder(
+            frame: () => StatefulBuilder(
               builder: (context, setState) {
                 setHostState = setState;
-                return page;
+                // Register a MediaQuery dependency so a text-scale change
+                // rebuilds this host, and build a fresh page so the page's own
+                // build runs rather than being skipped as an identical widget.
+                MediaQuery.textScalerOf(context);
+                pageBuilds++;
+                return WishlistDetailsPage(wishlistId: wishlistId);
               },
             ),
           ),
         );
         await tester.pumpAndSettle();
 
+        expect(pageBuilds, 1);
         expect(wishlistCalls, 1);
         expect(itemCalls, 1);
         expect(wishlistListens, 1);
@@ -146,13 +154,15 @@ void main() {
         // A real page rebuild, not only a descendant text relayout.
         setHostState(() {});
         await tester.pumpAndSettle();
+        expect(pageBuilds, 2);
         expect(wishlistCalls, 1);
         expect(itemCalls, 1);
 
-        // A text-scale change rebuilds the tree below the page.
+        // A text-scale change rebuilds the host and therefore the page.
         tester.platformDispatcher.textScaleFactorTestValue = 1.5;
         addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
         await tester.pumpAndSettle();
+        expect(pageBuilds, 3);
         expect(wishlistCalls, 1);
         expect(itemCalls, 1);
 
@@ -163,6 +173,14 @@ void main() {
         expect(wishlistCalls, 1);
         expect(itemCalls, 1);
         expect(wishlistListens, 1);
+        expect(itemListens, 1);
+
+        // The old page rebuilt the item StreamBuilder when the wishlist
+        // snapshot changed; the item stream must stay subscribed.
+        wishlistUpdates.add(ownerWishlist.copyWith(name: 'Renamed'));
+        await tester.pumpAndSettle();
+        expect(find.text('Renamed'), findsOneWidget);
+        expect(itemCalls, 1);
         expect(itemListens, 1);
 
         // Leaving the page disposes both subscriptions.
@@ -206,6 +224,50 @@ void main() {
 
     expect(find.text('Item claimed!'), findsOneWidget);
     verify(() => claimItemUseCase.execute(wishlistId, item.id!)).called(1);
+
+    // A queued second snackbar would still be visible after the first expires.
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    expect(find.text('Item claimed!'), findsNothing);
+  });
+
+  testWidgets('shows the empty message for an empty item list', (tester) async {
+    when(() => wishlistRepository.streamOne(wishlistId))
+        .thenAnswer((_) => Stream.value(wishlist));
+    when(() => itemRepository.streamAll())
+        .thenAnswer((_) => Stream.value(const <Item>[]));
+
+    await tester.pumpWidget(app());
+    await tester.pumpAndSettle();
+
+    expect(find.text('This wishlist has no items yet.'), findsOneWidget);
+  });
+
+  testWidgets('deletes an item after confirmation', (tester) async {
+    when(() => wishlistRepository.streamOne(wishlistId))
+        .thenAnswer((_) => Stream.value(ownerWishlist));
+    when(() => itemRepository.streamAll())
+        .thenAnswer((_) => Stream.value([item]));
+    when(() => itemRepository.delete(item.id!)).thenAnswer((_) async {});
+
+    await tester.pumpWidget(app());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Delete'));
+    await tester.pumpAndSettle();
+    expect(find.text('Delete Item?'), findsOneWidget);
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    verifyNever(() => itemRepository.delete(item.id!));
+
+    await tester.tap(find.byTooltip('Delete'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+
+    verify(() => itemRepository.delete(item.id!)).called(1);
+    expect(find.text('Item deleted.'), findsOneWidget);
   });
 
   group('error branches', () {

@@ -19,8 +19,8 @@ the product.
   row shows `Unavailable` with no count.
 - `WishlistDetailsPage` is a `ConsumerWidget`. Its wishlist and item reads are the
   `StreamProvider`s in `presentation/providers/wishlist_details_providers.dart`, its
-  claim/unclaim/delete commands are `ItemActions`, and the spoiler toggle is `SpoilerFree`. The
-  page never imports `service_locator.dart`; collaborators arrive through `lib/core/providers.dart`.
+  claim/unclaim/delete commands are `ItemActions`, and the spoiler toggle is `SpoilerFree`. Each
+  item card is a `WishlistItemRow`, which owns the card rendering and those side effects.
 
 ## Reference
 

@@ -15,8 +15,8 @@ feature; features import from `core/`.
   and then behaves exactly as before.
 - A getIt dependency reaches presentation only through a bridge provider in `lib/core/providers.dart`;
   no page imports `service_locator.dart`.
-- One `ProviderScope` wraps `WishTogetherApp` with `retry: disableAutomaticRetry`. Every test
-  scope and `ProviderContainer` uses the same policy.
+- One `ProviderScope` is created in `WishTogetherApp.build` around `MaterialApp.router`, with
+  `retry: disableAutomaticRetry`. Every test scope and `ProviderContainer` uses the same policy.
 
 ## Reference
 

@@ -40,8 +40,10 @@ final wishlistItemActionsProvider =
       isAutoDispose: true,
     );
 
-/// Only [busyItemId] is read today; a later in-flight field should give this
-/// class `==` so a watcher is not rebuilt for an equal state.
+/// The command state: [busyItemId] while an action runs, null otherwise.
+///
+/// It has no `==` because nothing watches it; the notifier reads it only to
+/// serialise actions.
 class ItemActionState {
   const ItemActionState({this.busyItemId});
 

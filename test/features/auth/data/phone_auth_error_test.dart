@@ -12,6 +12,7 @@ void main() {
       'invalid-phone-number',
       'too-many-requests',
       'invalid-verification-code',
+      'missing-verification-code',
       'code-expired',
       'invalid-app-credential',
       'unauthorized-domain',
@@ -50,6 +51,16 @@ void main() {
         expect(message.toLowerCase(), contains('domain'));
       },
     );
+
+    test('asks for the six-digit SMS code when none was supplied', () {
+      // Act
+      final message = phoneAuthErrorMessage(
+        exceptionFor('missing-verification-code'),
+      );
+
+      // Assert
+      expect(message, contains('6-digit'));
+    });
 
     test('falls back to a generic message for an unrecognised code', () {
       // Act

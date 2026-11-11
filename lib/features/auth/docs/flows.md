@@ -18,7 +18,7 @@ to the repository root.
 | Layer | Files |
 | ----- | ----- |
 | `domain/` | `domain/auth_session.dart`, `domain/user.dart` |
-| `data/` | `data/auth_service.dart`, `data/user_repository.dart`, `data/google_sign_in_stub.dart`, `data/phone_auth_error.dart`, `data/apple_auth_error.dart`, `data/reauth_provider.dart`, `data/delete_account_error.dart`, `data/phone_verification.dart` |
+| `data/` | `data/auth_service.dart`, `data/user_repository.dart`, `data/google_sign_in_stub.dart`, `data/phone_auth_error.dart`, `data/phone_input.dart`, `data/apple_auth_error.dart`, `data/reauth_provider.dart`, `data/delete_account_error.dart`, `data/phone_verification.dart` |
 | `application/` | `application/load_user_profile_use_case.dart`, `application/save_user_profile_use_case.dart`, `application/delete_account_use_case.dart` |
 | `presentation/` | `presentation/login_page.dart`, `presentation/verification_page.dart`, `presentation/profile_page.dart`, `presentation/delete_account_section.dart`, `presentation/home_page.dart` |
 
@@ -79,6 +79,9 @@ to the repository root.
   re-authentication flows it drives are not part of the session.
 - `phoneAuthErrorMessage(...)` — maps a phone `FirebaseAuthException` to a short user-facing
   message, including the "domain not authorized" case.
+- `normalizeUsPhoneNumber(...)` / `isCompleteSmsCode(...)` — the phone pages' input
+  rules: ten digits with optional separators (no country code) become E.164, and
+  only a six-digit code enables Verify.
 - `appleAuthErrorMessage(...)` — maps an Apple sign-in failure (Apple-sheet exceptions or a
   Firebase `FirebaseAuthException`) to a short user-facing message. Returns `null` when the
   user canceled the Apple sheet, so the UI stays silent.
@@ -92,6 +95,12 @@ future returns as soon as the request is handed to the platform, so a guard tied
 re-enabled Send while the SMS was still on its way, and each extra tap sent another code and
 opened another code page. A platform that never reports fails with a `TimeoutException`
 **and** an `authState` record (`code: 'timeout'`), and the page tells the user to try again.
+
+The number is normalised on the device first: `LoginPage` accepts ten digits with spaces,
+dashes, dots or parentheses and rejects anything else — a country code, an eleventh digit or
+a letter — with a message, before any request reaches Firebase. `VerificationPage` keeps
+Verify disabled until the code is six digits, submits it trimmed, and ignores a second tap
+while a confirmation is in flight.
 
 - **Web:** `AuthService.startWebPhoneSignIn` calls `FirebaseAuth.signInWithPhoneNumber`
   (the documented web API, which manages the reCAPTCHA challenge) and returns a verification
@@ -145,6 +154,9 @@ session, `AuthListenable` drops the signed-in state at the same moment; the
   code sent, auto-retrieval timeout, failure, double-fire, timeout, and the web path),
   `signInProvider`, and `providerIds`.
 - `test/features/auth/data/phone_auth_error_test.dart` — the phone error-code → message mapper.
+- `test/features/auth/data/phone_input_test.dart` — the phone input rules: accepted
+  separators, rejection of a country code, an eleventh digit and non-digits, and the
+  six-digit SMS-code shape.
 - `test/features/auth/data/apple_auth_error_test.dart` — the Apple error mapper, including the
   silent-on-cancel case and every handled Firebase code.
 - `test/features/auth/data/reauth_provider_test.dart` — the provider-preference truth
@@ -158,9 +170,12 @@ session, `AuthListenable` drops the signed-in state at the same moment; the
   account deleted **last**, the unauthenticated throw, and "a failed cascade never
   deletes the auth account".
 - `test/features/auth/presentation/verification_page_test.dart` — the code page's support code
-  (visible on arrival and after a failed confirmation), the "sign-in expired" message when the
-  page outlives the web sign-in, and the pending sign-in being discarded when the page closes.
+  (visible on arrival and after a failed confirmation), Verify staying disabled until six
+  digits, a second tap ignored while a confirmation is in flight and the retry path reopening
+  when it fails, the "sign-in expired" message when the page outlives the web sign-in, and the
+  pending sign-in being discarded when the page closes.
 - `test/features/auth/presentation/login_page_test.dart` — the phone flow leaving the code page
   on top of login through the real router, with a back action that returns to login and keeps
-  the typed number; a second Send tap before the platform reports being ignored, Send
-  re-enabling after a failure, and the timeout message.
+  the typed number; rejecting a malformed number before the service; sending formatted input as
+  E.164; a second Send tap before the platform reports being ignored, Send re-enabling after a
+  failure, and the timeout message.

@@ -7,6 +7,7 @@ import 'package:wishtogether/core/logging/diagnostics.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
 import 'package:wishtogether/features/auth/data/phone_auth_error.dart';
+import 'package:wishtogether/features/auth/data/phone_input.dart';
 
 class VerificationPage extends StatefulWidget {
   static const String route = '/verify';
@@ -32,6 +33,12 @@ class VerificationPage extends StatefulWidget {
 class _VerificationPageState extends State<VerificationPage> {
   final _codeController = TextEditingController();
   final _authService = getIt<AuthService>();
+
+  /// Whether a confirmation is in flight.
+  ///
+  /// The button stays disabled until the platform reports an outcome, so a
+  /// second tap cannot confirm the same code twice.
+  bool _verifying = false;
 
   @override
   void dispose() {
@@ -92,35 +99,54 @@ class _VerificationPageState extends State<VerificationPage> {
     keyboardType: TextInputType.number,
   );
 
-  ElevatedButton _verifyButton() => ElevatedButton(
-    onPressed: () async {
-      try {
-        await _authService.confirmPhoneCode(
-          verificationId: widget.verificationId,
-          smsCode: _codeController.text,
-        );
-        if (mounted) {
-          context.go(widget.redirectTo ?? '/');
-        }
-      } on FirebaseAuthException catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text(phoneAuthErrorMessage(e))));
-        }
-      } on StateError {
-        // The page can outlive the web sign-in it was opened for, because
-        // browser history can bring it back after the user returned to login.
-        // There is nothing to confirm by then, and the tap must say so rather
-        // than fail silently.
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(VerificationPage.expiredSignInMessage),
-            ),
-          );
-        }
-      }
-    },
-    child: const Text('Verify'),
+  Widget _verifyButton() => ListenableBuilder(
+    listenable: _codeController,
+    builder: (context, _) => ElevatedButton(
+      // A six-digit code is the shape Firebase sends. Anything else is a tap
+      // that can only fail, so the button stays disabled rather than sending a
+      // request the service has to reject as `missing-verification-code`.
+      onPressed: !_verifying && isCompleteSmsCode(_codeController.text)
+          ? _verify
+          : null,
+      child: const Text('Verify'),
+    ),
   );
+
+  Future<void> _verify() async {
+    final code = _codeController.text.trim();
+    // The button is disabled for both cases, but a tap already dispatched
+    // against the previous build still reaches this handler.
+    if (_verifying || !isCompleteSmsCode(code)) {
+      return;
+    }
+    setState(() => _verifying = true);
+    try {
+      await _authService.confirmPhoneCode(
+        verificationId: widget.verificationId,
+        smsCode: code,
+      );
+      if (mounted) {
+        context.go(widget.redirectTo ?? '/');
+      }
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(phoneAuthErrorMessage(e))));
+      }
+    } on StateError {
+      // The page can outlive the web sign-in it was opened for, because
+      // browser history can bring it back after the user returned to login.
+      // There is nothing to confirm by then, and the tap must say so rather
+      // than fail silently.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(VerificationPage.expiredSignInMessage)),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _verifying = false);
+      }
+    }
+  }
 }

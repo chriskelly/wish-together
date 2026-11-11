@@ -221,6 +221,99 @@ void main() {
     });
   });
 
+  group('LoginPage validates the number', () {
+    late MockAuthService authService;
+
+    setUp(() async {
+      await getIt.reset();
+      authService = MockAuthService();
+      getIt.registerSingleton<AuthService>(authService);
+      getIt.registerSingleton<AppLog>(
+        AppLog(session: testSession, sinks: const []),
+      );
+    });
+
+    tearDown(getIt.reset);
+
+    /// A valid request reaches the service and fails there, so a test can
+    /// assert what was sent without navigating to the code page.
+    void stubFailingRequest() {
+      when(() => authService.startPhoneVerification(any()))
+          .thenThrow(FirebaseAuthException(code: 'too-many-requests'));
+    }
+
+    Future<void> pumpLogin(WidgetTester tester) async {
+      final router = GoRouter(
+        initialLocation: LoginPage.route,
+        routes: [loginPageRoute()],
+      );
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pump();
+    }
+
+    testWidgets('rejects an empty field without calling the service', (
+      tester,
+    ) async {
+      // Arrange
+      await pumpLogin(tester);
+
+      // Act
+      await tester.tap(find.text('Send Verification Code'));
+      await tester.pump();
+
+      // Assert
+      verifyNever(() => authService.startPhoneVerification(any()));
+      expect(find.text(LoginPage.invalidPhoneNumberMessage), findsOneWidget);
+    });
+
+    testWidgets('rejects a country code without calling the service', (
+      tester,
+    ) async {
+      // Arrange
+      await pumpLogin(tester);
+      await tester.enterText(find.byType(TextField), '+14085551234');
+
+      // Act
+      await tester.tap(find.text('Send Verification Code'));
+      await tester.pump();
+
+      // Assert
+      verifyNever(() => authService.startPhoneVerification(any()));
+      expect(find.text(LoginPage.invalidPhoneNumberMessage), findsOneWidget);
+    });
+
+    testWidgets('rejects an eleven-digit number without calling the service', (
+      tester,
+    ) async {
+      // Arrange
+      await pumpLogin(tester);
+      await tester.enterText(find.byType(TextField), '14085551234');
+
+      // Act
+      await tester.tap(find.text('Send Verification Code'));
+      await tester.pump();
+
+      // Assert
+      verifyNever(() => authService.startPhoneVerification(any()));
+      expect(find.text(LoginPage.invalidPhoneNumberMessage), findsOneWidget);
+    });
+
+    testWidgets('sends a formatted number as US E.164', (tester) async {
+      // Arrange
+      stubFailingRequest();
+      await pumpLogin(tester);
+      await tester.enterText(find.byType(TextField), '(408) 555-1234');
+
+      // Act
+      await tester.tap(find.text('Send Verification Code'));
+      await tester.pump();
+
+      // Assert
+      verify(() => authService.startPhoneVerification('+14085551234'))
+          .called(1);
+    });
+  });
+
   group('LoginPage requests one code at a time', () {
     late MockAuthService authService;
 

@@ -9,12 +9,13 @@ feature; features import from `core/`.
   `lightTheme` and `darkTheme`. A brand change edits tokens, never `ThemeData`.
 - Repositories are constructed only by `setupServiceLocator`. Never build one inline, and never
   fall back to `FirebaseFirestore.instance` in app code.
-- `router.dart` and `service_locator.dart` are composition roots: they may import feature pages,
-  repositories and use cases deliberately.
+- `router.dart`, `service_locator.dart` and `providers.dart` are composition roots: they may
+  import feature pages, repositories and use cases deliberately.
 - Every Firestore operation goes through a repository's reporting wrapper, so a failure reports
   and then behaves exactly as before.
-- A getIt dependency reaches presentation only through a bridge provider in `lib/core/providers.dart`;
-  no page imports `service_locator.dart`.
+- A migrated page reaches a getIt dependency only through a bridge provider in
+  `lib/core/providers.dart`; it imports no `service_locator.dart`. The auth, group, wishlist-form
+  and item-form pages are not migrated yet.
 - One `ProviderScope` is created in `WishTogetherApp.build` around `MaterialApp.router`, with
   `retry: disableAutomaticRetry`. Every test scope and `ProviderContainer` uses the same policy.
 

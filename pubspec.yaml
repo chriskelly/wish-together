@@ -68,7 +68,8 @@ dependencies:
   # cloud_firestore 6.10.x.
   fake_cloud_firestore: ^4.4.0
   # 3.5.0 adds material_ui (and its transitive packages) and raises the effective
-  # Flutter floor to 3.47; pinned deliberately, revisit on its own merits.
+  # Flutter floor to 3.47; therefore pinned at 3.4.3 until the floor is raised on
+  # its own merits.
   flutter_riverpod: 3.4.3
 
 dev_dependencies:

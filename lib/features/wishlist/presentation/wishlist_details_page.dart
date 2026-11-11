@@ -21,6 +21,9 @@ class WishlistDetailsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Watch the toggle before the loading/error returns so the owner's choice
+    // survives an error frame rather than being disposed with the page body.
+    final isSpoilerFree = ref.watch(wishlistSpoilerFreeProvider(wishlistId));
     final wishlistAsync = ref.watch(wishlistProvider(wishlistId));
     // AsyncValue.value keeps the previous value during an error. The old
     // StreamBuilder cleared data on error, so check the error first.
@@ -34,7 +37,6 @@ class WishlistDetailsPage extends ConsumerWidget {
 
     final userId = ref.watch(currentUserIdProvider);
     final isOwner = wishlist.ownerId == userId;
-    final isSpoilerFree = ref.watch(wishlistSpoilerFreeProvider(wishlistId));
     final itemsAsync = ref.watch(wishlistItemsProvider(wishlistId));
 
     return Scaffold(
@@ -43,6 +45,7 @@ class WishlistDetailsPage extends ConsumerWidget {
         items: itemsAsync.value,
         error: itemsAsync.error,
         entityWidgetBuilder: (context, item) => WishlistItemRow(
+          key: ValueKey(item.id),
           wishlistId: wishlistId,
           item: item,
           isOwner: isOwner,

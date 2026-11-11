@@ -6,10 +6,10 @@ import 'package:wishtogether/features/wishlist/application/unclaim_item_use_case
 import 'package:wishtogether/features/wishlist/data/item_repository.dart';
 import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 
-/// Disables Riverpod 3's automatic retry for the whole app.
+/// There is no automatic retry: re-entering the screen is the retry.
 ///
-/// Retries are user-initiated here: the default retries ten times over about
-/// 38 seconds, which would re-subscribe Firestore streams and amplify the
+/// Riverpod 3's default retries a non-`Error` failure ten times over about 38
+/// seconds, which would re-subscribe Firestore streams and amplify the
 /// repository's per-error diagnostics. Passed to the root `ProviderScope` and to
 /// every test scope and container.
 Duration? disableAutomaticRetry(int retryCount, Object error) => null;
@@ -39,10 +39,11 @@ final unclaimItemUseCaseProvider = Provider<UnclaimItemUseCase>(
   (ref) => getIt<UnclaimItemUseCase>(),
 );
 
-/// The signed-in uid at the time the page reads it.
+/// The signed-in uid, re-read when the last screen watching it leaves.
 ///
-/// A one-shot snapshot, not a stream: sign-out navigates away and is the
-/// router's concern. Reactive identity is `AuthSession.uidChanges`.
+/// One snapshot per page lifetime, not a stream: sign-out navigates away and is
+/// the router's concern. The reactive identity is `AuthSession.uidChanges`.
 final currentUserIdProvider = Provider<String?>(
   (ref) => ref.watch(authSessionProvider).currentUserId,
+  isAutoDispose: true,
 );

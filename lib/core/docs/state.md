@@ -8,10 +8,10 @@ migrating another screen. Paths are relative to `lib/`, then to the repository r
 
 - One owner per screen state: a `StreamProvider`/`FutureProvider` owns the read and its
   subscription; a `Notifier` owns mutating screen state.
-- Presentation never imports `service_locator.dart`; it reaches getIt only through a bridge
-  provider in `lib/core/providers.dart`.
-- `application/` and `domain/` stay free of Flutter and Riverpod. Providers live in
-  `lib/core/providers.dart` (bridge) and `lib/features/<feature>/presentation/providers/`.
+- A migrated page reaches getIt only through a bridge provider in
+  `lib/core/providers.dart`; it imports no `service_locator.dart`. `application/` and `domain/`
+  stay free of Flutter and Riverpod. Providers live in `lib/core/providers.dart` (bridge) and
+  `lib/features/<feature>/presentation/providers/`.
 
 ## Key concepts
 
@@ -26,11 +26,11 @@ migrating another screen. Paths are relative to `lib/`, then to the repository r
 
 ## Root policy
 
-`WishTogetherApp.build` wraps `MaterialApp.router` in
-`ProviderScope(retry: disableAutomaticRetry, child: ...)`. `disableAutomaticRetry` lives in
-`lib/core/providers.dart` and returns `null` for every failure, so nothing is retried behind the
-user's back. Every test scope and `ProviderContainer` passes the same function; a non-`Error`
-failure would otherwise be retried ten times.
+`WishTogetherApp.build` creates the only production `ProviderScope`, with
+`retry: disableAutomaticRetry` (`lib/core/providers.dart`). Riverpod 3 otherwise retries a
+non-`Error` failure ten times over about 38 seconds, re-subscribing Firestore streams and
+repeating the repository's diagnostics. Every test scope and `ProviderContainer` passes the same
+function; a nested scope has its own container and does not inherit the parent's policy.
 
 ## The getIt bridge
 
@@ -48,13 +48,16 @@ getIt leaves presentation.
   an `entityWidgetBuilder`; that callback runs during a descendant's build.
 - A command is a `Notifier<TState>` with one `busyItemId`-style field. Its methods call the use
   case and rethrow; it returns `false` when another action is already running. Side effects
-  (dialog, snackbar, navigation) stay in the widget, and the handler checks `context.mounted`
-  after every await.
+  (dialog, snackbar, navigation) stay in the widget. For a command that can remove the row (a
+  delete), capture the app-level `ScaffoldMessengerState` before the await and report through it;
+  its copy can outlive the page and land on the next route. For claim/unclaim, check
+  `context.mounted` after the await.
 - A command notifier is `isAutoDispose`. It calls `ref.keepAlive()` for the duration of the
   action, because a plain `read` opens and closes a temporary listener and the notifier would be
   disposed before a second tap. Actions are serialised page-wide, not per item.
-- `currentUserIdProvider` is a one-shot snapshot of `AuthSession.currentUserId`, not a stream.
-  Sign-out is the router's concern; `AuthSession.uidChanges` is the reactive identity.
+- `currentUserIdProvider` is an auto-disposed snapshot of `AuthSession.currentUserId`, re-read
+  when the last page watching it leaves, so an account switch is not cached. Sign-out is the
+  router's concern; `AuthSession.uidChanges` is the reactive identity.
 
 ## How it is tested
 
@@ -64,8 +67,8 @@ getIt leaves presentation.
   reading an auto-disposed notifier more than once.
 - Widgets: `ProviderScope(retry: disableAutomaticRetry, overrides: [...])` around the page. No
   `getIt.registerSingleton` for a migrated page's collaborators.
-- App-level overrides nest another `ProviderScope` around `WishTogetherApp`; the root scope
-  still owns the production container.
+- A test that needs app-level overrides nests another `ProviderScope` around `WishTogetherApp`
+  and passes `retry: disableAutomaticRetry`, because a nested scope has its own container.
 - A subscription test counts listens and cancels on a broadcast stream: one listen per page
   lifetime, no re-listen after a rebuild, a cancel when the page leaves, and one new listen on
   re-entry.
@@ -78,7 +81,8 @@ getIt leaves presentation.
 3. Add a `Notifier` for commands; call use cases and rethrow, keep `busyItemId`, keep side
    effects in the widget.
 4. Make the page a `ConsumerWidget` and render the `AsyncValue`; remove the old `State`.
-5. Test transitions with `ProviderContainer.test`; test widgets with `ProviderScope(overrides:)`.
+5. Test transitions with `ProviderContainer.test`; test widgets with
+   `ProviderScope(retry: disableAutomaticRetry, overrides:)`.
 
 ## Known exceptions
 
@@ -86,6 +90,6 @@ getIt leaves presentation.
   migration. A `DeleteItemUseCase` does not exist yet; constructor injection for the wishlist
   feature is the place to close that gap.
 - The delete guard serialises the write, not the confirmation dialog: two quick taps can open two
-  dialogs, and only the write that is still in flight is ignored.
+  dialogs; the second write returns `false` while the first is in flight and is dropped.
 - A stream that completes without emitting leaves the list loading; Firestore `snapshots()` does
   not complete, so the app does not reach it.

@@ -13,8 +13,6 @@ import 'package:wishtogether/features/wishlist/presentation/item_form_page.dart'
 import 'package:wishtogether/features/wishlist/presentation/providers/wishlist_details_providers.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-typedef _ClaimedText = ({Color color, bool strikeThrough});
-
 /// One item card on the wishlist details page.
 ///
 /// The row owns its rendering and its claim/unclaim/delete side effects; the
@@ -44,9 +42,7 @@ class WishlistItemRow extends ConsumerWidget {
     // itself carries the state.
     final applyClaimedTreatment =
         !isOwner && (item.isClaimedBy(userId) || !item.hasClaimRoom);
-    final claimedText = applyClaimedTreatment
-        ? (color: scheme.onSurfaceVariant, strikeThrough: true)
-        : null;
+    final claimedColor = applyClaimedTreatment ? scheme.onSurfaceVariant : null;
 
     final cardBody = Padding(
       padding: const EdgeInsets.all(16.0),
@@ -57,7 +53,7 @@ class WishlistItemRow extends ConsumerWidget {
           // description. The action row stays outside it, so its buttons keep
           // their own long-press behaviour.
           SelectionArea(
-            child: _buildItemText(context, claimedText: claimedText),
+            child: _buildItemText(context, claimedColor: claimedColor),
           ),
           _buildItemActions(context, ref),
         ],
@@ -65,7 +61,6 @@ class WishlistItemRow extends ConsumerWidget {
     );
 
     return BrandCard(
-      key: ValueKey(item.id),
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       backgroundColor: applyClaimedTreatment
           ? scheme.surfaceContainerHighest
@@ -74,31 +69,27 @@ class WishlistItemRow extends ConsumerWidget {
     );
   }
 
-  Widget _buildItemText(
-    BuildContext context, {
-    required _ClaimedText? claimedText,
-  }) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      _buildItemNameAndUrl(context, claimedText: claimedText),
-      (item.description != null && item.description!.isNotEmpty)
-          ? _buildItemDescription(context, claimedTextColor: claimedText?.color)
-          : (item.url != null && item.url!.isNotEmpty)
-          ? const SizedBox(height: 16) // Space between url and actions
-          : const SizedBox.shrink(),
-    ],
-  );
+  Widget _buildItemText(BuildContext context, {required Color? claimedColor}) =>
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildItemNameAndUrl(context, claimedColor: claimedColor),
+          (item.description != null && item.description!.isNotEmpty)
+              ? _buildItemDescription(context, claimedTextColor: claimedColor)
+              : (item.url != null && item.url!.isNotEmpty)
+              ? const SizedBox(height: 16) // Space between url and actions
+              : const SizedBox.shrink(),
+        ],
+      );
 
   Widget _buildItemNameAndUrl(
     BuildContext context, {
-    required _ClaimedText? claimedText,
+    required Color? claimedColor,
   }) {
     final titleStyle = Theme.of(context).textTheme.titleLarge?.copyWith(
-      color: claimedText?.color,
-      decoration: (claimedText?.strikeThrough ?? false)
-          ? TextDecoration.lineThrough
-          : null,
-      decorationColor: claimedText?.color,
+      color: claimedColor,
+      decoration: claimedColor == null ? null : TextDecoration.lineThrough,
+      decorationColor: claimedColor,
     );
 
     // The Row first allocates the fixed 8px spacing.
@@ -304,7 +295,7 @@ class WishlistItemRow extends ConsumerWidget {
         .claim(item.id!),
     success: 'Item claimed!',
     failure: claimFailureMessage,
-    onUnexpected: (error, stackTrace) {
+    onError: (error, stackTrace) {
       if (error is! ClaimFailure) {
         // No repository seam saw this one, so it would otherwise leave no
         // trail; a classified failure is already reported by the write itself.
@@ -329,6 +320,9 @@ class WishlistItemRow extends ConsumerWidget {
     WidgetRef ref,
     String itemId,
   ) async {
+    // The delete removes this row before the backend acknowledges it; the
+    // app-level messenger outlives the row, so the copy still lands.
+    final messenger = ScaffoldMessenger.of(context);
     final bool? confirm = await _showDeleteDialog(context);
     if (confirm != true || !context.mounted) {
       return;
@@ -340,31 +334,33 @@ class WishlistItemRow extends ConsumerWidget {
           .delete(itemId),
       success: 'Item deleted.',
       failure: (error) => 'Failed to delete item: $error',
+      messenger: messenger,
     );
   }
 
   /// Runs one command, shows its success copy only when it actually ran, and
-  /// maps a failure. [onUnexpected] sees every failure before the snackbar, so
-  /// the claim path can report an unclassified error without changing the copy.
+  /// maps a failure. [onError] sees every failure before the snackbar, so the
+  /// claim path can report an unclassified error without changing the copy.
   Future<void> _runAction(
     BuildContext context,
     Future<bool> Function() action, {
     required String success,
     required String Function(Object error) failure,
-    void Function(Object error, StackTrace stackTrace)? onUnexpected,
+    void Function(Object error, StackTrace stackTrace)? onError,
+    ScaffoldMessengerState? messenger,
   }) async {
     try {
       final ran = await action();
-      if (!ran || !context.mounted) {
+      if (!ran || (messenger == null && !context.mounted)) {
         return;
       }
-      _showSnackBar(context, success);
+      _showSnackBar(context, success, messenger: messenger);
     } catch (error, stackTrace) {
-      onUnexpected?.call(error, stackTrace);
-      if (!context.mounted) {
+      onError?.call(error, stackTrace);
+      if (messenger == null && !context.mounted) {
         return;
       }
-      _showSnackBar(context, failure(error));
+      _showSnackBar(context, failure(error), messenger: messenger);
     }
   }
 
@@ -376,7 +372,21 @@ class WishlistItemRow extends ConsumerWidget {
         confirmText: 'Delete',
       );
 
-  void _showSnackBar(BuildContext context, String message) =>
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(message)));
+  void _showSnackBar(
+    BuildContext context,
+    String message, {
+    ScaffoldMessengerState? messenger,
+  }) {
+    if (messenger != null) {
+      if (messenger.mounted) {
+        messenger.showSnackBar(SnackBar(content: Text(message)));
+      }
+      return;
+    }
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
 }

@@ -122,6 +122,7 @@ void main() {
       (tester) async {
         late StateSetter setHostState;
         var pageBuilds = 0;
+        var showPage = true;
         await tester.pumpWidget(
           app(
             frame: () => StatefulBuilder(
@@ -132,7 +133,9 @@ void main() {
                 // build runs rather than being skipped as an identical widget.
                 MediaQuery.textScalerOf(context);
                 pageBuilds++;
-                return WishlistDetailsPage(wishlistId: wishlistId);
+                return showPage
+                    ? WishlistDetailsPage(wishlistId: wishlistId)
+                    : const SizedBox.shrink();
               },
             ),
           ),
@@ -148,6 +151,7 @@ void main() {
         // The defect: a spoiler toggle used to rebuild the page and resubscribe.
         await tester.tap(find.byTooltip('Show claimed status'));
         await tester.pumpAndSettle();
+        expect(find.byTooltip('Hide claimed status'), findsOneWidget);
         expect(wishlistCalls, 1);
         expect(itemCalls, 1);
 
@@ -183,14 +187,14 @@ void main() {
         expect(itemCalls, 1);
         expect(itemListens, 1);
 
-        // Leaving the page disposes both subscriptions.
-        await tester.pumpWidget(const SizedBox.shrink());
+        // Leaving the page disposes both subscriptions; the scope stays alive.
+        setHostState(() => showPage = false);
         await tester.pumpAndSettle();
         expect(wishlistCancels, 1);
         expect(itemCancels, 1);
 
         // Re-entering starts one new subscription per stream.
-        await tester.pumpWidget(app());
+        setHostState(() => showPage = true);
         await tester.pumpAndSettle();
         expect(wishlistCalls, 2);
         expect(itemCalls, 2);
@@ -231,6 +235,43 @@ void main() {
     expect(find.text('Item claimed!'), findsNothing);
   });
 
+  testWidgets('re-reads the signed-in uid for a new page lifetime', (
+    tester,
+  ) async {
+    when(() => wishlistRepository.streamOne(wishlistId))
+        .thenAnswer((_) => Stream.value(wishlist));
+    when(() => itemRepository.streamAll())
+        .thenAnswer((_) => Stream.value([item]));
+    when(() => authSession.currentUserId).thenReturn(ownerId);
+
+    var showPage = true;
+    late StateSetter setHostState;
+    await tester.pumpWidget(
+      app(
+        frame: () => StatefulBuilder(
+          builder: (context, setState) {
+            setHostState = setState;
+            return showPage
+                ? const WishlistDetailsPage(wishlistId: wishlistId)
+                : const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Edit Wishlist'), findsOneWidget);
+
+    setHostState(() => showPage = false);
+    await tester.pumpAndSettle();
+
+    when(() => authSession.currentUserId).thenReturn(viewerId);
+    setHostState(() => showPage = true);
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Edit Wishlist'), findsNothing);
+    expect(find.text('Claim'), findsOneWidget);
+  });
+
   testWidgets('shows the empty message for an empty item list', (tester) async {
     when(() => wishlistRepository.streamOne(wishlistId))
         .thenAnswer((_) => Stream.value(wishlist));
@@ -244,11 +285,18 @@ void main() {
   });
 
   testWidgets('deletes an item after confirmation', (tester) async {
+    final items = StreamController<List<Item>>.broadcast();
+    addTearDown(items.close);
+    final ack = Completer<void>();
     when(() => wishlistRepository.streamOne(wishlistId))
         .thenAnswer((_) => Stream.value(ownerWishlist));
     when(() => itemRepository.streamAll())
-        .thenAnswer((_) => Stream.value([item]));
-    when(() => itemRepository.delete(item.id!)).thenAnswer((_) async {});
+        .thenAnswer((_) => _seeded([item], items.stream));
+    when(() => itemRepository.delete(item.id!)).thenAnswer((_) async {
+      // The listener removes the row before the backend acknowledges the write.
+      items.add(const <Item>[]);
+      await ack.future;
+    });
 
     await tester.pumpWidget(app());
     await tester.pumpAndSettle();
@@ -266,8 +314,47 @@ void main() {
     await tester.tap(find.text('Delete'));
     await tester.pumpAndSettle();
 
+    expect(
+      find.text('Desk lamp'),
+      findsNothing,
+      reason: 'the row must be gone before the write is acknowledged',
+    );
+    expect(find.text('Item deleted.'), findsNothing);
+
+    ack.complete();
+    await tester.pumpAndSettle();
+
     verify(() => itemRepository.delete(item.id!)).called(1);
     expect(find.text('Item deleted.'), findsOneWidget);
+  });
+
+  testWidgets('shows the failure copy after a rejected delete', (tester) async {
+    final items = StreamController<List<Item>>.broadcast();
+    addTearDown(items.close);
+    final ack = Completer<void>();
+    when(() => wishlistRepository.streamOne(wishlistId))
+        .thenAnswer((_) => Stream.value(ownerWishlist));
+    when(() => itemRepository.streamAll())
+        .thenAnswer((_) => _seeded([item], items.stream));
+    when(() => itemRepository.delete(item.id!)).thenAnswer((_) async {
+      items.add(const <Item>[]);
+      await ack.future;
+      throw StateError('denied');
+    });
+
+    await tester.pumpWidget(app());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Delete'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    expect(find.text('Desk lamp'), findsNothing);
+
+    ack.complete();
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Failed to delete item'), findsOneWidget);
   });
 
   group('error branches', () {

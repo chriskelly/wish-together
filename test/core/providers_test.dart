@@ -25,7 +25,7 @@ void main() {
     expect(container.retry, same(disableAutomaticRetry));
   });
 
-  testWidgets('a failing provider builds once under the root policy', (
+  testWidgets('a failing provider under disableAutomaticRetry builds once', (
     tester,
   ) async {
     var builds = 0;

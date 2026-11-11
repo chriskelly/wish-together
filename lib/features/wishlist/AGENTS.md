@@ -17,10 +17,11 @@ the product.
   instead; a reader of a shared list always sees the state. Single-claim rows never show a
   count; multi and unlimited rows show the count summary while room remains, and a full reader
   row shows `Unavailable` with no count.
-- `WishlistDetailsPage` is a `ConsumerWidget`. Its wishlist and item reads are the
-  `StreamProvider`s in `presentation/providers/wishlist_details_providers.dart`, its
-  claim/unclaim/delete commands are `ItemActions`, and the spoiler toggle is `SpoilerFree`. Each
-  item card is a `WishlistItemRow`, which owns the card rendering and those side effects.
+- `WishlistDetailsPage` is a `ConsumerWidget`; its item rows are `WishlistItemRow`, which owns
+  the card rendering and the claim/unclaim/delete side effects. The page keeps the reads, the
+  app bar and navigation. Row rendering and claim copy are covered by
+  `wishlist_details_page_test.dart`; the delete flow, the busy guard and the stream lifetime by
+  `wishlist_details_state_test.dart`.
 
 ## Reference
 

@@ -19,6 +19,7 @@ import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/apple_auth_error.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
 import 'package:wishtogether/features/auth/data/phone_auth_error.dart';
+import 'package:wishtogether/features/auth/data/phone_input.dart';
 import 'package:wishtogether/features/auth/data/phone_verification.dart';
 import 'package:wishtogether/features/auth/data/google_sign_in_stub.dart'
     if (dart.library.html) 'package:google_sign_in_web/web_only.dart'
@@ -46,6 +47,11 @@ class LoginPage extends StatefulWidget {
   /// Shown when the platform never reports the outcome of a code request.
   static const String timeoutMessage =
       'Phone sign-in took too long. Check your connection and try again.';
+
+  /// Shown when the phone field does not hold a ten-digit US number.
+  static const String invalidPhoneNumberMessage =
+      'Enter a 10-digit US phone number without the country code, for example '
+      '408 555 1234.';
 
   const LoginPage({super.key});
 
@@ -283,9 +289,17 @@ class _LoginPageState extends State<LoginPage>
   /// so it cannot say when the code has been sent, and a guard on it lets extra
   /// taps send extra codes.
   Future<void> _requestVerificationCode(BuildContext context) async {
+    // The field asks for the number without its country code, so a `+1`, an
+    // eleventh digit or a stray letter is a typo the server would reject as
+    // `invalid-phone-number`. Catch it here, before spending a request.
+    final phoneNumber = normalizeUsPhoneNumber(_phoneController.text);
+    if (phoneNumber == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(LoginPage.invalidPhoneNumberMessage)),
+      );
+      return;
+    }
     setState(() => _requestingCode = true);
-    // Automatically prepend the US country code
-    final phoneNumber = '+1${_phoneController.text}';
     final redirectTo = GoRouterState.of(context)
         .uri
         .queryParameters[redirectToParam];

@@ -15,6 +15,8 @@ String phoneAuthErrorMessage(FirebaseAuthException exception) {
       return 'Too many attempts. Please wait a few minutes and try again.';
     case 'invalid-verification-code':
       return "That code isn't right. Check the SMS code and try again.";
+    case 'missing-verification-code':
+      return 'Enter the 6-digit code from the SMS and try again.';
     case 'code-expired':
       return 'That code has expired. Request a new one and try again.';
     case 'invalid-app-credential':

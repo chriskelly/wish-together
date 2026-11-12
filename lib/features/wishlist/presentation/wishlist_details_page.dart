@@ -251,7 +251,7 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
           context.pushNamed(
             ItemFormPage.editRouteName,
             pathParameters: {'id': widget.wishlistId, 'itemId': item.id!},
-            extra: item,
+            extra: EditItemRouteArgs(item),
           );
         },
         onDelete: () => _deleteItem(item.id!),

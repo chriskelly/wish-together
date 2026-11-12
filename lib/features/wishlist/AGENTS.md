@@ -12,7 +12,12 @@ the product.
   owner's content edit writes content and `claimLimit` only, never `claims`; a separate reset
   deletes every claim in one write, and the rules accept it only when the map ends empty.
 - A finite claim limit never drops below the item's current claim count; the item form's
-  minimum on edit is `max(1, claimCount)`.
+  minimum on edit is `max(1, claimCount)`. A successful reset lowers that minimum to 1 in place
+  and keeps the form (and any pending edit) open.
+- On edit the app-bar check mark is the only save action, and leaving with an unsaved change
+  asks Save / Discard / Keep editing from both `PopScope` and the edit route's `onExit`. Any new
+  way out of that page must go through the same question, except a router redirect caused by
+  the session ending or changing, which always wins.
 - The owner's details page hides claimed status by default and shows the configured limit
   instead; a reader of a shared list always sees the state. Single-claim rows never show a
   count; multi and unlimited rows show the count summary while room remains, and a full reader

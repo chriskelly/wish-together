@@ -14,7 +14,6 @@ import 'package:wishtogether/features/group/presentation/group_details_page.dart
 import 'package:wishtogether/features/group/presentation/group_form_page.dart';
 import 'package:wishtogether/features/group/presentation/join_group_page.dart';
 import 'package:wishtogether/features/group/domain/group.dart';
-import 'package:wishtogether/features/wishlist/domain/item.dart';
 import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
 import 'package:wishtogether/features/auth/presentation/profile_page.dart';
 import 'package:wishtogether/features/wishlist/presentation/wishlist_form_page.dart';
@@ -259,10 +258,27 @@ GoRoute wishlistFormPageEditRoute() => GoRoute(
 GoRoute itemFormPageEditRoute() => GoRoute(
   name: ItemFormPage.editRouteName,
   path: ItemFormPage.editRoute,
+  // A browser back replaces the route instead of popping it, so it never
+  // reaches the form's PopScope; onExit is the hook that can stop it and let
+  // the form ask about its unsaved change.
+  onExit: (BuildContext context, GoRouterState state) {
+    final extra = state.extra;
+    return extra is EditItemRouteArgs ? extra.leaveGuard.requestLeave() : true;
+  },
+  // The page needs the item it was opened with; a deep link or a reload has no
+  // extra, so send it back to the list rather than casting null.
+  redirect: (BuildContext context, GoRouterState state) =>
+      state.extra is EditItemRouteArgs
+      ? null
+      : '/wishlist/${state.pathParameters['id']!}',
   builder: (BuildContext context, GoRouterState state) {
     final wishlistId = state.pathParameters['id']!;
-    final item = state.extra as Item;
-    return ItemFormPage(wishlistId: wishlistId, item: item);
+    final args = state.extra as EditItemRouteArgs;
+    return ItemFormPage(
+      wishlistId: wishlistId,
+      item: args.item,
+      leaveGuard: args.leaveGuard,
+    );
   },
 );
 

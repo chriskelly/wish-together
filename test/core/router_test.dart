@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
@@ -510,6 +511,31 @@ void main() {
 
       expect(authEvents().single.outcome, AuthOutcome.signedOut);
       expect(sink.records.last.session.userRef, isNull);
+    });
+  });
+
+  group('item form edit route', () {
+    testWidgets('a deep link without route args falls back to the list', (
+      tester,
+    ) async {
+      final router = GoRouter(
+        initialLocation: '/wishlist/w1',
+        routes: [
+          GoRoute(
+            path: '/wishlist/:id',
+            builder: (context, state) => const Scaffold(body: Text('list')),
+            routes: [itemFormPageEditRoute()],
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+
+      router.go('/wishlist/w1/item/i1/edit');
+      await tester.pumpAndSettle();
+
+      expect(find.text('list'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 }

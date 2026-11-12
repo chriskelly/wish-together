@@ -85,7 +85,23 @@ root.
   can clear claims but cannot add or rewrite one. The item form's stepper sets a limit of 1–99 or
   unlimited (0, shown as `∞`); on edit its minimum is `max(1, claimCount)`, so a limit cannot be
   lowered below the people who already claimed. A pre-existing finite limit above 99 is kept and
-  cannot be lowered.
+  cannot be lowered. A successful reset clears the page's claim count, so the minimum drops to 1
+  without leaving the form.
+- Editing saves from the app bar's check mark, enabled while the form differs from the values it
+  last saved (or opened with) and no save is in flight; creating keeps its explicit `Save Item`
+  button. Leaving
+  an edit with an unsaved change — back arrow, system back, or the browser's back button — asks
+  Save, Discard or Keep editing, and a save is never attempted silently. The system back paths
+  are stopped by `PopScope`; the browser replaces the route through go_router, so the edit route
+  also carries an `onExit` guard (`EditItemRouteArgs.leaveGuard`) that asks the same question.
+  An edit does not autofocus the name field, so the keyboard does not cover the form before the
+  owner has chosen what to change. A failed save stays on the form as a banner with the
+  classified copy and a retry, and the typed values are kept; an edit write still unacknowledged
+  after ten seconds is reported as unconfirmed rather than spinning forever, and the banner's
+  Retry (or the check mark) issues it again. A router redirect caused by the session ending or
+  changing is never held by the prompt, because the form cannot save into a different session. A
+  create is one shot: its button stays disabled until the write resolves,
+  so a queued create cannot be submitted twice.
 - Owner-only UI: the add-item FAB, item edit/delete actions, wishlist edit, and the spoiler
   toggle appear only when `wishlist.ownerId == currentUserId`.
 - `WishlistDetailsPage` defaults `_isSpoilerFree` to true for the owner's controls. Spoiler-free
@@ -114,8 +130,8 @@ root.
 `HomePage` streams the user's wishlists with `streamWhere('ownerId', isEqualTo: uid)`.
 `WishlistDetailsPage` streams the wishlist and its items, computes `isOwner` from the
 current uid, and calls the claim/unclaim use cases from the item card actions. The owner's
-`ItemFormPage` carries the reset-claims action, which calls `ResetClaimsUseCase` and returns
-to the details page so the stream shows the item unclaimed. A wishlist shared with a group
+`ItemFormPage` carries the reset-claims action, which calls `ResetClaimsUseCase`, keeps the
+form open and shows `Claims reset.` so a pending edit survives. A wishlist shared with a group
 appears in that group's details page because of `sharedWithGroups`.
 
 ## How it is tested
@@ -135,9 +151,15 @@ appears in that group's details page because of `sharedWithGroups`.
   `updateContent` preserving `claims`. The fake transaction has no isolation or rollback, so the
   true concurrency behaviour is proven by the rules tests and the staging smoke test, not here.
 - `test/features/wishlist/presentation/` — `claimFailureMessage` copy (including a full item);
-  `item_form_page_test` pins the stepper's create, edit, unlimited and save behaviour, the
-  reset action always showing on an edit, its confirmation, its pending state, and its failure
-  copies;
+  `item_form_page_test` pins the stepper's create, edit, unlimited and save behaviour, the reset
+  action always showing on an edit, its confirmation, its pending state, and its failure
+  copies, the edit's check-mark enablement and autofocus behaviour, the leave dialog from both
+  `PopScope` and the browser's route replacement (keep editing, discard and save on both paths;
+  an invalid save from the back dialog), a failure banner that survives a focus change but
+  clears on a text edit,
+  the failed/offline/unconfirmed save banner and its retry, a rapid edit sequence, edits kept
+  when typed during an in-flight save, a create that cannot be submitted twice, and a reset that
+  stays on the form and refreshes the stepper minimum;
   `wishlist_details_page_test` pins the reader's own and other claims, the unclaimed case, the
   multi/unlimited counts, `Unavailable`, the owner's spoiler-free limit labels and revealed
   status, the row fitting a 320 px phone at 1.3 text scale, the signed-out unclaim copy, and the

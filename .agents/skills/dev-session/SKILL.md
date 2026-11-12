@@ -121,7 +121,8 @@ role and label. Do not click pixel coordinates.
    details) move it; imperatively pushed screens do not.
 
 Example loop: open `/wishlist/dev-l1?scenario=default`, press the **Add item**
-button, type a name, press **Save Item**, then read the item in the rendered list
+button, type a name, tap the app-bar check mark (tooltip **Save item**), then read the item
+in the rendered list
 and the `routeChanged` / repository records in the console.
 
 ## Screenshot recipe

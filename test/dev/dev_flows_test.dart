@@ -108,11 +108,20 @@ void main() {
     await tester.tap(find.byTooltip('Add item'));
     await pumpFrames(tester);
     await tester.enterText(find.byType(TextFormField).first, added);
-    await tester.ensureVisible(find.text('Save Item'));
-    await tester.tap(find.text('Save Item'));
     await pumpFrames(tester);
 
-    // ASSERT: the new item is rendered, and the seeded ones are still there.
+    // The create route carries the same leave guard as edit.
+    await tester.pageBack();
+    await pumpFrames(tester);
+    expect(find.text('Save this item?'), findsOneWidget);
+    await tester.tap(find.text('Keep editing'));
+    await pumpFrames(tester);
+
+    await tester.tap(find.byTooltip('Save item'));
+    await pumpFrames(tester);
+
+    // ASSERT: the form is gone and the new item is rendered.
+    expect(find.text('Add a new Item'), findsNothing);
     expect(find.text(added), findsOneWidget);
     expect(find.text('Board game'), findsOneWidget);
   });

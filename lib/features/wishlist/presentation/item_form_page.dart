@@ -24,8 +24,9 @@ class ItemFormPage extends StatefulWidget {
   final String wishlistId;
   final Item? item;
 
-  /// Present when the page is opened through the edit route. go_router calls
-  /// it for a browser back, which does not go through [PopScope].
+  /// The route's guard for a browser back, which does not go through
+  /// [PopScope]. The edit route keeps it in [EditItemRouteArgs]; the create
+  /// route builds one and passes it here.
   final ItemFormLeaveGuard? leaveGuard;
 
   const ItemFormPage({
@@ -86,8 +87,6 @@ class _ItemFormPageState extends State<ItemFormPage> {
 
   static const String _unconfirmedSaveMessage =
       "Couldn't confirm the save. Check your connection and try again.";
-  static const String _genericSaveMessage =
-      "Couldn't save your changes. Please try again.";
 
   /// Shown beside the reset button and in its confirmation, so the action and
   /// the consequence it confirms cannot drift apart.
@@ -122,9 +121,23 @@ class _ItemFormPageState extends State<ItemFormPage> {
 
   bool get _sessionChanged => _session.currentUserId != _openedUid;
 
-  /// Whether the form holds a change the stored item does not. Creating has no
-  /// stored item to differ from, so it is never guarded.
-  bool get _isDirty => _isEditing && _draft != _savedDraft;
+  /// Whether the form differs from the draft it last saved or opened with. A
+  /// create opens on an empty draft, so it becomes dirty once anything differs
+  /// from that, including only the claim limit.
+  bool get _isDirty => _draft != _savedDraft;
+
+  /// A create is one shot: its fields are locked while the write is in flight,
+  /// so nothing typed in that window can be dropped when the page leaves.
+  bool get _inputsEnabled => _isEditing || !_isLoading;
+
+  /// A create may leave while its write is in flight: the check mark and the
+  /// fields are already disabled, the write is one-shot, and blocking the exit
+  /// would strand the page on a spinner if the write never resolves. An edit
+  /// keeps its exit blocked until the write resolves or is reported.
+  bool get _canLeave =>
+      _sessionChanged ||
+      (!_isDirty && !_isLoading) ||
+      (!_isEditing && _isLoading);
 
   /// A finite limit is only legal when it can cover every existing claim.
   bool get _canSetFiniteLimit => _minimumClaimLimit <= _maximumClaimLimit;
@@ -171,9 +184,12 @@ class _ItemFormPageState extends State<ItemFormPage> {
   @override
   Widget build(BuildContext context) {
     return PopScope<Object?>(
-      canPop: !_isEditing || _sessionChanged || (!_isDirty && !_isLoading),
+      canPop: _canLeave,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) {
+          // A create may leave while its write is in flight; marking the page
+          // as leaving stops the late completion from popping again.
+          _leaving = true;
           return;
         }
         _handleBlockedPop();
@@ -202,10 +218,6 @@ class _ItemFormPageState extends State<ItemFormPage> {
                         const SizedBox(height: 24),
                         _resetClaimsSection(),
                       ],
-                      if (!_isEditing) ...[
-                        const SizedBox(height: 24),
-                        _submitButton(),
-                      ],
                     ],
                   ),
                 ),
@@ -219,23 +231,25 @@ class _ItemFormPageState extends State<ItemFormPage> {
 
   PrimaryAppBar _buildAppBar() => PrimaryAppBar(
     title: _isEditing ? 'Edit Item' : 'Add a new Item',
-    actions: _isEditing ? [_saveAction()] : null,
+    actions: [_saveAction()],
   );
 
-  /// The edit form's only save action: a check mark that is enabled exactly
-  /// while there is something to save. Its disabled state is the visible
-  /// "everything is saved" signal.
+  /// The form's only save action: a check mark that is enabled exactly while
+  /// there is something to save. Its disabled state is the visible "everything
+  /// is saved" signal, and it is the same on both forms.
   Widget _saveAction() {
     if (_isLoading) {
-      return const IconButton(
+      return IconButton(
         onPressed: null,
-        tooltip: 'Saving changes',
-        icon: ButtonLoadingIndicator(),
+        tooltip: _isEditing ? 'Saving changes' : 'Saving item',
+        icon: const ButtonLoadingIndicator(),
       );
     }
+    final saveTooltip = _isEditing ? 'Save changes' : 'Save item';
+    final idleTooltip = _isEditing ? 'No unsaved changes' : 'Nothing to save';
     return IconButton(
       onPressed: _isDirty ? _saveItem : null,
-      tooltip: _isDirty ? 'Save changes' : 'No unsaved changes',
+      tooltip: _isDirty ? saveTooltip : idleTooltip,
       icon: const Icon(Icons.check),
     );
   }
@@ -266,6 +280,7 @@ class _ItemFormPageState extends State<ItemFormPage> {
 
   TextFormField _nameTextFormField() => TextFormField(
     controller: _nameController,
+    enabled: _inputsEnabled,
     onChanged: (_) => _markEdited(),
     decoration: const InputDecoration(
       labelText: 'Item Name',
@@ -286,6 +301,7 @@ class _ItemFormPageState extends State<ItemFormPage> {
 
   TextFormField _descriptionTextFormField() => TextFormField(
     controller: _descriptionController,
+    enabled: _inputsEnabled,
     onChanged: (_) => _markEdited(),
     decoration: const InputDecoration(
       labelText: 'Description (optional)',
@@ -296,6 +312,7 @@ class _ItemFormPageState extends State<ItemFormPage> {
 
   TextFormField _linkTextFormField() => TextFormField(
     controller: _linkController,
+    enabled: _inputsEnabled,
     onChanged: (_) => _markEdited(),
     decoration: const InputDecoration(
       labelText: 'Link (optional)',
@@ -336,7 +353,9 @@ class _ItemFormPageState extends State<ItemFormPage> {
         Row(
           children: [
             IconButton(
-              onPressed: _canDecreaseClaimLimit ? _decreaseClaimLimit : null,
+              onPressed: _inputsEnabled && _canDecreaseClaimLimit
+                  ? _decreaseClaimLimit
+                  : null,
               tooltip: 'Fewer people',
               icon: const Icon(Icons.remove),
             ),
@@ -359,7 +378,9 @@ class _ItemFormPageState extends State<ItemFormPage> {
               ),
             ),
             IconButton(
-              onPressed: _canIncreaseClaimLimit ? _increaseClaimLimit : null,
+              onPressed: _inputsEnabled && _canIncreaseClaimLimit
+                  ? _increaseClaimLimit
+                  : null,
               tooltip: 'More people',
               icon: const Icon(Icons.add),
             ),
@@ -374,7 +395,7 @@ class _ItemFormPageState extends State<ItemFormPage> {
           value: _isUnlimited,
           // With more claims than the stepper's ceiling, no finite limit can
           // legally cover them, so the item must stay unlimited.
-          onChanged: !_isUnlimited || _canSetFiniteLimit
+          onChanged: _inputsEnabled && (!_isUnlimited || _canSetFiniteLimit)
               ? (unlimited) {
                   setState(() {
                     _claimLimit = unlimited
@@ -445,16 +466,6 @@ class _ItemFormPageState extends State<ItemFormPage> {
     });
   }
 
-  ElevatedButton _submitButton() => ElevatedButton(
-    onPressed: _isLoading ? null : _saveItem,
-    style: ElevatedButton.styleFrom(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-    ),
-    child: _isLoading
-        ? const ButtonLoadingIndicator()
-        : const Text('Save Item'),
-  );
-
   /// Writes [draft] through the use case that matches the page: an edit
   /// updates the stored item, a create adds a new one. An optional field left
   /// blank is stored as absent rather than empty.
@@ -494,7 +505,7 @@ class _ItemFormPageState extends State<ItemFormPage> {
 
     var timedOut = false;
     // Creating is one shot: a create that is slow or queued must not invite a
-    // second add, so it keeps its button disabled until the write resolves.
+    // second add, so its check mark stays disabled until the write resolves.
     final timer = _isEditing
         ? Timer(_saveConfirmationTimeout, () {
             timedOut = true;
@@ -516,8 +527,8 @@ class _ItemFormPageState extends State<ItemFormPage> {
         return false;
       }
       _savedDraft = draft;
-      // Only an edit stays open for newer input; creating keeps its explicit
-      // one-shot action.
+      // Only an edit stays open for newer input; a create closes once its
+      // write resolves.
       final hasNewerEdits = _isEditing && _draft != draft;
       if (timedOut || hasNewerEdits) {
         // The write landed after the page reported it as unconfirmed, or the
@@ -535,18 +546,10 @@ class _ItemFormPageState extends State<ItemFormPage> {
       if (!mounted || attempt != _saveAttempt) {
         return false;
       }
-      if (_isEditing) {
-        setState(() {
-          _isLoading = false;
-          _saveError = _saveFailureMessage(error);
-        });
-      } else {
-        setState(() {
-          _isLoading = false;
-        });
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(_saveFailureMessage(error))));
-      }
+      setState(() {
+        _isLoading = false;
+        _saveError = _saveFailureMessage(error);
+      });
       return false;
     } finally {
       timer?.cancel();
@@ -594,13 +597,21 @@ class _ItemFormPageState extends State<ItemFormPage> {
   /// paths from stacking a second prompt. Returning false keeps the form in
   /// place, and the browser's own navigation applies when it returns true.
   Future<bool> _requestBrowserLeave() async {
-    if (_leaving || _sessionChanged) {
+    if (_leaving) {
+      return true;
+    }
+    if (_sessionChanged) {
+      _leaving = true;
       return true;
     }
     if (_askingLeave) {
       return false;
     }
     if (_isLoading) {
+      if (!_isEditing) {
+        _leaving = true;
+        return true;
+      }
       _showSavingMessage();
       return false;
     }
@@ -621,8 +632,12 @@ class _ItemFormPageState extends State<ItemFormPage> {
       return await showDialog<_LeaveChoice>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          title: const Text('Save your changes?'),
-          content: const Text('You have unsaved changes to this item.'),
+          title: Text(_isEditing ? 'Save your changes?' : 'Save this item?'),
+          content: Text(
+            _isEditing
+                ? 'You have unsaved changes to this item.'
+                : 'You have not saved this item yet.',
+          ),
           actions: [
             TextButton(
               onPressed: () =>
@@ -720,8 +735,10 @@ class _ItemFormPageState extends State<ItemFormPage> {
         "You don't have permission to save this item.",
       ClaimFailureReason.itemMissing => itemMissingFailureMessage,
       ClaimFailureReason.signedOut => 'Please sign in again to save this item.',
-      ClaimFailureReason.fullyClaimed ||
-      ClaimFailureReason.unknown => _genericSaveMessage,
+      ClaimFailureReason.fullyClaimed || ClaimFailureReason.unknown =>
+        _isEditing
+            ? "Couldn't save your changes. Please try again."
+            : "Couldn't save this item. Please try again.",
     };
   }
 
@@ -746,6 +763,12 @@ class _ItemFormPageState extends State<ItemFormPage> {
 }
 
 enum _LeaveChoice { keepEditing, discard, save }
+
+/// Arguments for the create route: a per-push guard, so a second form cannot
+/// detach the first one's browser-back guard.
+class CreateItemRouteArgs {
+  final ItemFormLeaveGuard leaveGuard = ItemFormLeaveGuard();
+}
 
 /// Arguments for the edit route: the item to edit plus the guard that lets the
 /// browser's back button reach the form's unsaved-changes prompt.

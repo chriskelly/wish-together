@@ -240,9 +240,26 @@ GoRoute wishlistDetailsPageRoute() => GoRoute(
 GoRoute itemFormPageCreateRoute() => GoRoute(
   name: ItemFormPage.createRouteName,
   path: ItemFormPage.createRoute,
+  // Same per-push guard shape as the edit route, so a second create form
+  // cannot detach the first one's browser-back guard.
+  onExit: (BuildContext context, GoRouterState state) {
+    final extra = state.extra;
+    return extra is CreateItemRouteArgs
+        ? extra.leaveGuard.requestLeave()
+        : true;
+  },
+  // A deep link or reload has no guard to reach; send it back to the list so
+  // the draft cannot be silently dropped by an unguarded browser back.
+  redirect: (BuildContext context, GoRouterState state) =>
+      state.extra is CreateItemRouteArgs
+      ? null
+      : '/wishlist/${state.pathParameters['id']!}',
   builder: (BuildContext context, GoRouterState state) {
-    final wishlistId = state.pathParameters['id']!;
-    return ItemFormPage(wishlistId: wishlistId);
+    final args = state.extra! as CreateItemRouteArgs;
+    return ItemFormPage(
+      wishlistId: state.pathParameters['id']!,
+      leaveGuard: args.leaveGuard,
+    );
   },
 );
 

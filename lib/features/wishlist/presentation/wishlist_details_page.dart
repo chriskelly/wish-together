@@ -439,6 +439,7 @@ class _WishlistDetailsPageState extends State<WishlistDetailsPage> {
       onPressed: () => context.pushNamed(
         ItemFormPage.createRouteName,
         pathParameters: {'id': widget.wishlistId},
+        extra: CreateItemRouteArgs(),
       ),
       tooltip: 'Add item',
       child: const Icon(Icons.add),

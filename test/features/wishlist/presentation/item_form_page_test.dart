@@ -37,6 +37,8 @@ void main() {
   const itemName = 'Desk lamp';
   const saveTooltip = 'Save changes';
   const idleSaveTooltip = 'No unsaved changes';
+  const createSaveTooltip = 'Save item';
+  const createIdleSaveTooltip = 'Nothing to save';
   const resetWarning =
       "Resetting removes all claims on the item if there are any. "
       "This can't be undone.";
@@ -45,6 +47,7 @@ void main() {
   late MockUpdateItemUseCase updateItemUseCase;
   late MockResetClaimsUseCase resetClaimsUseCase;
   late MockAuthSession authSession;
+  late String browserBackLocation;
 
   /// Answers the create, so a test only has to state how it resolves.
   void stubCreateAnswer(Future<void> Function() answer) {
@@ -96,8 +99,9 @@ void main() {
 
   tearDown(getIt.reset);
 
-  /// Mounts the form on a real GoRouter stack, so saving can pop back, and
-  /// wires the edit route's `onExit` guard exactly as the app router does.
+  /// Mounts the form on a real GoRouter stack. Create goes through the real
+  /// create route under its parent, edit through the real route's onExit, so
+  /// both browser-back guards are the production ones.
   Future<GoRouter> pumpForm(WidgetTester tester, {Item? item}) async {
     final args = item == null ? null : EditItemRouteArgs(item);
     final router = GoRouter(
@@ -115,8 +119,13 @@ void main() {
           path: '/login',
           builder: (context, state) => const Scaffold(body: Text('login')),
         ),
-        // Take the real edit route's onExit, so a change there cannot leave
-        // this suite green while browser back stops asking.
+        GoRoute(
+          path: '/wishlist/:id',
+          builder: (context, state) => const Scaffold(
+            body: Column(children: [Text('wishlist'), Text('details')]),
+          ),
+          routes: [itemFormPageCreateRoute()],
+        ),
         GoRoute(
           path: '/form',
           onExit: itemFormPageEditRoute().onExit,
@@ -130,17 +139,32 @@ void main() {
     );
     addTearDown(router.dispose);
     await tester.pumpWidget(MaterialApp.router(routerConfig: router));
-    router.push('/form', extra: args);
+    if (args == null) {
+      // Push the list under the form, as a group page does, so a stray second
+      // pop is observable as the list disappearing.
+      browserBackLocation = '/wishlist/$wishlistId';
+      router.go('/');
+      await tester.pumpAndSettle();
+      router.push('/wishlist/$wishlistId');
+      await tester.pumpAndSettle();
+      router.push(
+        '/wishlist/$wishlistId/add-item',
+        extra: CreateItemRouteArgs(),
+      );
+    } else {
+      browserBackLocation = '/';
+      router.push('/form', extra: args);
+    }
     await tester.pumpAndSettle();
     return router;
   }
 
   /// The browser's back button as the web engine reports it: a navigation
   /// message, not a Navigator pop.
-  Future<void> browserBack(WidgetTester tester) async {
+  Future<void> sendBrowserBack(WidgetTester tester) async {
     final message = SystemChannels.navigation.codec.encodeMethodCall(
-      const MethodCall('pushRouteInformation', <String, Object?>{
-        'location': '/',
+      MethodCall('pushRouteInformation', <String, Object?>{
+        'location': browserBackLocation,
         'state': null,
       }),
     );
@@ -149,6 +173,10 @@ void main() {
       message,
       (_) {},
     );
+  }
+
+  Future<void> browserBack(WidgetTester tester) async {
+    await sendBrowserBack(tester);
     await tester.pumpAndSettle();
   }
 
@@ -189,10 +217,9 @@ void main() {
     await tester.pump();
   }
 
-  /// Taps the create form's explicit `Save Item` button.
+  /// Taps the create form's app-bar check mark.
   Future<void> tapCreate(WidgetTester tester) async {
-    await tester.ensureVisible(find.text('Save Item'));
-    await tester.tap(find.text('Save Item'));
+    await tester.tap(find.byTooltip(createSaveTooltip));
     await tester.pumpAndSettle();
   }
 
@@ -222,6 +249,9 @@ void main() {
       );
 
   bool saveEnabled(WidgetTester tester) => saveButton(tester).onPressed != null;
+
+  bool createSaveEnabled(WidgetTester tester) =>
+      saveButton(tester, tooltip: createSaveTooltip).onPressed != null;
 
   TextField nameField(WidgetTester tester) => tester.widget<TextField>(
     find.descendant(
@@ -505,6 +535,8 @@ void main() {
         claimLimit: 3,
       ),
     ).called(1);
+    expect(find.text('Add a new Item'), findsNothing);
+    expect(find.text('wishlist'), findsOneWidget);
   });
 
   testWidgets('saves the chosen limit when updating', (tester) async {
@@ -747,7 +779,7 @@ void main() {
     expect(find.text('wishlist'), findsOneWidget);
   });
 
-  group('edit save and leave', () {
+  group('save and leave', () {
     const editedName = 'Desk lamp, taller';
     const editedDescription = 'A warm reading light';
     const editedUrl = 'https://example.com/lamp';
@@ -1192,6 +1224,148 @@ void main() {
       expect(find.text('wishlist'), findsOneWidget);
     });
 
+    testWidgets('locks the create fields while the write is in flight', (
+      tester,
+    ) async {
+      final pending = Completer<void>();
+      stubCreateAnswer(() => pending.future);
+      await pumpForm(tester);
+      await editName(tester, itemName);
+
+      await tester.tap(find.byTooltip(createSaveTooltip));
+      await tester.pump();
+
+      expect(nameField(tester).enabled, isFalse);
+      expect(
+        tester
+            .widget<TextField>(
+              find.descendant(
+                of: find.byType(TextFormField).at(1),
+                matching: find.byType(TextField),
+              ),
+            )
+            .enabled,
+        isFalse,
+      );
+      expect(
+        tester
+            .widget<TextField>(
+              find.descendant(
+                of: find.byType(TextFormField).at(2),
+                matching: find.byType(TextField),
+              ),
+            )
+            .enabled,
+        isFalse,
+      );
+      expect(stepperButton(tester, Icons.add).onPressed, isNull);
+      expect(stepperButton(tester, Icons.remove).onPressed, isNull);
+      expect(unlimitedSwitchEnabled(tester), isFalse);
+
+      pending.complete();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('leaves a pending create from the app bar', (tester) async {
+      final pending = Completer<void>();
+      stubCreateAnswer(() => pending.future);
+      await pumpForm(tester);
+      await editName(tester, itemName);
+
+      await tester.tap(find.byTooltip(createSaveTooltip));
+      await tester.pump();
+      expect(saveButton(tester, tooltip: 'Saving item').onPressed, isNull);
+
+      await leave(tester);
+
+      expect(find.text('wishlist'), findsOneWidget);
+      pending.complete();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('a late create cannot pop the details page from the app bar', (
+      tester,
+    ) async {
+      final pending = Completer<void>();
+      stubCreateAnswer(() => pending.future);
+      await pumpForm(tester);
+      await editName(tester, itemName);
+
+      await tester.tap(find.byTooltip(createSaveTooltip));
+      await tester.pump();
+      await tester.pageBack();
+      await tester.pump();
+      pending.complete();
+      await tester.pumpAndSettle();
+
+      expect(find.text('details'), findsOneWidget);
+      expect(find.text('wishlist'), findsOneWidget);
+      expect(find.text('Item added!'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+      'a sign-out during an in-flight create leaves no late snackbar',
+      (tester) async {
+        final pending = Completer<void>();
+        stubCreateAnswer(() => pending.future);
+        final router = await pumpForm(tester);
+        await editName(tester, itemName);
+
+        await tester.tap(find.byTooltip(createSaveTooltip));
+        await tester.pump();
+        when(() => authSession.currentUserId).thenReturn(null);
+        router.refresh();
+        await tester.pump();
+        await tester.pump();
+
+        pending.complete();
+        await tester.pumpAndSettle();
+
+        expect(find.text('login'), findsOneWidget);
+        expect(find.text('Item added!'), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets('a late create cannot pop the details page from the browser', (
+      tester,
+    ) async {
+      final pending = Completer<void>();
+      stubCreateAnswer(() => pending.future);
+      await pumpForm(tester);
+      await editName(tester, itemName);
+
+      await tester.tap(find.byTooltip(createSaveTooltip));
+      await tester.pump();
+      await sendBrowserBack(tester);
+      await tester.pump();
+      pending.complete();
+      await tester.pumpAndSettle();
+
+      expect(find.text('details'), findsOneWidget);
+      expect(find.text('wishlist'), findsOneWidget);
+      expect(find.text('Item added!'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('leaves a pending create from the browser back', (
+      tester,
+    ) async {
+      final pending = Completer<void>();
+      stubCreateAnswer(() => pending.future);
+      await pumpForm(tester);
+      await editName(tester, itemName);
+
+      await tester.tap(find.byTooltip(createSaveTooltip));
+      await tester.pump();
+      await browserBack(tester);
+
+      expect(find.text('wishlist'), findsOneWidget);
+      pending.complete();
+      await tester.pumpAndSettle();
+    });
+
     testWidgets('resets claims without closing the form or dropping typing', (
       tester,
     ) async {
@@ -1237,8 +1411,14 @@ void main() {
       expect(unlimitedSwitchEnabled(tester), isTrue);
     });
 
-    testWidgets('shows classified copy when creating fails', (tester) async {
-      stubCreateAnswer(() async => throw _WriteError('permission-denied'));
+    testWidgets('retries a failed create from the banner', (tester) async {
+      var calls = 0;
+      stubCreateAnswer(() async {
+        calls++;
+        if (calls == 1) {
+          throw _WriteError('permission-denied');
+        }
+      });
       await pumpForm(tester);
       await tester.enterText(find.byType(TextFormField).first, itemName);
       await tester.pump();
@@ -1250,6 +1430,249 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('wishlist'), findsNothing);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Retry'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('wishlist'), findsOneWidget);
+      expect(calls, 2);
+    });
+
+    testWidgets('uses create copy for an unexpected failure', (tester) async {
+      stubCreateAnswer(() async => throw Exception('server says no'));
+      await pumpForm(tester);
+      await tester.enterText(find.byType(TextFormField).first, itemName);
+      await tester.pump();
+
+      await tapCreate(tester);
+
+      expect(
+        find.text("Couldn't save this item. Please try again."),
+        findsOneWidget,
+      );
+      expect(find.textContaining('server says no'), findsNothing);
+      expect(find.text('wishlist'), findsNothing);
+    });
+
+    testWidgets(
+      'keeps the create check mark disabled until something is typed',
+      (tester) async {
+        await pumpForm(tester);
+
+        expect(
+          saveButton(tester, tooltip: createIdleSaveTooltip).onPressed,
+          isNull,
+        );
+        expect(find.byTooltip(createSaveTooltip), findsNothing);
+
+        await editName(tester, itemName);
+
+        expect(createSaveEnabled(tester), isTrue);
+        expect(find.byTooltip(createIdleSaveTooltip), findsNothing);
+      },
+    );
+
+    testWidgets('keeps the create check mark disabled for a blank name', (
+      tester,
+    ) async {
+      await pumpForm(tester);
+
+      await tester.enterText(find.byType(TextFormField).first, '   ');
+      await tester.pump();
+
+      expect(
+        saveButton(tester, tooltip: createIdleSaveTooltip).onPressed,
+        isNull,
+      );
+    });
+
+    testWidgets('does not write a typed note without a name', (tester) async {
+      await pumpForm(tester);
+      await tester.enterText(find.byType(TextFormField).at(1), 'A note');
+      await tester.pump();
+      expect(createSaveEnabled(tester), isTrue);
+
+      await tapCreate(tester);
+
+      expect(find.text('Please enter a name for the item.'), findsOneWidget);
+      expect(find.text('wishlist'), findsNothing);
+      verifyNever(
+        () => createItemUseCase.execute(
+          any(),
+          any(),
+          description: any(named: 'description'),
+          url: any(named: 'url'),
+          claimLimit: any(named: 'claimLimit'),
+        ),
+      );
+    });
+
+    testWidgets('asks on the system back before leaving a typed new item', (
+      tester,
+    ) async {
+      await pumpForm(tester);
+      await editName(tester, itemName);
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Save this item?'), findsOneWidget);
+      expect(find.text('wishlist'), findsNothing);
+    });
+
+    testWidgets('a claim-limit change alone makes a create dirty', (
+      tester,
+    ) async {
+      await pumpForm(tester);
+      expect(
+        saveButton(tester, tooltip: createIdleSaveTooltip).onPressed,
+        isNull,
+      );
+
+      await tapPlus(tester);
+
+      expect(createSaveEnabled(tester), isTrue);
+
+      await leave(tester);
+      expect(find.text('Save this item?'), findsOneWidget);
+    });
+
+    testWidgets('asks before leaving a typed new item', (tester) async {
+      await pumpForm(tester);
+      await editName(tester, itemName);
+
+      await leave(tester);
+
+      expect(find.text('Save this item?'), findsOneWidget);
+      expect(find.text('You have not saved this item yet.'), findsOneWidget);
+      expect(find.text('wishlist'), findsNothing);
+    });
+
+    testWidgets('keep editing returns to the new item', (tester) async {
+      await pumpForm(tester);
+      await editName(tester, itemName);
+      await leave(tester);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Keep editing'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('wishlist'), findsNothing);
+      expect(nameField(tester).controller!.text, itemName);
+      expect(createSaveEnabled(tester), isTrue);
+    });
+
+    testWidgets('discard leaves the new item without creating it', (
+      tester,
+    ) async {
+      await pumpForm(tester);
+      await editName(tester, itemName);
+      await leave(tester);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Discard'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('wishlist'), findsOneWidget);
+      verifyNever(
+        () => createItemUseCase.execute(
+          any(),
+          any(),
+          description: any(named: 'description'),
+          url: any(named: 'url'),
+          claimLimit: any(named: 'claimLimit'),
+        ),
+      );
+    });
+
+    testWidgets('save in the leave dialog creates the new item and leaves', (
+      tester,
+    ) async {
+      await pumpForm(tester);
+      await editName(tester, itemName);
+      await leave(tester);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('wishlist'), findsOneWidget);
+      verify(
+        () => createItemUseCase.execute(
+          wishlistId,
+          itemName,
+          description: null,
+          url: null,
+          claimLimit: 1,
+        ),
+      ).called(1);
+    });
+
+    testWidgets('lets a blank new item leave without asking', (tester) async {
+      await pumpForm(tester);
+
+      await leave(tester);
+
+      expect(find.text('Save this item?'), findsNothing);
+      expect(find.text('wishlist'), findsOneWidget);
+    });
+
+    testWidgets('discarding from the browser back leaves the new item', (
+      tester,
+    ) async {
+      await pumpForm(tester);
+      await editName(tester, itemName);
+      await browserBack(tester);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Discard'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('wishlist'), findsOneWidget);
+      verifyNever(
+        () => createItemUseCase.execute(
+          any(),
+          any(),
+          description: any(named: 'description'),
+          url: any(named: 'url'),
+          claimLimit: any(named: 'claimLimit'),
+        ),
+      );
+    });
+
+    testWidgets('saving from the browser back creates the new item', (
+      tester,
+    ) async {
+      await pumpForm(tester);
+      await editName(tester, itemName);
+      await browserBack(tester);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('wishlist'), findsOneWidget);
+      verify(
+        () => createItemUseCase.execute(
+          wishlistId,
+          itemName,
+          description: null,
+          url: null,
+          claimLimit: 1,
+        ),
+      ).called(1);
+    });
+
+    testWidgets('asks before the browser back replaces a typed new item', (
+      tester,
+    ) async {
+      await pumpForm(tester);
+      await editName(tester, itemName);
+
+      await browserBack(tester);
+
+      expect(find.text('Save this item?'), findsOneWidget);
+      expect(find.text('wishlist'), findsNothing);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Keep editing'));
+      await tester.pumpAndSettle();
+      expect(find.text('wishlist'), findsNothing);
+      expect(nameField(tester).controller!.text, itemName);
     });
 
     testWidgets('never lets a slow create invite a second add', (tester) async {
@@ -1259,14 +1682,11 @@ void main() {
       await tester.enterText(find.byType(TextFormField).first, itemName);
       await tester.pump();
 
-      await tester.tap(find.text('Save Item'));
+      await tester.tap(find.byTooltip(createSaveTooltip));
       await tester.pump();
       await tester.pump(const Duration(seconds: 10));
 
-      expect(
-        tester.widget<ElevatedButton>(find.byType(ElevatedButton)).onPressed,
-        isNull,
-      );
+      expect(saveButton(tester, tooltip: 'Saving item').onPressed, isNull);
       expect(
         find.text(
           "Couldn't confirm the save. Check your connection and try again.",
@@ -1317,14 +1737,15 @@ void main() {
       expect(find.text('wishlist'), findsNothing);
     });
 
-    testWidgets('keeps the create form on its explicit save button', (
-      tester,
-    ) async {
+    testWidgets('uses the same app-bar check mark on create', (tester) async {
       await pumpForm(tester);
 
-      expect(saveAction(), findsNothing);
-      expect(idleSaveAction(), findsNothing);
-      expect(find.widgetWithText(ElevatedButton, 'Save Item'), findsOneWidget);
+      expect(find.byTooltip(createIdleSaveTooltip), findsOneWidget);
+      expect(find.byTooltip(saveTooltip), findsNothing);
+      expect(find.byType(ElevatedButton), findsNothing);
+
+      await editName(tester, itemName);
+      expect(createSaveEnabled(tester), isTrue);
     });
   });
 }

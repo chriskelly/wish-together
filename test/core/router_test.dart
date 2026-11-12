@@ -552,7 +552,31 @@ void main() {
     });
   });
 
-  group('item form edit route', () {
+  group('item form routes', () {
+    testWidgets(
+      'a create deep link without route args falls back to the list',
+      (tester) async {
+        final router = GoRouter(
+          initialLocation: '/wishlist/w1',
+          routes: [
+            GoRoute(
+              path: '/wishlist/:id',
+              builder: (context, state) => const Scaffold(body: Text('list')),
+              routes: [itemFormPageCreateRoute()],
+            ),
+          ],
+        );
+        addTearDown(router.dispose);
+        await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+
+        router.go('/wishlist/w1/add-item');
+        await tester.pumpAndSettle();
+
+        expect(find.text('list'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
     testWidgets('a deep link without route args falls back to the list', (
       tester,
     ) async {

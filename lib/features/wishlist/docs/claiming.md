@@ -89,19 +89,23 @@ root.
   without leaving the form.
 - Editing saves from the app bar's check mark, enabled while the form differs from the values it
   last saved (or opened with) and no save is in flight; creating keeps its explicit `Save Item`
-  button. Leaving
-  an edit with an unsaved change — back arrow, system back, or the browser's back button — asks
-  Save, Discard or Keep editing, and a save is never attempted silently. The system back paths
-  are stopped by `PopScope`; the browser replaces the route through go_router, so the edit route
-  also carries an `onExit` guard (`EditItemRouteArgs.leaveGuard`) that asks the same question.
-  An edit does not autofocus the name field, so the keyboard does not cover the form before the
-  owner has chosen what to change. A failed save stays on the form as a banner with the
-  classified copy and a retry, and the typed values are kept; an edit write still unacknowledged
-  after ten seconds is reported as unconfirmed rather than spinning forever, and the banner's
-  Retry (or the check mark) issues it again. A router redirect caused by the session ending or
-  changing is never held by the prompt, because the form cannot save into a different session. A
-  create is one shot: its button stays disabled until the write resolves,
-  so a queued create cannot be submitted twice.
+  button. Leaving an edit with an unsaved change — back arrow, system back or the browser's back
+  button — asks Save, Discard or Keep editing, and a save is never attempted silently. System
+  back reaches `PopScope`; a web back can arrive as a `popRoute` first and then as a route
+  replacement, and the replacement path reaches go_router's `onExit` without touching
+  `PopScope`, so the edit route carries a second guard (`EditItemRouteArgs.leaveGuard`) that
+  asks the same question. Whichever path arrives first asks, and the dialog guard keeps the
+  other from stacking. The iOS swipe-back gesture is disabled while the change is unsaved
+  instead of opening the prompt, so the app-bar arrow is the way out there. A browser reload or
+  tab close is the one exit that still drops the edit; it is not intercepted, because guarding
+  it would need draft persistence. An edit does not autofocus the name field, so the keyboard
+  does not cover the form before the owner has chosen what to change. A failed save stays on the
+  form as a banner with the classified copy and a retry, and the typed values are kept; an edit
+  write still unacknowledged after ten seconds is reported as unconfirmed rather than spinning
+  forever, and the banner's Retry (or the check mark) issues it again. A router redirect caused
+  by the session ending or changing is never held by the prompt, because the form cannot save
+  into a different session. A create is one shot: its button stays disabled until the write
+  resolves, so a queued create cannot be submitted twice.
 - Owner-only UI: the add-item FAB, item edit/delete actions, wishlist edit, and the spoiler
   toggle appear only when `wishlist.ownerId == currentUserId`.
 - `WishlistDetailsPage` defaults `_isSpoilerFree` to true for the owner's controls. Spoiler-free

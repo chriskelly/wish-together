@@ -588,9 +588,11 @@ class _ItemFormPageState extends State<ItemFormPage> {
     }
   }
 
-  /// The browser's back button replaces the route through go_router's
-  /// `onExit`, which never consults [PopScope]. Returning false keeps the form
-  /// in place; the browser's own navigation then applies when it returns true.
+  /// A browser back can reach the form as a Navigator pop and then as a route
+  /// replacement. The replacement goes through go_router's `onExit`, not
+  /// [PopScope], so this guard asks there; the dialog guard stops the two
+  /// paths from stacking a second prompt. Returning false keeps the form in
+  /// place, and the browser's own navigation applies when it returns true.
   Future<bool> _requestBrowserLeave() async {
     if (_leaving || _sessionChanged) {
       return true;

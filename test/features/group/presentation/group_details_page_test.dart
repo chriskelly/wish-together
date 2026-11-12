@@ -445,22 +445,18 @@ void main() {
       testWidgets(
         'keeps one subscription per read across rebuilds, dialogs and text scale',
         (tester) async {
-          var groupListens = 0;
-          var groupCancels = 0;
-          var sharedListens = 0;
-          var sharedCancels = 0;
-          var memberListens = 0;
-          var memberCancels = 0;
+          // Repository calls, not controller listens, are the guard: a stream
+          // re-created in build yields before the broadcast tail is listened to.
+          var groupCalls = 0, groupCancels = 0;
+          var sharedCalls = 0, sharedCancels = 0;
+          var memberCalls = 0, memberCancels = 0;
           final groupUpdates = StreamController<Group>.broadcast(
-            onListen: () => groupListens++,
             onCancel: () => groupCancels++,
           );
           final sharedUpdates = StreamController<List<Wishlist>>.broadcast(
-            onListen: () => sharedListens++,
             onCancel: () => sharedCancels++,
           );
           final memberUpdates = StreamController<List<User>>.broadcast(
-            onListen: () => memberListens++,
             onCancel: () => memberCancels++,
           );
           addTearDown(groupUpdates.close);
@@ -486,26 +482,30 @@ void main() {
             name: 'Birthday',
             ownerId: viewerId,
           );
+          final sharedWishlists = [sharedWishlist, sharedWishlistBySameOwner];
           final users = [
             for (final id in memberIds) User(id: id, displayName: 'Person $id'),
           ];
           var ownerReads = 0;
 
-          when(() => groupRepository.streamOne(groupId))
-              .thenAnswer((_) => _seeded(familyGroup, groupUpdates.stream));
+          when(() => groupRepository.streamOne(groupId)).thenAnswer((_) {
+            groupCalls++;
+            return _seeded(familyGroup, groupUpdates.stream);
+          });
           when(
             () => wishlistRepository.streamWhere(
               'sharedWithGroups',
               arrayContains: groupId,
             ),
-          ).thenAnswer(
-            (_) => _seeded([
-              sharedWishlist,
-              sharedWishlistBySameOwner,
-            ], sharedUpdates.stream),
-          );
+          ).thenAnswer((_) {
+            sharedCalls++;
+            return _seeded(sharedWishlists, sharedUpdates.stream);
+          });
           when(() => userRepository.streamUsersFromIds(memberIds))
-              .thenAnswer((_) => _seeded(users, memberUpdates.stream));
+              .thenAnswer((_) {
+                memberCalls++;
+                return _seeded(users, memberUpdates.stream);
+              });
           when(
             () =>
                 wishlistRepository.streamWhere('ownerId', isEqualTo: viewerId),
@@ -536,23 +536,25 @@ void main() {
             ),
           );
 
-          // Every read delivered its data, and each subscribed once.
+          // Every read delivered its data, and each was created once.
           expect(pageBuilds, 1);
           expect(find.text('Family'), findsOneWidget);
           expect(find.text('Moving Day'), findsOneWidget);
           expect(find.text('Beach Day'), findsOneWidget);
           expect(find.text('Owned by Priya'), findsNWidgets(2));
-          expect([groupListens, sharedListens, memberListens], [1, 1, 1]);
+          expect([groupCalls, sharedCalls, memberCalls], [1, 1, 1]);
           expect(ownerReads, 1);
 
           setHostState(() {});
           await tester.pumpAndSettle();
           expect(pageBuilds, 2);
+          expect([groupCalls, sharedCalls, memberCalls], [1, 1, 1]);
 
           tester.platformDispatcher.textScaleFactorTestValue = 1.5;
           addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
           await tester.pumpAndSettle();
           expect(pageBuilds, 3);
+          expect([groupCalls, sharedCalls, memberCalls], [1, 1, 1]);
 
           await tester.tap(shareWishlistFab);
           await tester.pumpAndSettle();
@@ -561,7 +563,7 @@ void main() {
           await tester.tap(find.text('Cancel'));
           await tester.pumpAndSettle();
 
-          expect([groupListens, sharedListens, memberListens], [1, 1, 1]);
+          expect([groupCalls, sharedCalls, memberCalls], [1, 1, 1]);
           expect(ownerReads, 1);
 
           setHostState(() => showPage = false);

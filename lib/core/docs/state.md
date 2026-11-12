@@ -46,6 +46,9 @@ getIt leaves presentation.
   The family argument is the entity id. Watch it in the page and render the `AsyncValue` with
   `ListContentBuilder` (or the page's own loading/error branches). Do not call `ref.watch` inside
   an `entityWidgetBuilder`; that callback runs during a descendant's build.
+- `StreamListBuilder` and `DataSectionBuilder` are retired: a read is a provider watched in a
+  `ConsumerWidget` and rendered with `ListContentBuilder`. A `StreamBuilder`/`FutureBuilder` on a
+  freshly built stream reintroduces the resubscribe this pattern removes.
 - A command is a `Notifier<TState>` with one `busyItemId`-style field. Its methods call the use
   case and rethrow; it returns `false` when another action is already running. Side effects
   (dialog, snackbar, navigation) stay in the widget. For a command that can remove the row (a

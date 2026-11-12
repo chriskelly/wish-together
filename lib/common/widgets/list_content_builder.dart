@@ -7,10 +7,10 @@ typedef EntityWidgetBuilder<T> = Widget Function(BuildContext context, T item);
 
 /// Renders the four states of a list from plain values.
 ///
-/// `StreamListBuilder` adapts a `Stream` to this widget. A caller that already
-/// holds the current data — the home page, whose state owns its subscriptions —
-/// passes it directly, so both paths render the same thing: an error, a loading
-/// indicator, an empty placeholder, or the entries.
+/// A caller that already holds the current data — a page whose providers own
+/// the subscriptions — passes it directly: an error, a loading indicator, an
+/// empty placeholder, or the entries. The retired `StreamListBuilder` adapted a
+/// `Stream` to this widget; no production page does that any more.
 class ListContentBuilder<T> extends StatelessWidget {
   /// The current entries, or `null` while nothing has arrived yet — including
   /// while a stream subscription is being re-established.

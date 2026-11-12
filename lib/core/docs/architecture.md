@@ -47,9 +47,9 @@ the router for warm links; if not, the blocking `UpdateRequiredApp` is mounted a
 never created. `SentryFlutter.init` wraps that same startup only when `WT_SENTRY_DSN` is set.
 `WishTogetherApp` wraps `MaterialApp.router` in the one root `ProviderScope`. Migrated pages read
 collaborators through the bridge providers in `providers.dart` and keep screen state in their
-feature's `presentation/providers/`; the auth, group, wishlist-form and item-form pages still
-resolve `getIt` directly. Repositories are never constructed inline. The bridge still resolves its
-value from `getIt`, which constructor injection replaces feature by feature.
+feature's `presentation/providers/`; the auth, group-form, wishlist-form and item-form pages
+still resolve `getIt` directly. Repositories are never constructed inline. The bridge still
+resolves its value from `getIt`, which constructor injection replaces feature by feature.
 
 ## How it is tested
 

@@ -1,12 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:wishtogether/common/widgets/brand_card.dart';
-import 'package:wishtogether/core/service_locator.dart';
+import 'package:wishtogether/core/providers.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
-import 'package:wishtogether/features/auth/domain/auth_session.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
 import 'package:wishtogether/features/auth/domain/user.dart';
 import 'package:wishtogether/features/group/application/leave_group_use_case.dart';
@@ -30,6 +32,16 @@ class MockLeaveGroupUseCase extends Mock implements LeaveGroupUseCase {}
 class MockShareWishlistWithGroupUseCase extends Mock
     implements ShareWishlistWithGroupUseCase {}
 
+/// Yields [initial] on every listen, then follows [updates].
+///
+/// A broadcast controller alone would drop an event added before the page
+/// subscribes; this keeps the first emission deterministic and lets a test
+/// count the listens and cancels on [updates].
+Stream<T> _seeded<T>(T initial, Stream<T> updates) async* {
+  yield initial;
+  yield* updates;
+}
+
 void main() {
   test('builds the canonical production invite path off web', () {
     expect(
@@ -45,7 +57,7 @@ void main() {
     );
   });
 
-  group('GroupDetailsPage layout', () {
+  group('GroupDetailsPage', () {
     const groupId = 'group-1';
     const viewerId = 'viewer-uid';
     const ownerId = 'owner-uid';
@@ -65,7 +77,7 @@ void main() {
       'member-11',
       'member-12',
     ];
-    final group = Group(
+    final familyGroup = Group(
       id: groupId,
       name: 'Family',
       ownerId: ownerId,
@@ -73,8 +85,11 @@ void main() {
     );
 
     late MockAuthService authService;
+    late MockGroupRepository groupRepository;
     late MockUserRepository userRepository;
     late MockWishlistRepository wishlistRepository;
+    late MockLeaveGroupUseCase leaveGroupUseCase;
+    late MockShareWishlistWithGroupUseCase shareWishlistUseCase;
 
     // A display name is user-controlled and has no write-time length limit, so
     // the member row must truncate it instead of overflowing. 52 characters is
@@ -94,13 +109,12 @@ void main() {
     }
 
     setUp(() {
-      getIt.reset();
       authService = MockAuthService();
       when(() => authService.currentUserId).thenReturn(viewerId);
 
-      final groupRepository = MockGroupRepository();
+      groupRepository = MockGroupRepository();
       when(() => groupRepository.streamOne(groupId))
-          .thenAnswer((_) => Stream.value(group));
+          .thenAnswer((_) => Stream.value(familyGroup));
 
       wishlistRepository = MockWishlistRepository();
       when(
@@ -119,17 +133,9 @@ void main() {
       userRepository = MockUserRepository();
       stubDisplayNames(const {});
 
-      getIt.registerSingleton<AuthSession>(authService);
-      getIt.registerSingleton<GroupRepository>(groupRepository);
-      getIt.registerSingleton<WishlistRepository>(wishlistRepository);
-      getIt.registerSingleton<UserRepository>(userRepository);
-      getIt.registerSingleton<LeaveGroupUseCase>(MockLeaveGroupUseCase());
-      getIt.registerSingleton<ShareWishlistWithGroupUseCase>(
-        MockShareWishlistWithGroupUseCase(),
-      );
+      leaveGroupUseCase = MockLeaveGroupUseCase();
+      shareWishlistUseCase = MockShareWishlistWithGroupUseCase();
     });
-
-    tearDown(getIt.reset);
 
     final leaveGroupButton = find.widgetWithText(TextButton, 'Leave Group');
     final shareWishlistFab = find.byType(FloatingActionButton);
@@ -138,6 +144,7 @@ void main() {
       WidgetTester tester,
       Size viewport, {
       String? expectedOverflow,
+      Widget Function()? frame,
     }) async {
       tester.view.devicePixelRatio = 3.0;
       tester.view.physicalSize = viewport * 3.0;
@@ -152,17 +159,34 @@ void main() {
             path: GroupDetailsPage.route,
             name: GroupDetailsPage.routeName,
             builder: (context, state) =>
+                frame?.call() ??
                 GroupDetailsPage(groupId: state.pathParameters['id']!),
           ),
           GoRoute(
-            path: '/home',
-            builder: (context, state) => const SizedBox.shrink(),
+            path: '/',
+            builder: (context, state) =>
+                const Scaffold(body: Text('Home stub')),
           ),
         ],
       );
       addTearDown(router.dispose);
 
-      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpWidget(
+        ProviderScope(
+          retry: disableAutomaticRetry,
+          overrides: [
+            groupRepositoryProvider.overrideWithValue(groupRepository),
+            wishlistRepositoryProvider.overrideWithValue(wishlistRepository),
+            userRepositoryProvider.overrideWithValue(userRepository),
+            authSessionProvider.overrideWithValue(authService),
+            leaveGroupUseCaseProvider.overrideWithValue(leaveGroupUseCase),
+            shareWishlistWithGroupUseCaseProvider.overrideWithValue(
+              shareWishlistUseCase,
+            ),
+          ],
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
       await tester.pumpAndSettle();
 
       // Flutter's test font draws every glyph as a square about twice as wide as
@@ -410,6 +434,234 @@ void main() {
         findsNothing,
       );
       expect(find.text('Member'), findsNWidgets(memberIds.length - 1));
+    });
+
+    group('state', () {
+      // Wide enough that a 1.5 text scale does not overflow the square test
+      // font in the Shared Wishlists header, so the lifetime test can change
+      // the scale without a layout error masking the subscription counts.
+      const stateViewport = Size(1400, 900);
+
+      testWidgets(
+        'keeps one subscription per read across rebuilds, dialogs and text scale',
+        (tester) async {
+          // Repository calls, not controller listens, are the guard: a stream
+          // re-created in build yields before the broadcast tail is listened to.
+          var groupCalls = 0, groupCancels = 0;
+          var sharedCalls = 0, sharedCancels = 0;
+          var memberCalls = 0, memberCancels = 0;
+          final groupUpdates = StreamController<Group>.broadcast(
+            onCancel: () => groupCancels++,
+          );
+          final sharedUpdates = StreamController<List<Wishlist>>.broadcast(
+            onCancel: () => sharedCancels++,
+          );
+          final memberUpdates = StreamController<List<User>>.broadcast(
+            onCancel: () => memberCancels++,
+          );
+          addTearDown(groupUpdates.close);
+          addTearDown(sharedUpdates.close);
+          addTearDown(memberUpdates.close);
+
+          final sharedWishlist = Wishlist(
+            id: 'shared-1',
+            name: 'Moving Day',
+            ownerId: ownerId,
+            sharedWithGroups: const [groupId],
+          );
+          // A second wishlist with the same owner: a per-row read would fetch
+          // the owner twice, so `ownerReads == 1` proves the provider caches it.
+          final sharedWishlistBySameOwner = Wishlist(
+            id: 'shared-2',
+            name: 'Beach Day',
+            ownerId: ownerId,
+            sharedWithGroups: const [groupId],
+          );
+          final ownedWishlist = Wishlist(
+            id: 'owned-1',
+            name: 'Birthday',
+            ownerId: viewerId,
+          );
+          final sharedWishlists = [sharedWishlist, sharedWishlistBySameOwner];
+          final users = [
+            for (final id in memberIds) User(id: id, displayName: 'Person $id'),
+          ];
+          var ownerReads = 0;
+
+          when(() => groupRepository.streamOne(groupId)).thenAnswer((_) {
+            groupCalls++;
+            return _seeded(familyGroup, groupUpdates.stream);
+          });
+          when(
+            () => wishlistRepository.streamWhere(
+              'sharedWithGroups',
+              arrayContains: groupId,
+            ),
+          ).thenAnswer((_) {
+            sharedCalls++;
+            return _seeded(sharedWishlists, sharedUpdates.stream);
+          });
+          when(() => userRepository.streamUsersFromIds(memberIds))
+              .thenAnswer((_) {
+                memberCalls++;
+                return _seeded(users, memberUpdates.stream);
+              });
+          when(
+            () =>
+                wishlistRepository.streamWhere('ownerId', isEqualTo: viewerId),
+          ).thenAnswer((_) => Stream.value([ownedWishlist]));
+          when(() => userRepository.get(ownerId)).thenAnswer((_) {
+            ownerReads++;
+            return Future.value(User(id: ownerId, displayName: 'Priya'));
+          });
+
+          late StateSetter setHostState;
+          var pageBuilds = 0;
+          var showPage = true;
+          await pumpPage(
+            tester,
+            stateViewport,
+            frame: () => StatefulBuilder(
+              builder: (context, setState) {
+                setHostState = setState;
+                // Register a MediaQuery dependency so a text-scale change
+                // rebuilds this host, and build a fresh page so its own build
+                // runs rather than being skipped as an identical widget.
+                MediaQuery.textScalerOf(context);
+                pageBuilds++;
+                return showPage
+                    ? GroupDetailsPage(groupId: groupId)
+                    : const SizedBox.shrink();
+              },
+            ),
+          );
+
+          // Every read delivered its data, and each was created once.
+          expect(pageBuilds, 1);
+          expect(find.text('Family'), findsOneWidget);
+          expect(find.text('Moving Day'), findsOneWidget);
+          expect(find.text('Beach Day'), findsOneWidget);
+          expect(find.text('Owned by Priya'), findsNWidgets(2));
+          expect([groupCalls, sharedCalls, memberCalls], [1, 1, 1]);
+          expect(ownerReads, 1);
+
+          setHostState(() {});
+          await tester.pumpAndSettle();
+          expect(pageBuilds, 2);
+          expect([groupCalls, sharedCalls, memberCalls], [1, 1, 1]);
+
+          tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+          addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+          await tester.pumpAndSettle();
+          expect(pageBuilds, 3);
+          expect([groupCalls, sharedCalls, memberCalls], [1, 1, 1]);
+
+          await tester.tap(shareWishlistFab);
+          await tester.pumpAndSettle();
+          expect(find.text('Share a Wishlist'), findsOneWidget);
+          expect(find.text(ownedWishlist.name), findsOneWidget);
+          await tester.tap(find.text('Cancel'));
+          await tester.pumpAndSettle();
+
+          expect([groupCalls, sharedCalls, memberCalls], [1, 1, 1]);
+          expect(ownerReads, 1);
+
+          setHostState(() => showPage = false);
+          await tester.pumpAndSettle();
+          expect([groupCancels, sharedCancels, memberCancels], [1, 1, 1]);
+          expect(ownerReads, 1);
+        },
+      );
+
+      testWidgets('shows the error scaffold when the group read fails', (
+        tester,
+      ) async {
+        when(() => groupRepository.streamOne(groupId))
+            .thenAnswer((_) => Stream.error(StateError('missing')));
+
+        await pumpPage(tester, stateViewport);
+
+        expect(find.text('Error'), findsOneWidget);
+        expect(find.text('Group not found.'), findsOneWidget);
+      });
+
+      testWidgets('renders read-only without a signed-in user', (tester) async {
+        when(() => authService.currentUserId).thenReturn(null);
+
+        await pumpPage(tester, stateViewport);
+
+        expect(find.text('Family'), findsOneWidget);
+        expect(find.byTooltip('Copy Invitation Link'), findsNothing);
+        expect(find.byTooltip('Edit Group'), findsNothing);
+        expect(leaveGroupButton, findsNothing);
+        expect(shareWishlistFab, findsNothing);
+      });
+
+      testWidgets('offers no wishlist to share without a signed-in user', (
+        tester,
+      ) async {
+        when(() => authService.currentUserId).thenReturn(null);
+
+        await pumpPage(tester, stateViewport);
+        await tester.tap(find.byTooltip('Add new wishlist'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('You have no wishlists to share.'), findsOneWidget);
+      });
+
+      testWidgets('removes a shared wishlist after confirmation', (
+        tester,
+      ) async {
+        final ownWishlist = Wishlist(
+          id: 'own-1',
+          name: 'Camping',
+          ownerId: viewerId,
+          sharedWithGroups: const [groupId],
+        );
+        when(
+          () => wishlistRepository.streamWhere(
+            'sharedWithGroups',
+            arrayContains: groupId,
+          ),
+        ).thenAnswer((_) => Stream.value([ownWishlist]));
+        when(() => userRepository.get(viewerId))
+            .thenAnswer((_) async => User(id: viewerId, displayName: 'Sam'));
+        when(() => wishlistRepository.removeWishlistFromGroup('own-1', groupId))
+            .thenAnswer((_) async {});
+
+        await pumpPage(tester, stateViewport);
+
+        await tester.tap(find.byTooltip('Remove from group'));
+        await tester.pumpAndSettle();
+        expect(find.text('Remove Wishlist?'), findsOneWidget);
+
+        await tester.tap(find.text('Remove'));
+        await tester.pumpAndSettle();
+
+        verify(
+          () => wishlistRepository.removeWishlistFromGroup('own-1', groupId),
+        ).called(1);
+        expect(find.text('Wishlist removed from group.'), findsOneWidget);
+      });
+
+      testWidgets('leaves the group after confirmation and returns home', (
+        tester,
+      ) async {
+        when(() => leaveGroupUseCase.execute(groupId)).thenAnswer((_) async {});
+
+        await pumpPage(tester, stateViewport);
+        await scrollToEnd(tester);
+        await tester.tap(leaveGroupButton);
+        await tester.pumpAndSettle();
+        expect(find.text('Leave Group?'), findsOneWidget);
+
+        await tester.tap(find.text('Leave'));
+        await tester.pumpAndSettle();
+
+        verify(() => leaveGroupUseCase.execute(groupId)).called(1);
+        expect(find.text('Home stub'), findsOneWidget);
+        expect(find.text('You have left the group.'), findsOneWidget);
+      });
     });
   });
 }

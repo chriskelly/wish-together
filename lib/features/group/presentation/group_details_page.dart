@@ -1,31 +1,26 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:wishtogether/common/widgets/brand_card.dart';
 import 'package:wishtogether/common/widgets/confirmation_dialog.dart';
 import 'package:wishtogether/common/widgets/data_section_builder.dart';
 import 'package:wishtogether/common/widgets/list_content_builder.dart';
-import 'package:wishtogether/common/widgets/list_item_actions.dart';
 import 'package:wishtogether/common/widgets/primary_app_bar.dart';
-import 'package:wishtogether/common/widgets/stream_list_builder.dart';
 import 'package:wishtogether/core/app_urls.dart';
-import 'package:wishtogether/core/service_locator.dart';
-import 'package:wishtogether/features/auth/domain/auth_session.dart';
+import 'package:wishtogether/core/providers.dart';
+import 'package:wishtogether/features/auth/domain/user.dart';
 import 'package:wishtogether/features/auth/presentation/home_page.dart';
-import 'package:wishtogether/features/group/data/group_repository.dart';
+import 'package:wishtogether/features/group/application/share_wishlist_with_group_use_case.dart';
 import 'package:wishtogether/features/group/domain/group.dart';
 import 'package:wishtogether/features/group/presentation/group_form_page.dart';
+import 'package:wishtogether/features/group/presentation/group_member_row.dart';
+import 'package:wishtogether/features/group/presentation/group_wishlist_row.dart';
 import 'package:wishtogether/features/group/presentation/join_group_page.dart';
-import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
+import 'package:wishtogether/features/group/presentation/providers/group_details_providers.dart';
 import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
-import 'package:wishtogether/features/auth/data/user_repository.dart';
-import 'package:wishtogether/features/auth/domain/user.dart';
-import 'package:wishtogether/features/group/application/leave_group_use_case.dart';
-import 'package:wishtogether/features/group/application/share_wishlist_with_group_use_case.dart';
-import 'package:wishtogether/features/wishlist/presentation/wishlist_details_page.dart';
 
-class GroupDetailsPage extends StatefulWidget {
+class GroupDetailsPage extends ConsumerWidget {
   static const String routeName = 'groupDetails';
   static const String route = '/group/:id';
 
@@ -43,11 +38,6 @@ class GroupDetailsPage extends StatefulWidget {
         .toString();
   }
 
-  @override
-  State<GroupDetailsPage> createState() => _GroupDetailsPageState();
-}
-
-class _GroupDetailsPageState extends State<GroupDetailsPage> {
   /// Bottom space the Share Wishlist button takes from the scroll body: the
   /// button's own height (56 at the Material 3 defaults, and text scaling does
   /// not change it), the margin the Scaffold keeps between it and the body, and
@@ -55,71 +45,71 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
   /// the last row sits underneath the button and takes its taps.
   static const double _fabReserve = 56 + kFloatingActionButtonMargin + 16;
 
-  final GroupRepository _groupRepository = getIt<GroupRepository>();
-  final WishlistRepository _wishlistRepository = getIt<WishlistRepository>();
-  final UserRepository _userRepository = getIt<UserRepository>();
-  final LeaveGroupUseCase _leaveGroupUseCase = getIt<LeaveGroupUseCase>();
-  final ShareWishlistWithGroupUseCase _shareWishlistWithGroupUseCase =
-      getIt<ShareWishlistWithGroupUseCase>();
-  late final String _authUserId;
-
   @override
-  void initState() {
-    super.initState();
-    _authUserId = getIt<AuthSession>().currentUserId!;
-  }
+  Widget build(BuildContext context, WidgetRef ref) {
+    final groupAsync = ref.watch(groupProvider(groupId));
+    // AsyncValue.value keeps the previous value during an error. The old
+    // StreamBuilder cleared data on error, so check the error first.
+    if (groupAsync.hasError) {
+      return _groupLoadError();
+    }
+    final group = groupAsync.value;
+    if (group == null) {
+      return groupAsync.isLoading ? _groupLoading() : _groupLoadError();
+    }
 
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<Group?>(
-      stream: _groupRepository.streamOne(widget.groupId),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return _groupLoading();
-        }
-        if (!snapshot.hasData || snapshot.data == null) {
-          return _groupLoadError();
-        }
+    final userId = ref.watch(currentUserIdProvider);
+    final isOwner = group.ownerId == userId;
+    final sharedAsync = ref.watch(groupSharedWishlistsProvider(groupId));
+    final membersAsync = ref.watch(groupMembersProvider(groupId));
 
-        final group = snapshot.data!;
-        final isOwner = group.ownerId == _authUserId;
-
-        return Scaffold(
-          appBar: _buildAppBar(group, isOwner),
-          body: _buildGroupDetails(group, isOwner),
-          floatingActionButton: _shareWishlistFAB(group),
-        );
-      },
+    return Scaffold(
+      appBar: PrimaryAppBar(
+        title: group.name,
+        actions: _buildAppBarActions(context, group, isOwner),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + _fabReserve),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _sharedWishlistsSection(context, sharedAsync, userId),
+            const SizedBox(height: 20),
+            _membersSection(context, membersAsync, group.ownerId),
+            if (!isOwner && userId != null) _leaveGroupButton(context, ref),
+          ],
+        ),
+      ),
+      floatingActionButton: userId == null ? null : _shareWishlistFAB(context),
     );
   }
 
-  Scaffold _groupLoading() =>
+  Widget _groupLoading() =>
       const Scaffold(body: Center(child: CircularProgressIndicator()));
 
-  Scaffold _groupLoadError() => Scaffold(
+  Widget _groupLoadError() => Scaffold(
     appBar: AppBar(title: const Text('Error')),
     body: const Center(child: Text('Group not found.')),
   );
 
-  PrimaryAppBar _buildAppBar(Group group, bool isOwner) => PrimaryAppBar(
-    title: group.name,
-    actions: _buildAppBarActions(group, isOwner),
-  );
-
-  List<Widget> _buildAppBarActions(Group group, bool isOwner) {
+  List<Widget> _buildAppBarActions(
+    BuildContext context,
+    Group group,
+    bool isOwner,
+  ) {
     if (!isOwner) return [];
 
     return [
       IconButton(
         icon: const Icon(Icons.copy_outlined),
-        onPressed: () => _onInvitationCopyPressed(group.id!),
+        onPressed: () => _onInvitationCopyPressed(context),
         tooltip: 'Copy Invitation Link',
       ),
       IconButton(
         icon: const Icon(Icons.edit),
         onPressed: () => context.pushNamed(
           GroupFormPage.editRouteName,
-          pathParameters: {'id': group.id!},
+          pathParameters: {'id': groupId},
           extra: group,
         ),
         tooltip: 'Edit Group',
@@ -127,169 +117,61 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
     ];
   }
 
-  void _onInvitationCopyPressed(String groupId) {
-    final invitationLink = GroupDetailsPage.getInvitationLink(groupId);
+  void _onInvitationCopyPressed(BuildContext context) {
+    final invitationLink = getInvitationLink(groupId);
     Clipboard.setData(ClipboardData(text: invitationLink));
     ScaffoldMessenger.of(context)
         .showSnackBar(const SnackBar(content: Text('Invitation link copied!')));
   }
 
-  Widget _buildGroupDetails(Group group, bool isOwner) => SingleChildScrollView(
-    padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + _fabReserve),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _sharedWishlistsSection(context, group.id!),
-        const SizedBox(height: 20),
-        _membersSection(group),
-        if (!isOwner) _leaveGroupButton(group.id!, _authUserId),
-      ],
+  Widget _sharedWishlistsSection(
+    BuildContext context,
+    AsyncValue<List<Wishlist>> sharedAsync,
+    String? userId,
+  ) => DataSection(
+    title: 'Shared Wishlists',
+    onAdd: () => _showShareWishlistDialog(context),
+    addTooltip: 'Add new wishlist',
+    child: ListContentBuilder<Wishlist>(
+      items: sharedAsync.value,
+      error: sharedAsync.error,
+      entityWidgetBuilder: (context, wishlist) => GroupWishlistRow(
+        key: ValueKey(wishlist.id),
+        groupId: groupId,
+        wishlist: wishlist,
+        userId: userId,
+      ),
+      emptyWidget: const ListEmptyPlaceholder(
+        message: 'No wishlists have been shared with this group yet.',
+      ),
+      isScrollable: false,
     ),
   );
 
-  Widget _sharedWishlistsSection(BuildContext context, String groupId) {
-    return DataSectionBuilder<Wishlist>(
-      title: 'Shared Wishlists',
-      onAdd: () => _showShareWishlistDialog(context, _authUserId, groupId),
-      stream: _wishlistRepository.streamWhere(
-        'sharedWithGroups',
-        arrayContains: groupId,
+  Widget _membersSection(
+    BuildContext context,
+    AsyncValue<List<User>> membersAsync,
+    String ownerId,
+  ) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text('Members', style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: 10),
+      ListContentBuilder<User>(
+        items: membersAsync.value,
+        error: membersAsync.error,
+        entityWidgetBuilder: (context, member) => GroupMemberRow(
+          key: ValueKey(member.id),
+          member: member,
+          isOwner: member.id == ownerId,
+        ),
+        emptyMessage: 'This group has no members.',
+        isScrollable: false,
       ),
-      emptyListMessage: 'No wishlists have been shared with this group yet.',
-      entityWidgetBuilder: _wishlistWidgetBuilder(groupId),
-    );
-  }
+    ],
+  );
 
-  EntityWidgetBuilder<Wishlist> _wishlistWidgetBuilder(String groupId) =>
-      (context, wishlist) {
-        final isOwner = wishlist.ownerId == _authUserId;
-        return BrandCard(
-          margin: const EdgeInsets.symmetric(vertical: 4.0),
-          child: FutureBuilder<User?>(
-            future: _userRepository.get(wishlist.ownerId),
-            builder: (context, userSnapshot) {
-              String subtitle = _wishlistTileSubtitle(userSnapshot, isOwner);
-              return ListTile(
-                title: Text(wishlist.name),
-                // Its own semantics node, so the row's accessible name is
-                // exactly the wishlist name. Without it the tile merges title
-                // and subtitle into one label ("<name>\nOwned by <person>"),
-                // and a selector written against the name breaks whenever the
-                // owner changes.
-                subtitle: Semantics(container: true, child: Text(subtitle)),
-                onTap: () => context.pushNamed(
-                  WishlistDetailsPage.routeName,
-                  pathParameters: {'id': wishlist.id!},
-                ),
-                trailing: isOwner
-                    ? ListItemActions(
-                        onDelete: () =>
-                            _confirmRemoveWishlist(context, groupId, wishlist),
-                        deleteIcon: Icons.remove_circle_outline,
-                        deleteTooltip: 'Remove from group',
-                      )
-                    : null,
-              );
-            },
-          ),
-        );
-      };
-
-  String _wishlistTileSubtitle(
-    AsyncSnapshot<User?> userSnapshot,
-    bool isOwner,
-  ) {
-    if (userSnapshot.connectionState != ConnectionState.done) {
-      return 'Loading...';
-    }
-    if (userSnapshot.hasData && userSnapshot.data != null) {
-      return isOwner
-          ? 'Owned by you'
-          : 'Owned by ${userSnapshot.data!.displayName}';
-    }
-    return 'by an unknown user';
-  }
-
-  Future<void> _confirmRemoveWishlist(
-    BuildContext context,
-    String groupId,
-    Wishlist wishlist,
-  ) async {
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
-    final bool? confirmed = await _showRemoveWishlistDialog(context, wishlist);
-    if (confirmed != true) return;
-    try {
-      await _wishlistRepository.removeWishlistFromGroup(wishlist.id!, groupId);
-      scaffoldMessenger.showSnackBar(
-        const SnackBar(content: Text('Wishlist removed from group.')),
-      );
-    } catch (e) {
-      scaffoldMessenger.showSnackBar(
-        SnackBar(content: Text('Failed to remove wishlist: $e')),
-      );
-    }
-  }
-
-  Future<bool?> _showRemoveWishlistDialog(
-    BuildContext context,
-    Wishlist wishlist,
-  ) {
-    return showConfirmationDialog(
-      context: context,
-      title: 'Remove Wishlist?',
-      content:
-          'Are you sure you want to remove "${wishlist.name}" from this group?',
-      confirmText: 'Remove',
-    );
-  }
-
-  Widget _membersSection(Group group) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Members', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 10),
-        StreamListBuilder<User>(
-          stream: _userRepository.streamUsersFromIds(group.members),
-          isScrollable: false,
-          emptyMessage: 'This group has no members.',
-          entityWidgetBuilder: _userWidgetBuilder(group.ownerId),
-        ),
-      ],
-    );
-  }
-
-  EntityWidgetBuilder<User> _userWidgetBuilder(String ownerId) =>
-      (context, member) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 8.0),
-        child: Row(
-          children: [
-            // A display name has no length limit. The role label keeps its
-            // natural width and the name yields to it, so an unbroken name
-            // truncates with an ellipsis instead of a silent hard cut; without
-            // the bounded width it would overflow the row and run under the
-            // label.
-            Expanded(
-              child: Text(
-                member.displayName ?? 'No Name',
-                style: Theme.of(context).textTheme.bodyLarge,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              member.id == ownerId ? 'Owner' : 'Member',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontStyle: FontStyle.italic,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-      );
-
-  Widget _leaveGroupButton(String groupId, String userId) {
+  Widget _leaveGroupButton(BuildContext context, WidgetRef ref) {
     final error = Theme.of(context).colorScheme.error;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 20.0),
@@ -297,7 +179,7 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
         child: TextButton.icon(
           icon: Icon(Icons.exit_to_app, color: error),
           label: Text('Leave Group', style: TextStyle(color: error)),
-          onPressed: () => _onLeaveGroupButtonPressed(context, groupId, userId),
+          onPressed: () => _onLeaveGroupButtonPressed(context, ref),
         ),
       ),
     );
@@ -305,67 +187,66 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
 
   Future<void> _onLeaveGroupButtonPressed(
     BuildContext context,
-    String groupId,
-    String userId,
+    WidgetRef ref,
   ) async {
     final navigator = GoRouter.of(context);
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
-    final bool? confirmed = await _showLeaveGroupDialog(context);
-    if (confirmed != true) return;
-
-    try {
-      await _leaveGroupUseCase.execute(groupId);
-      navigator.go(HomePage.route);
-      scaffoldMessenger.showSnackBar(
-        const SnackBar(content: Text('You have left the group.')),
-      );
-    } catch (e) {
-      scaffoldMessenger.showSnackBar(
-        SnackBar(content: Text('Failed to leave group: $e')),
-      );
-    }
-  }
-
-  Future<bool?> _showLeaveGroupDialog(BuildContext context) {
-    return showConfirmationDialog(
+    final messenger = ScaffoldMessenger.of(context);
+    // Captured before the dialog: reading `ref` after the await would throw if
+    // the page left while the confirmation was open.
+    final leaveGroup = ref.read(leaveGroupUseCaseProvider);
+    final bool? confirmed = await showConfirmationDialog(
       context: context,
       title: 'Leave Group?',
       content: 'Are you sure you want to leave this group?',
       confirmText: 'Leave',
     );
+    if (confirmed != true) return;
+
+    try {
+      await leaveGroup.execute(groupId);
+      navigator.go(HomePage.route);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('You have left the group.')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Failed to leave group: $e')),
+      );
+    }
   }
 
-  FloatingActionButton _shareWishlistFAB(Group group) =>
+  Widget _shareWishlistFAB(BuildContext context) =>
       FloatingActionButton.extended(
-        onPressed: () =>
-            _showShareWishlistDialog(context, _authUserId, group.id!),
+        onPressed: () => _showShareWishlistDialog(context),
         label: const Text('Share Wishlist'),
         icon: const Icon(Icons.add),
       );
 
-  Future<void> _showShareWishlistDialog(
-    BuildContext context,
-    String userId,
-    String groupId,
-  ) async => showDialog(
-    context: context,
+  Future<void> _showShareWishlistDialog(BuildContext pageContext) => showDialog(
+    context: pageContext,
     builder: (dialogContext) => AlertDialog(
       title: const Text('Share a Wishlist'),
       content: SizedBox(
         width: double.maxFinite,
-        child: StreamBuilder<List<Wishlist>>(
-          stream: _wishlistRepository.streamWhere('ownerId', isEqualTo: userId),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
+        child: Consumer(
+          builder: (context, ref, child) {
+            // An error shows the same copy as an empty list; AsyncValue keeps
+            // the previous value on error, so it must not fall through to it.
+            final wishlistsAsync = ref.watch(myWishlistsProvider);
+            final wishlists = wishlistsAsync.hasError
+                ? const <Wishlist>[]
+                : wishlistsAsync.value;
+            if (wishlists == null) {
               return const Center(child: CircularProgressIndicator());
             }
-            if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            if (wishlists.isEmpty) {
               return const Text('You have no wishlists to share.');
             }
-            final shareable = snapshot.data!
-                .where((w) => !w.sharedWithGroups.contains(groupId))
+            final shareable = wishlists
+                .where(
+                  (wishlist) => !wishlist.sharedWithGroups.contains(groupId),
+                )
                 .toList();
-
             if (shareable.isEmpty) {
               return const Text(
                 'All of your wishlists are already shared with this group.',
@@ -379,8 +260,13 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
                 return ListTile(
                   title: Text(wishlist.name),
                   onTap: () {
+                    // Read the command before the pop, so the tap never uses
+                    // the dialog's ref after it is disposed.
+                    final share = ref.read(
+                      shareWishlistWithGroupUseCaseProvider,
+                    );
                     Navigator.of(dialogContext).pop();
-                    _shareWishlist(wishlist, groupId);
+                    _shareWishlist(pageContext, share, wishlist);
                   },
                 );
               },
@@ -397,15 +283,19 @@ class _GroupDetailsPageState extends State<GroupDetailsPage> {
     ),
   );
 
-  Future<void> _shareWishlist(Wishlist wishlist, String groupId) async {
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
-    scaffoldMessenger.showSnackBar(
+  Future<void> _shareWishlist(
+    BuildContext context,
+    ShareWishlistWithGroupUseCase share,
+    Wishlist wishlist,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
       SnackBar(content: Text('Sharing "${wishlist.name}" with the group.')),
     );
     try {
-      await _shareWishlistWithGroupUseCase.execute(wishlist.id!, groupId);
+      await share.execute(wishlist.id!, groupId);
     } catch (e) {
-      scaffoldMessenger.showSnackBar(
+      messenger.showSnackBar(
         SnackBar(content: Text('Failed to share wishlist: $e')),
       );
     }

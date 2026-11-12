@@ -18,7 +18,7 @@ relative to `lib/features/group/`, then to the repository root.
 | `domain/` | `domain/group.dart` |
 | `data/` | `data/group_repository.dart` |
 | `application/` | `application/create_group_use_case.dart`, `application/join_group_use_case.dart`, `application/leave_group_use_case.dart`, `application/update_group_use_case.dart`, `application/share_wishlist_with_group_use_case.dart` |
-| `presentation/` | `presentation/group_form_page.dart`, `presentation/group_details_page.dart`, `presentation/join_group_page.dart` |
+| `presentation/` | `presentation/group_form_page.dart`, `presentation/group_details_page.dart`, `presentation/group_member_row.dart`, `presentation/group_wishlist_row.dart`, `presentation/join_group_page.dart`, `presentation/providers/group_details_providers.dart` |
 
 ## Key types
 
@@ -33,6 +33,12 @@ relative to `lib/features/group/`, then to the repository root.
   `ShareWishlistWithGroupUseCase`.
 - `GroupDetailsPage.getInvitationLink(groupId, {String? origin})` builds the invite URL.
 - `JoinGroupPage` handles the invite deep link.
+- `GroupDetailsPage` reads through providers in `presentation/providers/group_details_providers.dart`:
+  `groupProvider(id)` (group document), `groupSharedWishlistsProvider(id)` (wishlists shared with
+  the group), `groupMembersProvider(id)` (member users, resolved from the group), and
+  `wishlistOwnerProvider(ownerId)` (one owner profile, cached per uid). All are family-keyed,
+  auto-dispose reads. `myWishlistsProvider` is the signed-in user's wishlists for the share
+  dialog and stays empty without a session.
 
 ## Invariants
 
@@ -43,6 +49,8 @@ relative to `lib/features/group/`, then to the repository root.
 - `CreateGroupUseCase` writes the creator into `members` in the same document as `ownerId`, so the
   two cannot disagree.
 - `GroupDetailsPage` gates the edit and copy-invite actions on `isOwner`; everyone else gets Leave.
+  Without a signed-in uid it drops the owner actions, Leave and the Share button; the section's
+  add control still opens the share dialog, which makes no query and lists nothing.
 - `ShareWishlistWithGroupUseCase` rewrites the wishlist's `sharedWithGroups` with the group id
   added only when absent, which is what makes a repeated share harmless.
 - The group's "Shared Wishlists" list is the set of wishlists whose `sharedWithGroups`
@@ -67,10 +75,12 @@ relative to `lib/features/group/`, then to the repository root.
 ## Data flow
 
 `HomePage` streams the user's groups with `streamWhere('members', arrayContains: uid)`.
-`GroupDetailsPage` streams the group, streams member `User` documents via
-`UserRepository.streamUsersFromIds(group.members)`, and streams shared wishlists via
-`streamWhere('sharedWithGroups', arrayContains: groupId)`. Joining uses the current uid
-from `AuthSession`; no uid is passed in from the UI.
+`GroupDetailsPage` watches `groupProvider` for the document, `groupMembersProvider` for the
+member users, and `groupSharedWishlistsProvider` for the shared wishlists; each row watches
+`wishlistOwnerProvider(wishlist.ownerId)` for its owner line, so the page never calls a
+repository in `build`. The page imports no `service_locator.dart`; commands (remove, share,
+leave) go through the bridge providers. Joining uses the current uid from `AuthSession`; no uid
+is passed in from the UI.
 
 ## How it is tested
 
@@ -101,4 +111,9 @@ from `AuthSession`; no uid is passed in from the UI.
   and Join Group still joins and lands on the group. The page also renders the invitation
   when no session is present, which is defensive: the router normally sends a signed-out
   visitor to login first.
-- These two are the only widget tests that cover the group pages.
+- The same page test's `state` group covers the migration through `ProviderScope(overrides:)`:
+  each read delivers its data, one subscription per read across a page rebuild, a text-scale
+  change and opening/closing the share dialog, a cancel when the page leaves, one owner profile
+  read, the group error scaffold, the signed-out page (owner controls, Leave and the Share button
+  gone; its add control opens a dialog that neither queries nor writes), and remove and leave
+  going through the providers. These two are the only widget tests that cover the group pages.

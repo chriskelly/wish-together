@@ -733,6 +733,12 @@ class _ItemFormPageState extends State<ItemFormPage> {
       return;
     }
     _leaving = true;
+    // go_router completes a page-based pop in a deferred onExit. Clear the
+    // spinner first so the app bar never shows a save still running while the
+    // page is on its way out.
+    setState(() {
+      _isLoading = false;
+    });
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(message)));
     context.pop();

@@ -1486,6 +1486,32 @@ void main() {
       );
     });
 
+    testWidgets('does not write a new item with an invalid link', (
+      tester,
+    ) async {
+      await pumpForm(tester);
+      await tester.enterText(find.byType(TextFormField).first, itemName);
+      await tester.enterText(find.byType(TextFormField).at(2), 'not a url');
+      await tester.pump();
+
+      await tapCreate(tester);
+
+      expect(
+        find.text('Please enter a valid URL (are you missing "http://"?)'),
+        findsOneWidget,
+      );
+      expect(find.text('wishlist'), findsNothing);
+      verifyNever(
+        () => createItemUseCase.execute(
+          any(),
+          any(),
+          description: any(named: 'description'),
+          url: any(named: 'url'),
+          claimLimit: any(named: 'claimLimit'),
+        ),
+      );
+    });
+
     testWidgets('does not write a typed note without a name', (tester) async {
       await pumpForm(tester);
       await tester.enterText(find.byType(TextFormField).at(1), 'A note');

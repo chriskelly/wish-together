@@ -619,6 +619,11 @@ class _ItemFormPageState extends State<ItemFormPage> {
       return true;
     }
     final choice = await _askLeave();
+    // The route can be removed while the dialog is open (a session redirect),
+    // taking the dialog with it. Never dereference the form after that.
+    if (!mounted) {
+      return false;
+    }
     return switch (choice) {
       _LeaveChoice.discard => true,
       _LeaveChoice.save => await _saveItem(),

@@ -514,6 +514,44 @@ void main() {
     });
   });
 
+  group('onExit pop', () {
+    testWidgets('an async redirect does not resurrect a popped route', (
+      tester,
+    ) async {
+      final router = GoRouter(
+        initialLocation: '/detail',
+        redirect: (context, state) async {
+          await Future<void>.delayed(Duration.zero);
+          return null;
+        },
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) => const Scaffold(body: Text('home')),
+            routes: [
+              GoRoute(
+                path: 'detail',
+                onExit: (context, state) => true,
+                builder: (context, state) =>
+                    const Scaffold(body: Text('detail')),
+              ),
+            ],
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpAndSettle();
+      expect(find.text('detail'), findsOneWidget);
+
+      router.pop();
+      await tester.pumpAndSettle();
+
+      expect(find.text('detail'), findsNothing);
+      expect(find.text('home'), findsOneWidget);
+    });
+  });
+
   group('item form edit route', () {
     testWidgets('a deep link without route args falls back to the list', (
       tester,

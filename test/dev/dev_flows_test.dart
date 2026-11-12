@@ -137,7 +137,8 @@ void main() {
     await tester.tap(find.byTooltip('Save changes'));
     await pumpFrames(tester);
 
-    // ASSERT
+    // ASSERT: the form is gone, not sitting behind the list.
+    expect(find.text('Edit Item'), findsNothing);
     expect(find.text(renamed), findsOneWidget);
     expect(find.text('Coffee grinder'), findsNothing);
   });

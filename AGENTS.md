@@ -28,6 +28,7 @@ staging `staging`); phone OTP, Google on web and App Check; tests with `flutter_
 | Where does gift claiming live, and how do groups work? | `lib/features/wishlist/AGENTS.md` · `lib/features/group/AGENTS.md` |
 | How do I force a client update? | `lib/features/app_update/AGENTS.md` |
 | How is the app wired, and how does navigation decide? | `lib/core/AGENTS.md` |
+| How does screen state work, and how do I add a provider? | `lib/core/docs/state.md` |
 | Data access, and how do I change the look? | `lib/core/docs/data-access.md` · `lib/core/docs/design-system.md` |
 | See, drive or screenshot a signed-in screen | `lib/dev/AGENTS.md` · `.agents/skills/dev-session/` |
 | Where do crash reports go, and what is never reported? | `docs/diagnostics.md` |

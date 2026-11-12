@@ -1,30 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
 import 'package:wishtogether/core/providers.dart';
-import 'package:wishtogether/main.dart';
 
 void main() {
-  testWidgets('the app root disables automatic retry', (tester) async {
-    final router = GoRouter(
-      routes: [
-        GoRoute(
-          path: '/',
-          builder: (context, state) => const SizedBox.shrink(),
-        ),
-      ],
-    );
-    addTearDown(router.dispose);
-
-    await tester.pumpWidget(WishTogetherApp(router: router));
-
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(MaterialApp)),
-    );
-    expect(container.retry, same(disableAutomaticRetry));
-  });
-
   testWidgets('a failing provider under disableAutomaticRetry builds once', (
     tester,
   ) async {

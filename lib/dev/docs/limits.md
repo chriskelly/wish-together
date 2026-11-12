@@ -35,8 +35,10 @@ cannot be exercised in one process, or are app behaviour the harness reproduces 
    or depend on the browser. Everything up to the plugin call can be verified; the call itself
    cannot.
 8. **Auth transitions are not modelled.** One fixed signed-in identity: no sign-in, no
-   sign-out, no account deletion, and no auth screens. `lib/features/group/presentation/group_details_page.dart` force-unwraps
-   `currentUserId`, so a signed-out session would throw rather than degrade.
+   sign-out, no account deletion, and no auth screens. The group details page no longer
+   force-unwraps the uid — a signed-out session drops the owner controls, Leave and the Share
+   button, and its share dialog lists nothing without querying — but a scenario cannot exercise
+   that branch because the fake always has an identity. Its widget test covers it.
 9. **Nothing persists.** The store lives in the process; a reload re-seeds it, and there is no
    offline or cache behaviour to observe (`metadata.hasPendingWrites` is always false).
 10. **A transaction is not isolated.** The fake's `runTransaction` runs the handler once against

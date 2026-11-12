@@ -1,6 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:wishtogether/core/service_locator.dart';
+import 'package:wishtogether/features/auth/data/user_repository.dart';
 import 'package:wishtogether/features/auth/domain/auth_session.dart';
+import 'package:wishtogether/features/group/application/leave_group_use_case.dart';
+import 'package:wishtogether/features/group/application/share_wishlist_with_group_use_case.dart';
+import 'package:wishtogether/features/group/data/group_repository.dart';
 import 'package:wishtogether/features/wishlist/application/claim_item_use_case.dart';
 import 'package:wishtogether/features/wishlist/application/unclaim_item_use_case.dart';
 import 'package:wishtogether/features/wishlist/data/item_repository.dart';
@@ -24,6 +28,23 @@ final authSessionProvider = Provider<AuthSession>(
 final wishlistRepositoryProvider = Provider<WishlistRepository>(
   (ref) => getIt<WishlistRepository>(),
 );
+
+final groupRepositoryProvider = Provider<GroupRepository>(
+  (ref) => getIt<GroupRepository>(),
+);
+
+final userRepositoryProvider = Provider<UserRepository>(
+  (ref) => getIt<UserRepository>(),
+);
+
+final leaveGroupUseCaseProvider = Provider<LeaveGroupUseCase>(
+  (ref) => getIt<LeaveGroupUseCase>(),
+);
+
+final shareWishlistWithGroupUseCaseProvider =
+    Provider<ShareWishlistWithGroupUseCase>(
+      (ref) => getIt<ShareWishlistWithGroupUseCase>(),
+    );
 
 /// Derives the sub-repository for [wishlistId]; it does not resolve it from getIt.
 final itemRepositoryProvider = Provider.family<ItemRepository, String>(

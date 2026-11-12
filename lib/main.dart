@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart'
         TargetPlatform,
         visibleForTesting;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
@@ -18,6 +19,7 @@ import 'package:wishtogether/core/logging/app_event.dart';
 import 'package:wishtogether/core/logging/diagnostics.dart';
 import 'package:wishtogether/core/logging/sentry_sink.dart';
 import 'package:wishtogether/core/logging/sentry_startup.dart';
+import 'package:wishtogether/core/providers.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/app_update/application/check_for_update.dart';
 import 'package:wishtogether/features/app_update/application/retry_update_gate.dart';
@@ -255,7 +257,7 @@ class WishTogetherApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
+    final app = MaterialApp.router(
       routerConfig: router,
       title: 'WishTogether',
       // The DEBUG ribbon is noise in screenshots and demos. It only ever
@@ -281,5 +283,6 @@ class WishTogetherApp extends StatelessWidget {
         return frame(pages);
       },
     );
+    return ProviderScope(retry: disableAutomaticRetry, child: app);
   }
 }

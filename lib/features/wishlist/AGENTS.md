@@ -23,7 +23,13 @@ the product.
   instead; a reader of a shared list always sees the state. Single-claim rows never show a
   count; multi and unlimited rows show the count summary while room remains, and a full reader
   row shows `Unavailable` with no count.
+- `WishlistDetailsPage` is a `ConsumerWidget`; its item rows are `WishlistItemRow`, which owns
+  the card rendering and the claim/unclaim/delete side effects. The page keeps the reads, the
+  app bar and navigation. Row rendering and claim copy are covered by
+  `wishlist_details_page_test.dart`; the delete flow, the busy guard and the stream lifetime by
+  `wishlist_details_state_test.dart`.
 
 ## Reference
 
 - Models, repositories, claim states, the rules that gate a claim → `docs/claiming.md`
+- The provider pattern, retry policy and test shapes → `../core/docs/state.md`

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:wishtogether/common/widgets/list_content_builder.dart';
 
+/// Retired: no production caller. Reads render through `ListContentBuilder`
+/// from a provider; this adapter stays only until its tests are removed.
 class StreamListBuilder<T> extends StatelessWidget {
   final Stream<List<T>> stream;
   final EntityWidgetBuilder<T> entityWidgetBuilder;

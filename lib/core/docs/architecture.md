@@ -8,7 +8,8 @@ Paths are relative to `lib/core/`, then to the repository root.
 
 - Base data access (`FirebaseRepository<T>`) — see `docs/data-access.md`.
 - Navigation and the auth/onboarding redirect contract (`router.dart`) — see `docs/router.md`.
-- Dependency wiring (`service_locator.dart`).
+- Dependency wiring (`service_locator.dart`) and the getIt bridge for screen state
+  (`providers.dart`) — see `docs/state.md`.
 - App theming (`theme.dart`) — see `docs/design-system.md`.
 - The reporting façade (`logging/`) — typed events, identifier derivation, and the
   breadcrumb allowlist; see `logging/AGENTS.md`.
@@ -25,6 +26,7 @@ Paths are relative to `lib/core/`, then to the repository root.
 | `appOrigin` / `locationFromUniversalLink(...)` | `app_urls.dart` | Canonical URL and the allowlisted Universal-Link → location mapping. |
 | `DeepLinkService` | `deep_links.dart` | iOS link delivery (`app_links`) with a startup queue and a warm-link callback. |
 | `setupServiceLocator({firestore, appLog, authSession})` / `getIt` | `service_locator.dart` | Registers the log (eagerly, when supplied), repositories and use cases. `firestore` and `authSession` are composition seams: production passes neither, a caller with its own supplies it. A supplied session that is not an `AuthService` makes `getIt<AuthService>()` throw, so the sign-in, verification and deletion screens are unbuildable for it. |
+| `disableAutomaticRetry` / bridge providers | `providers.dart` | The root retry policy and the temporary getIt bridge presentation reads through; see `docs/state.md`. |
 | `PackageInfoLoader` | `platform_info.dart` | The injectable `PackageInfo.fromPlatform` seam shared by the update gate and the build-identity read. |
 | `BrandPalette` / `BrandGeometry` / `buildTextTheme` | `design_tokens.dart` | Brand values, geometry and the type scale. |
 | `lightTheme`, `darkTheme` | `theme.dart` | Material 3 themes built from `BrandPalette`; the only theme entry points. |
@@ -43,8 +45,11 @@ any), seeds the session route and emits `sessionStart`, mounts
 `createRouter(getIt<AuthSession>(), initialLocation: …)` via `MaterialApp.router`, and attaches
 the router for warm links; if not, the blocking `UpdateRequiredApp` is mounted and the router is
 never created. `SentryFlutter.init` wraps that same startup only when `WT_SENTRY_DSN` is set.
-Pages read dependencies from `getIt` and repositories from the locator; nothing constructs a
-repository inline.
+`WishTogetherApp` wraps `MaterialApp.router` in the one root `ProviderScope`. Migrated pages read
+collaborators through the bridge providers in `providers.dart` and keep screen state in their
+feature's `presentation/providers/`; the auth, group-form, wishlist-form and item-form pages
+still resolve `getIt` directly. Repositories are never constructed inline. The bridge still
+resolves its value from `getIt`, which constructor injection replaces feature by feature.
 
 ## How it is tested
 

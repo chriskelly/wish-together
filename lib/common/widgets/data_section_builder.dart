@@ -5,8 +5,9 @@ import 'package:wishtogether/core/design_tokens.dart';
 
 /// A titled section with an add action and one child.
 ///
-/// `DataSectionBuilder` pairs it with `StreamListBuilder`; a page that holds its
-/// own state pairs it with `ListContentBuilder`.
+/// A page whose providers own the reads pairs it with `ListContentBuilder`.
+/// `DataSectionBuilder` and `StreamListBuilder` are retired; nothing in `lib/`
+/// uses them any more.
 class DataSection extends StatelessWidget {
   final String title;
   final VoidCallback onAdd;

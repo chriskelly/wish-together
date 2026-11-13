@@ -1,214 +1,50 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:wishtogether/common/widgets/brand_card.dart';
 import 'package:wishtogether/common/widgets/brand_hero.dart';
-import 'package:wishtogether/common/widgets/confirmation_dialog.dart';
 import 'package:wishtogether/common/widgets/data_section_builder.dart';
 import 'package:wishtogether/common/widgets/list_content_builder.dart';
-import 'package:wishtogether/common/widgets/list_item_actions.dart';
 import 'package:wishtogether/core/design_tokens.dart';
-import 'package:wishtogether/core/logging/diagnostics.dart';
-import 'package:wishtogether/core/service_locator.dart';
-import 'package:wishtogether/features/auth/data/user_repository.dart';
-import 'package:wishtogether/features/group/data/group_repository.dart';
-import 'package:wishtogether/features/group/domain/group.dart';
-import 'package:wishtogether/features/auth/domain/user.dart';
-import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
-import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
+import 'package:wishtogether/core/providers.dart';
+import 'package:wishtogether/features/auth/presentation/home_group_row.dart';
+import 'package:wishtogether/features/auth/presentation/home_wishlist_row.dart';
 import 'package:wishtogether/features/auth/presentation/profile_page.dart';
-import 'package:wishtogether/features/group/presentation/group_details_page.dart';
+import 'package:wishtogether/features/auth/presentation/providers/home_providers.dart';
+import 'package:wishtogether/features/auth/presentation/providers/home_sign_out_provider.dart';
+import 'package:wishtogether/features/group/domain/group.dart';
 import 'package:wishtogether/features/group/presentation/group_form_page.dart';
-import 'package:wishtogether/features/wishlist/presentation/wishlist_details_page.dart';
+import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
 import 'package:wishtogether/features/wishlist/presentation/wishlist_form_page.dart';
 
-import '../domain/auth_session.dart';
-
-class HomePage extends StatefulWidget {
+class HomePage extends ConsumerWidget {
   static const String route = '/';
   const HomePage({super.key});
 
   @override
-  State<HomePage> createState() => _HomePageState();
-}
-
-class _HomePageState extends State<HomePage> {
-  final AuthSession _session = getIt<AuthSession>();
-  final UserRepository _userRepository = getIt<UserRepository>();
-  final WishlistRepository _wishlistRepository = getIt<WishlistRepository>();
-  final GroupRepository _groupRepository = getIt<GroupRepository>();
-
-  /// The uid the current reads were started for; null when no session is
-  /// readable, which is what stops the page rendering anything.
-  String? _uid;
-
-  StreamSubscription<User>? _userSubscription;
-  StreamSubscription<List<Wishlist>>? _wishlistSubscription;
-  StreamSubscription<List<Group>>? _groupSubscription;
-
-  User? _user;
-  Object? _userError;
-  bool _userStreamEnded = false;
-  List<Wishlist>? _wishlists;
-  Object? _wishlistsError;
-  List<Group>? _groups;
-  Object? _groupsError;
-
-  /// Guards against a second tap while a sign-out is already in flight.
-  bool _signingOut = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _subscribeDataStreams();
-  }
-
-  @override
-  void dispose() {
-    _cancelDataStreams();
-    super.dispose();
-  }
-
-  /// Starts the three reads that belong to the current session.
-  ///
-  /// Called when the page is created and again whenever a failed sign-out
-  /// leaves the page alive. A start with no session reads nothing: both the
-  /// first call (the router is about to show the login page) and a sign-out
-  /// that cleared the session before failing arrive here, and a read would
-  /// race the session being cleared.
-  void _subscribeDataStreams() {
-    // A start always replaces whatever a previous lifecycle left behind.
-    _cancelDataStreams();
-
-    final uid = _session.currentUserId;
-    // A start clears each read's failure, so a restarted lifecycle cannot show
-    // the previous one's error. Results are kept, so a restart with a live
-    // session keeps rendering what it already shows instead of blanking until
-    // the next snapshot arrives; a start with no session settles the page back
-    // to its loading state, because nothing is readable without a uid.
-    _uid = uid;
-    _userError = null;
-    _userStreamEnded = false;
-    _wishlistsError = null;
-    _groupsError = null;
-    if (uid == null) {
-      return;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final userId = ref.watch(currentUserIdProvider);
+    if (userId == null) {
+      // Nothing is readable without a session; the router is about to show the
+      // login page.
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    _userSubscription = _listen<User>(
-      _userRepository.streamOne(uid),
-      (user) => setState(() {
-        _user = user;
-        _userError = null;
-      }),
-      (error) => setState(() => _userError = error),
-      onDone: () => setState(() => _userStreamEnded = true),
-    );
-    _wishlistSubscription = _listen<List<Wishlist>>(
-      _wishlistRepository.streamWhere('ownerId', isEqualTo: uid),
-      (wishlists) => setState(() {
-        _wishlists = wishlists;
-        _wishlistsError = null;
-      }),
-      (error) => setState(() => _wishlistsError = error),
-      onDone: () => setState(() => _wishlists ??= const <Wishlist>[]),
-    );
-    _groupSubscription = _listen<List<Group>>(
-      _groupRepository.streamWhere('members', arrayContains: uid),
-      (groups) => setState(() {
-        _groups = groups;
-        _groupsError = null;
-      }),
-      (error) => setState(() => _groupsError = error),
-      onDone: () => setState(() => _groups ??= const <Group>[]),
-    );
-  }
-
-  /// Subscribes, dropping any event that arrives after the page is gone.
-  StreamSubscription<T> _listen<T>(
-    Stream<T> stream,
-    void Function(T value) onValue,
-    void Function(Object error) onError, {
-    required void Function() onDone,
-  }) {
-    return stream.listen(
-      (value) {
-        if (!mounted) return;
-        onValue(value);
-      },
-      onError: (Object error) {
-        if (!mounted) return;
-        onError(error);
-      },
-      onDone: () {
-        if (!mounted) return;
-        onDone();
-      },
-    );
-  }
-
-  /// Drops every home read.
-  ///
-  /// Called before signing out, so no listener is attached while the session is
-  /// cleared: a listener that outlives the credential is what made Firestore
-  /// re-issue its reads unauthenticated and report `permission-denied` for
-  /// `users`, `wishlists` and `groups`. The cancel issues the detach
-  /// synchronously: each stream turns the Dart cancel into its own listener
-  /// removal inside the same call (for queries, cancelling the snapshot
-  /// `EventChannel` subscription, which sends the platform's cancel). The
-  /// returned futures are not awaited because that would only add a microtask —
-  /// it cannot make the detach happen sooner than the call already did.
-  void _cancelDataStreams() {
-    unawaited(_userSubscription?.cancel());
-    _userSubscription = null;
-    unawaited(_wishlistSubscription?.cancel());
-    _wishlistSubscription = null;
-    unawaited(_groupSubscription?.cancel());
-    _groupSubscription = null;
-  }
-
-  Future<void> _signOut() async {
-    if (_signingOut) {
-      return;
+    // A closed gate is the sign-out path. It is checked before the values
+    // because a closed read emits data (null / empty), not loading.
+    if (!ref.watch(homeReadsEnabledProvider)) {
+      return _loading(context, ref);
     }
-    _signingOut = true;
-    _cancelDataStreams();
-    try {
-      await _session.signOut();
-    } catch (error, stackTrace) {
-      appLogOrNull?.error(error, stackTrace, code: 'sign-out-failed');
-      if (!mounted) return;
 
-      if (_session.currentUserId == null) {
-        // The sign-out cleared the session before it failed: there is nothing
-        // left to read, so start nothing and let the router take the page away.
-        setState(_subscribeDataStreams);
-        return;
-      }
+    final userAsync = ref.watch(homeUserProvider(userId));
+    final wishlistsAsync = ref.watch(homeWishlistsProvider(userId));
+    final groupsAsync = ref.watch(homeGroupsProvider(userId));
 
-      // The session is still live, so the page has to keep working: report the
-      // failure, then restart the reads.
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not sign out. Please try again.')),
-      );
-      setState(_subscribeDataStreams);
-    } finally {
-      _signingOut = false;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final user = _user;
-    final uid = _uid;
-
-    if (_userError != null || (_userStreamEnded && user == null)) {
-      return _userLoadError();
-    }
-    if (user == null || uid == null) {
-      return _userLoading();
-    }
+    // AsyncValue keeps the previous user while an error is showing, and the
+    // page has always treated a failed profile read as final until a restart.
+    if (userAsync.hasError) return _userLoadError();
+    if (userAsync.isLoading) return _loading(context, ref);
+    final user = userAsync.value;
+    if (user == null) return _userLoadError();
 
     return Scaffold(
       body: Column(
@@ -216,7 +52,7 @@ class _HomePageState extends State<HomePage> {
           BrandHero(
             title: 'Welcome,\n${user.displayName ?? 'Friend'}!',
             titleStyle: heroHomeTextStyle,
-            actions: _homeActions(),
+            actions: _homeActions(context, ref),
           ),
           Expanded(
             child: SingleChildScrollView(
@@ -225,25 +61,9 @@ class _HomePageState extends State<HomePage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: BrandGeometry.spacingLg),
-                  _dataSection<Wishlist>(
-                    title: 'My Wishlists',
-                    onAdd: () => context.push(WishlistFormPage.createRoute),
-                    addTooltip: 'Add new wishlist',
-                    items: _wishlists,
-                    error: _wishlistsError,
-                    emptyMessage: 'No wishlists yet. Create one!',
-                    entityWidgetBuilder: _wishlistWidgetBuilder(),
-                  ),
+                  _wishlistsSection(context, wishlistsAsync),
                   const SizedBox(height: BrandGeometry.sectionGap),
-                  _dataSection<Group>(
-                    title: 'My Groups',
-                    onAdd: () => context.push(GroupFormPage.createRoute),
-                    addTooltip: 'Add new group',
-                    items: _groups,
-                    error: _groupsError,
-                    emptyMessage: 'No groups yet. Create or join one!',
-                    entityWidgetBuilder: _groupWidgetBuilder(userId: uid),
-                  ),
+                  _groupsSection(context, groupsAsync, userId),
                 ],
               ),
             ),
@@ -255,130 +75,87 @@ class _HomePageState extends State<HomePage> {
 
   /// The profile and sign-out controls, kept in the hero so the greeting and
   /// its actions stay reachable while the lists scroll.
-  List<Widget> _homeActions() => <Widget>[
+  ///
+  /// The loading scaffold reuses them: a first load, a sign-out in flight and a
+  /// restart after a failed sign-out all keep the profile and sign-out controls
+  /// reachable, and the command ignores a tap while one is already in flight.
+  List<Widget> _homeActions(BuildContext context, WidgetRef ref) => <Widget>[
     IconButton(
       icon: const Icon(Icons.person_outline),
       tooltip: 'Profile',
       onPressed: () => context.go(ProfilePage.route),
     ),
     // Only offer sign-out when the session has a sign-in flow behind it.
-    // There is no point offering a control that would leave a session with
-    // nowhere to go.
-    if (_session.supportsSignOut)
+    if (ref.watch(authSessionProvider).supportsSignOut)
       IconButton(
         icon: const Icon(Icons.logout),
         tooltip: 'Logout',
-        onPressed: _signOut,
+        onPressed: () => _signOut(context, ref),
       ),
   ];
 
-  Widget _dataSection<T>({
-    required String title,
-    required VoidCallback onAdd,
-    required String addTooltip,
-    required List<T>? items,
-    required Object? error,
-    required String emptyMessage,
-    required EntityWidgetBuilder<T> entityWidgetBuilder,
-  }) => DataSection(
-    title: title,
-    onAdd: onAdd,
-    addTooltip: addTooltip,
-    child: ListContentBuilder<T>(
-      items: items,
-      error: error,
-      emptyWidget: ListEmptyPlaceholder(message: emptyMessage),
+  Future<void> _signOut(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final result = await ref.read(homeSignOutProvider.notifier).signOut();
+    if (result != HomeSignOutResult.failedSessionLive || !context.mounted) {
+      return;
+    }
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Could not sign out. Please try again.')),
+    );
+  }
+
+  Widget _wishlistsSection(
+    BuildContext context,
+    AsyncValue<List<Wishlist>> wishlistsAsync,
+  ) => DataSection(
+    title: 'My Wishlists',
+    onAdd: () => context.push(WishlistFormPage.createRoute),
+    addTooltip: 'Add new wishlist',
+    child: ListContentBuilder<Wishlist>(
+      // A refresh keeps the previous value; the section shows loading instead
+      // of a stale list until the new subscription delivers.
+      items: wishlistsAsync.isLoading ? null : wishlistsAsync.value,
+      error: wishlistsAsync.error,
+      emptyWidget: const ListEmptyPlaceholder(
+        message: 'No wishlists yet. Create one!',
+      ),
       isScrollable: false,
-      entityWidgetBuilder: entityWidgetBuilder,
+      entityWidgetBuilder: (context, wishlist) =>
+          HomeWishlistRow(key: ValueKey(wishlist.id), wishlist: wishlist),
     ),
   );
 
-  Scaffold _userLoading() =>
-      const Scaffold(body: Center(child: CircularProgressIndicator()));
+  Widget _groupsSection(
+    BuildContext context,
+    AsyncValue<List<Group>> groupsAsync,
+    String userId,
+  ) => DataSection(
+    title: 'My Groups',
+    onAdd: () => context.push(GroupFormPage.createRoute),
+    addTooltip: 'Add new group',
+    child: ListContentBuilder<Group>(
+      items: groupsAsync.isLoading ? null : groupsAsync.value,
+      error: groupsAsync.error,
+      emptyWidget: const ListEmptyPlaceholder(
+        message: 'No groups yet. Create or join one!',
+      ),
+      isScrollable: false,
+      entityWidgetBuilder: (context, group) =>
+          HomeGroupRow(key: ValueKey(group.id), group: group, userId: userId),
+    ),
+  );
 
-  Scaffold _userLoadError() => Scaffold(
+  Widget _loading(BuildContext context, WidgetRef ref) => Scaffold(
+    appBar: AppBar(
+      title: const Text('Home'),
+      actions: _homeActions(context, ref),
+    ),
+    body: const Center(child: CircularProgressIndicator()),
+  );
+
+  Widget _userLoadError() => Scaffold(
     appBar: AppBar(title: const Text('Home')),
     body: const Center(child: Text('Could not load user profile.')),
   );
-
-  EntityWidgetBuilder<Wishlist> _wishlistWidgetBuilder() =>
-      (context, wishlist) => BrandCard(
-        child: ListTile(
-          title: Text(wishlist.name),
-          trailing: ListItemActions(
-            onDelete: () => _deleteWishlistDialog(wishlist.id!),
-            deleteTooltip: 'Delete Wishlist',
-          ),
-          onTap: () => context.goNamed(
-            WishlistDetailsPage.routeName,
-            pathParameters: {'id': wishlist.id!},
-          ),
-        ),
-      );
-
-  Future<void> _deleteWishlistDialog(String wishlistId) async {
-    final bool? confirmed = await showConfirmationDialog(
-      context: context,
-      title: 'Confirm Deletion',
-      content: 'Are you sure you want to delete this wishlist?',
-      confirmText: 'Delete',
-    );
-
-    if (confirmed != true) return;
-
-    try {
-      // Purges the items first: Firestore keeps a sub-collection when its
-      // parent document is deleted.
-      await _wishlistRepository.deleteWithItems(wishlistId);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Wishlist deleted.')));
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error: $e')));
-    }
-  }
-
-  EntityWidgetBuilder<Group> _groupWidgetBuilder({required String userId}) =>
-      (context, group) {
-        final isOwner = group.ownerId == userId;
-        return BrandCard(
-          child: ListTile(
-            title: Text(group.name),
-            trailing: isOwner
-                ? ListItemActions(
-                    onDelete: () => _deleteGroup(group.id!),
-                    deleteTooltip: 'Delete Group',
-                  )
-                : null,
-            onTap: () => context.goNamed(
-              GroupDetailsPage.routeName,
-              pathParameters: {'id': group.id!},
-            ),
-          ),
-        );
-      };
-
-  Future<void> _deleteGroup(String groupId) async {
-    final bool? confirmed = await showConfirmationDialog(
-      context: context,
-      title: 'Confirm Deletion',
-      content: 'Are you sure you want to delete this group?',
-      confirmText: 'Delete',
-    );
-
-    if (confirmed != true) return;
-
-    try {
-      await _groupRepository.delete(groupId);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Group deleted.')));
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error: $e')));
-    }
-  }
 }

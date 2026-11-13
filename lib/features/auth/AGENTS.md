@@ -12,6 +12,10 @@ profile). Phone OTP, Google, Sign in with Apple, sign-out, and in-app account de
   off it, so a Firebase-free implementation can stand in for the real service.
 - Account deletion runs its Firestore cascade **before** `deleteAccount()`, because those writes
   need a live session; every step is idempotent so a retry restarts the flow.
+- `HomePage` is a `ConsumerWidget`; its three uid-keyed reads are gated by
+  `homeReadsEnabledProvider`, and `HomeSignOut` closes that gate before `AuthSession.signOut()`,
+  so no read outlives the credential. Its rows are `HomeWishlistRow` and `HomeGroupRow`; the
+  page imports no `service_locator.dart`.
 - A `users/{uid}` read that throws or finds nothing shows an error with Retry — never an empty
   form, and never a silent fallback.
 

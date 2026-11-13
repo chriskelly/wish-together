@@ -157,29 +157,6 @@ void main() {
     expect(find.byTooltip('Profile'), findsOneWidget);
   });
 
-  testWidgets('cancels every home read before the session is cleared', (
-    tester,
-  ) async {
-    // Arrange: the session records whether each read still has a listener at
-    // the moment the credential is cleared.
-    final listenersAtSignOut = <bool>[];
-    when(() => authService.signOut()).thenAnswer((_) async {
-      listenersAtSignOut.addAll(listenerState());
-      signedIn = false;
-    });
-    await loadSignedInHome(tester);
-    expect((userReads, wishlistReads, groupReads), (1, 1, 1));
-    expect(listenerState(), everyElement(isTrue));
-
-    // Act
-    await tester.tap(find.byTooltip('Logout'));
-    await tester.pump();
-
-    // Assert
-    expect(listenersAtSignOut, hasLength(3));
-    expect(listenersAtSignOut, everyElement(isFalse));
-  });
-
   testWidgets('drops a snapshot that arrives after sign-out', (tester) async {
     // Arrange
     await loadSignedInHome(tester);

@@ -109,20 +109,20 @@ read lifecycles of the home and profile pages. Read before touching
 - `test/features/auth/data/user_repository_test.dart` — `streamUsersFromIds` against
   `FakeFirebaseFirestore`.
 - `test/features/auth/presentation/home_page_test.dart` — the home page's reads, sign-out and
-  delete flows against mocked repositories in a `ProviderScope`: every read is cancelled
-  *before* `AuthService.signOut()` runs; no read is issued after sign-out, even for a late
-  snapshot and a rebuild; a page built with no signed-in user reads nothing, renders the
-  spinner and survives a rebuild; the three reads start together and a rebuild, text-scale
-  change or delete dialog adds none; the page shows its loading state during a sign-out and
-  after a failed restart while keeping the profile and sign-out controls; a failed sign-out
-  with a live session restarts the reads, clears the previous error and leaves no extra
-  listener behind; a tap during a sign-out is ignored and served again once it settles; a
-  failed sign-out that cleared the session starts nothing and shows only the loading state; a
-  list error clears when data arrives; a failed or empty profile read shows the error screen,
-  including a failure after data; a fresh page after a successful sign-out reads again; the
-  confirmed wishlist delete calls `deleteWithItems` rather than the document-only `delete`,
-  the group owner's delete calls `delete`, a member gets no delete, cancelling calls neither,
-  and a failed cascade shows the error snackbar instead of the success one.
+  delete flows against mocked repositories in a `ProviderScope`: no read is issued after
+  sign-out, even for a late snapshot and a rebuild; a page built with no signed-in user reads
+  nothing, renders the spinner and survives a rebuild; the three reads start together and a
+  rebuild, text-scale change or delete dialog adds none; the page shows its loading state
+  during a sign-out and after a failed restart while keeping the profile and sign-out
+  controls; a failed sign-out with a live session restarts the reads, clears the previous
+  error and leaves no extra listener behind; a tap during a sign-out is ignored and served
+  again once it settles; a failed sign-out that cleared the session starts nothing and shows
+  only the loading state; a list error clears when data arrives; a failed or empty profile
+  read shows the error screen, including a failure after data; a fresh page after a successful
+  sign-out reads again; the confirmed wishlist delete calls `deleteWithItems` rather than the
+  document-only `delete`, the group owner's delete calls `delete`, a member gets no delete,
+  cancelling calls neither, and a failed cascade shows the error snackbar instead of the
+  success one.
 - `test/features/auth/presentation/home_state_test.dart` — the provider transitions without
   widgets: the read gate cancels all three streams before the credential clears (reversing the
   two calls fails it), an error followed by done stays an error instead of becoming the empty

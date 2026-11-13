@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wishtogether/core/providers.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/dev/fixtures/default_scenario.dart';
 import 'package:wishtogether/dev/fixtures/dev_fixture.dart';
@@ -270,7 +272,12 @@ void main() {
     await buildDevApp(defaultFixture);
 
     // ACT: the first frame, before any snapshot has landed.
-    await tester.pumpWidget(const MaterialApp(home: HomePage()));
+    await tester.pumpWidget(
+      ProviderScope(
+        retry: disableAutomaticRetry,
+        child: const MaterialApp(home: HomePage()),
+      ),
+    );
 
     // ASSERT
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
@@ -292,7 +299,12 @@ void main() {
     await buildDevApp(unreadableWishlist());
 
     // ACT
-    await tester.pumpWidget(const MaterialApp(home: HomePage()));
+    await tester.pumpWidget(
+      ProviderScope(
+        retry: disableAutomaticRetry,
+        child: const MaterialApp(home: HomePage()),
+      ),
+    );
     await pumpFrames(tester);
 
     // ASSERT: the wishlist section reports the failure instead of rendering an

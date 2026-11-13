@@ -94,5 +94,6 @@ getIt leaves presentation.
   feature is the place to close that gap.
 - The delete guard serialises the write, not the confirmation dialog: two quick taps can open two
   dialogs; the second write returns `false` while the first is in flight and is dropped.
-- A stream that completes without emitting leaves the list loading; Firestore `snapshots()` does
-  not complete, so the app does not reach it.
+- A stream that completes without emitting leaves a read loading. The home page converts that
+  to `null` / an empty list so its ended profile stream shows the error screen; Firestore
+  `snapshots()` does not complete, so the other pages do not reach it.

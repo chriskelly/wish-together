@@ -1,12 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:wishtogether/common/widgets/brand_hero.dart';
-import 'package:wishtogether/core/service_locator.dart';
+import 'package:wishtogether/core/providers.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
-import 'package:wishtogether/features/auth/domain/auth_session.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
 import 'package:wishtogether/features/auth/domain/user.dart';
 import 'package:wishtogether/features/auth/presentation/home_page.dart';
@@ -31,6 +32,7 @@ const String signOutFailedMessage = 'Could not sign out. Please try again.';
 const String userLoadFailedMessage = 'Could not load user profile.';
 const String emptyWishlistsMessage = 'No wishlists yet. Create one!';
 const String wishlistDeletedMessage = 'Wishlist deleted.';
+const String groupDeletedMessage = 'Group deleted.';
 const String lateWishlistName = 'Late arrival';
 const String lateGroupName = 'Late group';
 
@@ -42,7 +44,6 @@ void main() {
   late StreamController<User> userStream;
   late StreamController<List<Wishlist>> wishlistStream;
   late StreamController<List<Group>> groupStream;
-  late List<bool> listenersAtSignOut;
   late bool signedIn;
   late int userReads;
   late int wishlistReads;
@@ -59,8 +60,14 @@ void main() {
   final wishlist = Wishlist(id: 'w1', name: wishlistName, ownerId: uid);
   final group = Group(id: 'g1', name: groupName, ownerId: uid, members: [uid]);
 
-  setUp(() async {
-    await getIt.reset();
+  List<Override> homeOverrides() => [
+    authSessionProvider.overrideWithValue(authService),
+    userRepositoryProvider.overrideWithValue(userRepository),
+    wishlistRepositoryProvider.overrideWithValue(wishlistRepository),
+    groupRepositoryProvider.overrideWithValue(groupRepository),
+  ];
+
+  setUp(() {
     authService = MockAuthService();
     userRepository = MockUserRepository();
     wishlistRepository = MockWishlistRepository();
@@ -70,7 +77,6 @@ void main() {
     userStream = StreamController<User>.broadcast();
     wishlistStream = StreamController<List<Wishlist>>.broadcast();
     groupStream = StreamController<List<Group>>.broadcast();
-    listenersAtSignOut = <bool>[];
     signedIn = true;
     userReads = 0;
     wishlistReads = 0;
@@ -80,7 +86,6 @@ void main() {
         .thenAnswer((_) => signedIn ? uid : null);
     when(() => authService.supportsSignOut).thenReturn(true);
     when(() => authService.signOut()).thenAnswer((_) async {
-      listenersAtSignOut.addAll(listenerState());
       signedIn = false;
     });
     when(() => userRepository.streamOne(uid)).thenAnswer((_) {
@@ -97,25 +102,24 @@ void main() {
           groupReads++;
           return groupStream.stream;
         });
-
-    getIt.registerSingleton<AuthSession>(authService);
-    getIt.registerSingleton<UserRepository>(userRepository);
-    getIt.registerSingleton<WishlistRepository>(wishlistRepository);
-    getIt.registerSingleton<GroupRepository>(groupRepository);
   });
 
   tearDown(() async {
     await userStream.close();
     await wishlistStream.close();
     await groupStream.close();
-    await getIt.reset();
   });
 
-  Future<void> pumpHome(WidgetTester tester) =>
-      tester.pumpWidget(const MaterialApp(home: HomePage()));
+  Future<void> pumpHome(WidgetTester tester) => tester.pumpWidget(
+    ProviderScope(
+      retry: disableAutomaticRetry,
+      overrides: homeOverrides(),
+      child: const MaterialApp(home: HomePage()),
+    ),
+  );
 
   /// Rebuilds the page the way the router does: the element is dirtied and a
-  /// frame runs, so `_HomePageState.build` executes again.
+  /// frame runs, so `HomePage.build` executes again.
   ///
   /// Dirtying the element is what makes the rebuild real: `Element.updateChild`
   /// short-circuits an identical widget, so a parent that rebuilds with the
@@ -153,28 +157,9 @@ void main() {
     expect(find.byTooltip('Profile'), findsOneWidget);
   });
 
-  testWidgets('cancels every home read before the session is cleared', (
-    tester,
-  ) async {
-    // Arrange
-    await loadSignedInHome(tester);
-    expect((userReads, wishlistReads, groupReads), (1, 1, 1));
-    expect(listenerState(), everyElement(isTrue));
-
-    // Act
-    await tester.tap(find.byTooltip('Logout'));
-    await tester.pump();
-
-    // Assert
-    expect(listenersAtSignOut, hasLength(3));
-    expect(listenersAtSignOut, everyElement(isFalse));
-  });
-
   testWidgets('drops a snapshot that arrives after sign-out', (tester) async {
     // Arrange
     await loadSignedInHome(tester);
-    await tester.tap(find.byTooltip('Logout'));
-    await tester.pump();
     final readsBefore = (userReads, wishlistReads, groupReads);
     final lateWishlist = Wishlist(
       id: 'w2',
@@ -189,12 +174,17 @@ void main() {
     );
 
     // Act
+    await tester.tap(find.byTooltip('Logout'));
+    // The detach is synchronous: assert it before the page's next frame, where
+    // autoDispose alone would remove the listeners anyway.
+    expect(listenerState(), everyElement(isFalse));
+    await tester.pump();
     wishlistStream.add([lateWishlist]);
     groupStream.add([lateGroup]);
     await forcePageRebuild(tester);
 
-    // Assert: the cancelled reads drop the late values, and the rebuild issues
-    // no new read. Without the cancel, the page would render them.
+    // Assert: the cancel left no listener to receive the late values, the gate
+    // hides them anyway, and the rebuild issues no new read.
     expect(find.text(lateWishlistName), findsNothing);
     expect(find.text(lateGroupName), findsNothing);
     expect((userReads, wishlistReads, groupReads), readsBefore);
@@ -214,6 +204,7 @@ void main() {
     // Assert: nothing to read, no crash, and the loading state is what shows.
     expect((userReads, wishlistReads, groupReads), (0, 0, 0));
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byTooltip('Logout'), findsNothing);
 
     // Act
     await forcePageRebuild(tester);
@@ -254,6 +245,8 @@ void main() {
     expect(find.text(signOutFailedMessage), findsOneWidget);
     expect(find.text('An error occurred: $listError'), findsNothing);
     expect(find.text('An error occurred: $groupsError'), findsNothing);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.text(wishlistName), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -269,7 +262,8 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    // Act: the in-flight guard was reset by the failed attempt.
+    // Act: the in-flight guard was reset by the failed attempt, and the
+    // loading state kept the control reachable.
     await tester.tap(find.byTooltip('Logout'));
     await tester.pump();
 
@@ -288,6 +282,7 @@ void main() {
     await tester.tap(find.byTooltip('Logout'));
     await tester.pump();
     await tester.pump();
+    expect(listenerState(), everyElement(isTrue));
 
     // Act: a successful sign-out cancels every listener. A duplicate listener
     // left behind by the restart would keep `hasListener` true.
@@ -358,6 +353,29 @@ void main() {
     expect(signOutCalls, 2);
   });
 
+  testWidgets('shows the loading state while a sign-out is in flight', (
+    tester,
+  ) async {
+    // Arrange
+    await loadSignedInHome(tester);
+    final pending = Completer<void>();
+    when(() => authService.signOut()).thenAnswer((_) => pending.future);
+
+    // Act
+    await tester.tap(find.byTooltip('Logout'));
+    await tester.pump();
+
+    // Assert: the reads are detached and the page says so, but the controls
+    // that a failed attempt must offer stay reachable.
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.text(wishlistName), findsNothing);
+    expect(find.byTooltip('Logout'), findsOneWidget);
+    expect(find.byTooltip('Profile'), findsOneWidget);
+
+    pending.complete();
+    await tester.pump();
+  });
+
   testWidgets('shows the empty placeholder when a list stream ends empty', (
     tester,
   ) async {
@@ -390,6 +408,23 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 
+  testWidgets('shows the error screen when the profile read fails after data', (
+    tester,
+  ) async {
+    // Arrange: the page rendered a user before the read failed.
+    await loadSignedInHome(tester);
+    expect(find.text(wishlistName), findsOneWidget);
+
+    // Act
+    userStream.addError(Exception('offline'));
+    await tester.pump();
+
+    // Assert: an error outranks the value AsyncValue retained, as it always
+    // has, so no stale home data sits under the failure.
+    expect(find.text(userLoadFailedMessage), findsOneWidget);
+    expect(find.text(wishlistName), findsNothing);
+  });
+
   testWidgets('shows the error screen when the profile stream ends empty', (
     tester,
   ) async {
@@ -408,16 +443,47 @@ void main() {
   });
 
   testWidgets(
-    'subscribes to all three reads at once and never re-reads on rebuild',
+    'keeps one subscription per read across rebuilds, text scale and dialogs',
     (tester) async {
-      // Arrange: the reads start from the uid, not from the user document.
-      await pumpHome(tester);
-      expect((userReads, wishlistReads, groupReads), (1, 1, 1));
+      // Wide enough that a 1.5 text scale does not overflow the square test
+      // font in a section header.
+      tester.view.devicePixelRatio = 3.0;
+      tester.view.physicalSize = const Size(1400, 900) * 3.0;
+      addTearDown(tester.view.reset);
 
+      late StateSetter setHostState;
+      var pageBuilds = 0;
+      await tester.pumpWidget(
+        ProviderScope(
+          retry: disableAutomaticRetry,
+          overrides: homeOverrides(),
+          child: MaterialApp(
+            home: StatefulBuilder(
+              builder: (context, setState) {
+                setHostState = setState;
+                // Register a MediaQuery dependency so a text-scale change
+                // rebuilds this host, and build a fresh page so its own build
+                // runs rather than being skipped as an identical widget.
+                MediaQuery.textScalerOf(context);
+                pageBuilds++;
+                return HomePage();
+              },
+            ),
+          ),
+        ),
+      );
+
+      // The reads start from the uid, not from the user document.
+      expect((userReads, wishlistReads, groupReads), (1, 1, 1));
+      // A signed-in load offers the actions while it waits; only a page with no
+      // session is a bare spinner.
+      expect(find.byType(AppBar), findsOneWidget);
+      expect(find.byTooltip('Logout'), findsOneWidget);
       userStream.add(user);
       wishlistStream.add([wishlist]);
       groupStream.add([group]);
       await tester.pump();
+      expect(pageBuilds, 1);
       expect(find.byType(BrandHero), findsOneWidget);
       expect(find.byType(AppBar), findsNothing);
       expect(find.text('Welcome,'), findsOneWidget);
@@ -425,13 +491,75 @@ void main() {
       expect(find.text(wishlistName), findsOneWidget);
       expect(find.text(groupName), findsOneWidget);
 
-      // Act
-      await forcePageRebuild(tester);
+      // Act: a host rebuild.
+      setHostState(() {});
+      await tester.pumpAndSettle();
+      expect(pageBuilds, 2);
+      expect((userReads, wishlistReads, groupReads), (1, 1, 1));
+
+      // Act: a text-scale change.
+      tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await tester.pumpAndSettle();
+      expect(pageBuilds, 3);
+      expect((userReads, wishlistReads, groupReads), (1, 1, 1));
+
+      // Act: a delete dialog opened and cancelled.
+      await tester.tap(find.byTooltip('Delete Wishlist'));
+      await tester.pumpAndSettle();
+      expect(find.text('Confirm Deletion'), findsOneWidget);
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await tester.pumpAndSettle();
 
       // Assert
       expect((userReads, wishlistReads, groupReads), (1, 1, 1));
     },
   );
+
+  testWidgets('starts its reads again for a new home lifetime', (tester) async {
+    // Arrange: a host that can take the page out and put it back under the
+    // same ProviderScope.
+    late StateSetter setHostState;
+    var showHome = true;
+    await tester.pumpWidget(
+      ProviderScope(
+        retry: disableAutomaticRetry,
+        overrides: homeOverrides(),
+        child: MaterialApp(
+          home: StatefulBuilder(
+            builder: (context, setState) {
+              setHostState = setState;
+              return showHome ? HomePage() : const SizedBox.shrink();
+            },
+          ),
+        ),
+      ),
+    );
+    userStream.add(user);
+    wishlistStream.add([wishlist]);
+    groupStream.add([group]);
+    await tester.pump();
+    expect((userReads, wishlistReads, groupReads), (1, 1, 1));
+
+    // Act: a successful sign-out closes the gate for this lifetime.
+    when(() => authService.signOut()).thenAnswer((_) async {
+      signedIn = false;
+    });
+    await tester.tap(find.byTooltip('Logout'));
+    await tester.pump();
+
+    // Act: leave home and come back with a live session. The gate is
+    // auto-disposed with the page, so the new lifetime must read again.
+    setHostState(() => showHome = false);
+    await tester.pump(const Duration(milliseconds: 10));
+    signedIn = true;
+    setHostState(() => showHome = true);
+    await tester.pump();
+    await tester.pump();
+
+    // Assert
+    expect((userReads, wishlistReads, groupReads), (2, 2, 2));
+  });
 
   testWidgets('deletes a wishlist together with its items', (tester) async {
     // Arrange: the cascade is the operation the confirmed delete must use.
@@ -489,6 +617,45 @@ void main() {
     // Assert
     expect(find.text('Error: $failure'), findsOneWidget);
     expect(find.text(wishlistDeletedMessage), findsNothing);
+  });
+
+  testWidgets('offers the owner a group delete and calls delete', (
+    tester,
+  ) async {
+    // Arrange
+    when(() => groupRepository.delete(group.id!)).thenAnswer((_) async {});
+    await loadSignedInHome(tester);
+
+    // Act
+    await tester.tap(find.byTooltip('Delete Group'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+    await tester.pumpAndSettle();
+
+    // Assert
+    verify(() => groupRepository.delete(group.id!)).called(1);
+    expect(find.text(groupDeletedMessage), findsOneWidget);
+  });
+
+  testWidgets('offers no group delete to a member who is not the owner', (
+    tester,
+  ) async {
+    // Arrange
+    await loadSignedInHome(tester);
+    final otherGroup = Group(
+      id: 'g2',
+      name: 'Book club',
+      ownerId: 'someone-else',
+      members: [uid],
+    );
+
+    // Act
+    groupStream.add([otherGroup]);
+    await tester.pump();
+
+    // Assert
+    expect(find.text('Book club'), findsOneWidget);
+    expect(find.byTooltip('Delete Group'), findsNothing);
   });
 
   testWidgets('clears a list error when data arrives', (tester) async {

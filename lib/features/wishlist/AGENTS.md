@@ -28,6 +28,16 @@ the product.
   app bar and navigation. Row rendering and claim copy are covered by
   `wishlist_details_page_test.dart`; the delete flow, the busy guard and the stream lifetime by
   `wishlist_details_state_test.dart`.
+- `wishlistItemsProvider` derives its state from the snapshot metadata. A cache-only empty
+  read is a failed read only when the subscription has never seen server-confirmed data or a
+  non-empty local list: the page then shows the cloud-off panel with Try again after an
+  800 ms grace, so a quick online reply does not flash it. Once any credible read has arrived
+  in that subscription, a later cache-only empty (for example, deleting the last item offline)
+  keeps the empty message; a fresh page load starts a new subscription and its own
+  credibility. Known false positives: an owner who creates a wishlist offline and opens it,
+  deletes the last item and reopens the page, or has only a pending local write in an
+  otherwise unknown cache, sees the panel until the server confirms. Cache-only rows render
+  unchanged.
 
 ## Reference
 

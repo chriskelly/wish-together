@@ -18,7 +18,11 @@ class TestModel {
 }
 
 class TestModelRepository extends FirebaseRepository<TestModel> {
-  TestModelRepository(super.collectionPath, {super.firestore});
+  TestModelRepository(
+    super.collectionPath, {
+    super.firestore,
+    super.snapshotsOverride,
+  });
 
   @override
   TestModel fromFirestore(DocumentSnapshot doc) {
@@ -51,6 +55,39 @@ class ThrowingFirestore extends FakeFirebaseFirestore {
   CollectionReference<Map<String, dynamic>> collection(String collectionPath) {
     throw StateError('write failed');
   }
+}
+
+/// The snapshot metadata a cache-only read carries.
+///
+/// `FakeFirebaseFirestore` always reports `isFromCache: false`, so the stream
+/// tests inject a snapshot instead of going through the fake's query.
+class FakeSnapshotMetadata implements SnapshotMetadata {
+  const FakeSnapshotMetadata({required this.isFromCache});
+
+  @override
+  final bool isFromCache;
+
+  @override
+  bool get hasPendingWrites => false;
+}
+
+class FakeQuerySnapshot implements QuerySnapshot<Map<String, dynamic>> {
+  const FakeQuerySnapshot({required this.docs, required this.isFromCache});
+
+  @override
+  final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs;
+
+  final bool isFromCache;
+
+  @override
+  List<DocumentChange<Map<String, dynamic>>> get docChanges => const [];
+
+  @override
+  SnapshotMetadata get metadata =>
+      FakeSnapshotMetadata(isFromCache: isFromCache);
+
+  @override
+  int get size => docs.length;
 }
 
 void main() {
@@ -199,11 +236,68 @@ void main() {
       });
 
       final stream = repository.streamAll();
-      final models = await stream.first;
+      final snapshot = await stream.first;
 
-      expect(models.length, 2);
-      expect(models.any((m) => m.name == firstModelName), isTrue);
-      expect(models.any((m) => m.name == secondModelName), isTrue);
+      expect(snapshot.items.length, 2);
+      expect(snapshot.items.any((m) => m.name == firstModelName), isTrue);
+      expect(snapshot.items.any((m) => m.name == secondModelName), isTrue);
+    });
+
+    group('streamAll metadata', () {
+      late List<QueryDocumentSnapshot<Map<String, dynamic>>> seededDocs;
+
+      setUpAll(() async {
+        final seededFirestore = FakeFirebaseFirestore();
+        await seededFirestore.collection(testCollectionPath).add({
+          nameField: 'Cached model',
+        });
+        seededDocs =
+            (await seededFirestore.collection(testCollectionPath).get()).docs;
+      });
+
+      FakeQuerySnapshot seededSnapshot({required bool isFromCache}) =>
+          FakeQuerySnapshot(docs: seededDocs, isFromCache: isFromCache);
+
+      Future<ListSnapshot<TestModel>> firstStreamed(
+        FakeQuerySnapshot snapshot,
+      ) {
+        final metadataRepository = TestModelRepository(
+          testCollectionPath,
+          firestore: fakeFirestore,
+          snapshotsOverride: ({bool includeMetadataChanges = false}) =>
+              Stream.value(snapshot),
+        );
+        return metadataRepository.streamAll().first;
+      }
+
+      test('carries a cache-only read as isFromCache', () async {
+        final result = await firstStreamed(seededSnapshot(isFromCache: true));
+
+        expect(result.isFromCache, isTrue);
+        expect(result.items.single.name, 'Cached model');
+      });
+
+      test('a server-confirmed read is not from cache', () async {
+        final result = await firstStreamed(seededSnapshot(isFromCache: false));
+
+        expect(result.isFromCache, isFalse);
+      });
+    });
+
+    test('streamAll requests metadata changes from Firestore', () {
+      var requestedMetadataChanges = false;
+      final repository = TestModelRepository(
+        testCollectionPath,
+        firestore: FakeFirebaseFirestore(),
+        snapshotsOverride: ({bool includeMetadataChanges = false}) {
+          requestedMetadataChanges = includeMetadataChanges;
+          return const Stream.empty();
+        },
+      );
+
+      repository.streamAll();
+
+      expect(requestedMetadataChanges, isTrue);
     });
 
     test('streamWhere should return a filtered stream of documents', () async {

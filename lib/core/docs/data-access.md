@@ -10,7 +10,18 @@ Holds a `FirebaseFirestore instance` (injectable via the `firestore:` constructo
 for tests), a `collectionPath` and its `collectionName` (the path's last segment).
 Provides generic `streamAll`, `streamWhere(...)`, `streamOne`, `get`, `add`, `update`,
 `updateData`, and `delete`. Subclasses implement `fromFirestore(DocumentSnapshot)` and
-`toFirestore(T)`.
+`toFirestore(T)`. The `snapshotsOverride:` constructor argument replaces `streamAll`'s
+snapshot stream; a test uses it to record the metadata option, which the in-memory fake
+cannot model.
+
+`streamAll` returns a `ListSnapshot<T>`: the mapped models plus the snapshot's
+`isFromCache`. It listens with `includeMetadataChanges: true`, so a cache-only result that the
+server later confirms emits again even when the documents did not change — the signal a
+screen needs to tell "not loaded" from "empty". `streamWhere` still returns a plain list; the
+home and group pages do not use the metadata. If a filtered list ever needs the same
+distinction, `streamWhere` is the opt-in point; no caller does today. `streamOne` likewise
+returns the model only; the wishlist read treats a cached document as loaded. A caller that
+only wants the rows reads `.items`.
 
 Every failed operation reports a `FirestoreErrorEvent` at this one seam, tagged with the
 `collectionName` and the structured code, and then behaves exactly as before: a future
@@ -48,7 +59,11 @@ app code — repositories are only constructed by `setupServiceLocator`.
 ## How it is tested
 
 - `test/core/data/firebase_repository_test.dart` exercises the generic CRUD and stream
-  methods against `FakeFirebaseFirestore` using a throwaway `TestModelRepository`.
+  methods against `FakeFirebaseFirestore` using a throwaway `TestModelRepository`. Its
+  `streamAll` metadata cases inject a `snapshotsOverride` returning a `QuerySnapshot` whose
+  `isFromCache` the fake cannot produce. A recording override asserts
+  `streamAll` passes `includeMetadataChanges: true`, because the fake accepts and ignores
+  that argument.
 - `test/core/firestore_target_test.dart` pins the database-id resolution: absent/blank means
   `(default)`, a named id is kept, and a malformed id throws instead of falling back to
   production. It also pins the define→stamp coupling and the default-vs-named instance

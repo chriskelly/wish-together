@@ -1,7 +1,7 @@
 name: iOS TestFlight
 
 # A workflow_run run's own ref and head_sha say master, not the PR, so the run
-# name has to carry it. The payload usually carries the PR number for a
+# name has to carry it. The payload sometimes carries the PR number for a
 # same-repo run; when it does not, the run is named after the head branch, which
 # still identifies the PR. A manual run has no payload, so it uses its required
 # pr_number input.

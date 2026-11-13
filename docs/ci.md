@@ -31,11 +31,15 @@ All on `macos-26` runners with the same pinned Flutter version:
   `flutter build ios --simulator` (compile gate, no signing).
 - `.github/workflows/testflight-release.yml` — chained after **iOS CI** succeeds on a PR
   (`workflow_run`, so it never shows up as a permanently-Skipped check) and uploads an
-  internal TestFlight build. **Opt out** per PR by adding the `no-deploy` label. It comments
-  the build number and the source commit on the PR. A `workflow_run` workflow runs in the
-  default branch's context, so the workflow run's own `head_sha` is **not** the code it built;
-  the checkout uses `github.event.workflow_run.head_sha` (the iOS CI run that triggered it).
-  Trace a build by its PR comment or that payload, never by the workflow run's `headSha`.
+  internal TestFlight build. **Opt out** per PR by adding the `no-deploy` label. It names each
+  run `TestFlight — PR <number>`; a run whose payload carries no PR is named
+  `TestFlight — <head branch>` (the payload sometimes omits it for a same-repo run; a
+  master push gets `TestFlight — master` and skips the job), and a manual dispatch uses its
+  `pr_number` input. It comments the build number and the source commit on the PR. A
+  `workflow_run` workflow runs in the default branch's context, so the workflow run's own
+  `head_sha` is **not** the code it built; the checkout uses
+  `github.event.workflow_run.head_sha` (the iOS CI run that triggered it). Trace a build by
+  its run name, its PR comment or that payload, never by the run's own `head_sha`.
 - `.github/workflows/app-store-release.yml` — on a `v*` tag or manual dispatch, uploads and
   submits for App Store review. Screenshots are uploaded by hand to the editable version first
   and the lane passes `skip_screenshots: true`, so it never touches them; see

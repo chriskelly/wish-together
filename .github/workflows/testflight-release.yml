@@ -1,5 +1,17 @@
 name: iOS TestFlight
 
+# A workflow_run run's own ref and head_sha say master, not the PR, so the run
+# name has to carry it. The payload sometimes carries the PR number for a
+# same-repo run; when it does not, the run is named after the head branch, which
+# still identifies the PR. A manual run has no payload, so it uses its required
+# pr_number input.
+run-name: >-
+  TestFlight — ${{ github.event_name == 'workflow_dispatch'
+  && format('PR {0}', inputs.pr_number)
+  || (github.event.workflow_run.pull_requests[0].number
+  && format('PR {0}', github.event.workflow_run.pull_requests[0].number)
+  || github.event.workflow_run.head_branch) }}
+
 # Runs after "iOS CI" finishes on a pull request and uploads an internal
 # TestFlight build. Opt out per-PR with the `no-deploy` label.
 #

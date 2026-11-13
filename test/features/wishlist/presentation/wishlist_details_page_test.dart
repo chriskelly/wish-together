@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:wishtogether/common/widgets/brand_card.dart';
 import 'package:wishtogether/common/widgets/status_pill.dart';
+import 'package:wishtogether/core/data/firebase_repository.dart';
 import 'package:wishtogether/core/providers.dart';
 import 'package:wishtogether/core/theme.dart';
 import 'package:wishtogether/features/auth/domain/auth_session.dart';
@@ -74,8 +75,9 @@ void main() {
           () => wishlistRepository.streamOne(wishlistId),
         ).thenAnswer((_) => Stream.value(wishlist.copyWith(ownerId: viewerId)));
       }
-      when(() => itemRepository.streamAll())
-          .thenAnswer((_) => Stream.value(items));
+      when(() => itemRepository.streamAll()).thenAnswer(
+        (_) => Stream.value(ListSnapshot(items: items, isFromCache: false)),
+      );
 
       await tester.pumpWidget(
         ProviderScope(

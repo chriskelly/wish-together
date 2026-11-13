@@ -157,10 +157,16 @@ void main() {
       final repository = WishlistRepository(firestore: firestore);
 
       // ACT
-      final items = await repository.items('l1').streamAll().first;
+      final snapshot = await repository.items('l1').streamAll().first;
 
-      // ASSERT: the sub-collection path is what scopes the read.
-      expect(items.map((item) => item.name), <String>['Board game']);
+      // ASSERT: the sub-collection path is what scopes the read, and the fake
+      // always reports a server-confirmed snapshot.
+      expect(snapshot.items.map((item) => item.name), <String>['Board game']);
+      expect(snapshot.isFromCache, isFalse);
+      final querySnapshot = await firestore
+          .collection('wishlists/l1/items')
+          .get();
+      expect(querySnapshot.metadata.hasPendingWrites, isFalse);
     });
 
     test('account deletion reads the same rows in one shot', () async {
@@ -357,7 +363,8 @@ void main() {
       await items.delete('i1');
 
       // ASSERT: only the named item is gone.
-      expect(await items.streamAll().first, hasLength(1));
+      final remaining = await items.streamAll().first;
+      expect(remaining.items, hasLength(1));
       expect(
         (await firestore.doc('wishlists/l1/items/i1').get()).exists,
         isFalse,

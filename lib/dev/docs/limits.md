@@ -40,7 +40,10 @@ cannot be exercised in one process, or are app behaviour the harness reproduces 
    button, and its share dialog lists nothing without querying — but a scenario cannot exercise
    that branch because the fake always has an identity. Its widget test covers it.
 9. **Nothing persists.** The store lives in the process; a reload re-seeds it, and there is no
-   offline or cache behaviour to observe (`metadata.hasPendingWrites` is always false).
+   offline or cache behaviour to observe (`metadata.isFromCache` and
+   `metadata.hasPendingWrites` are always false). The wishlist details page's
+   "couldn't load" panel therefore needs a live session, not a fake scenario; its widget
+   tests cover the panel with a mocked repository.
 10. **A transaction is not isolated.** The fake's `runTransaction` runs the handler once against
     the current data, with no retry and no rollback, and applies its `update` without awaiting it,
     so do not rely on write ordering. A fake-mode claim proves the widget and the query shape, not

@@ -5,18 +5,49 @@ import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
 
 /// The wishlist and its items are reads: each stream is created once while the
 /// page is mounted and disposed when it leaves, so a widget rebuild cannot
-/// re-subscribe or refetch.
+/// re-subscribe or refetch. The explicit Try again invalidates the item read;
+/// that is the one deliberate exception.
 final wishlistProvider = StreamProvider.family<Wishlist, String>(
   (ref, wishlistId) =>
       ref.watch(wishlistRepositoryProvider).streamOne(wishlistId),
   isAutoDispose: true,
 );
 
-final wishlistItemsProvider = StreamProvider.family<List<Item>, String>(
-  (ref, wishlistId) =>
-      ref.watch(itemRepositoryProvider(wishlistId)).streamAll(),
-  isAutoDispose: true,
-);
+/// The item read's presentation state, derived from the repository's
+/// `ListSnapshot`.
+///
+/// Keeping it here lets the page depend on this provider rather than the data
+/// layer. [hasCredibleData] records whether this subscription has seen a
+/// server-confirmed snapshot or a non-empty local one; only an empty read with
+/// no such history is a failed read.
+class WishlistItems {
+  const WishlistItems({required this.items, required this.hasCredibleData});
+
+  final List<Item> items;
+  final bool hasCredibleData;
+
+  /// True when the list is empty and this subscription has no server-confirmed
+  /// or non-empty local read.
+  bool get isUnconfirmedEmpty => items.isEmpty && !hasCredibleData;
+}
+
+final wishlistItemsProvider = StreamProvider.family<WishlistItems, String>((
+  ref,
+  wishlistId,
+) {
+  // Per subscription: a retry starts a fresh listener and must not inherit
+  // credibility from the read it replaced.
+  var hasCredibleData = false;
+  final repository = ref.watch(itemRepositoryProvider(wishlistId));
+  return repository.streamAll().map((snapshot) {
+    hasCredibleData =
+        hasCredibleData || !snapshot.isFromCache || snapshot.items.isNotEmpty;
+    return WishlistItems(
+      items: snapshot.items,
+      hasCredibleData: hasCredibleData,
+    );
+  });
+}, isAutoDispose: true);
 
 /// The owner's spoiler-free toggle. It starts on, so a fresh visit hides claim
 /// status until the owner asks to reveal it.

@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart' show protected;
+import 'package:flutter/foundation.dart' show protected, visibleForTesting;
 import 'package:wishtogether/core/logging/app_event.dart';
 import 'package:wishtogether/core/logging/diagnostics.dart';
 import 'package:wishtogether/core/logging/redaction.dart';
@@ -16,6 +16,25 @@ String _collectionNameFromPath(String path) {
   return segments.isEmpty ? '' : segments.last;
 }
 
+/// A collection read together with the snapshot metadata a plain list loses.
+///
+/// [isFromCache] is Firestore's cache flag: true when the snapshot came from
+/// the local cache, false when it reflects a server response. A cache snapshot
+/// can include local pending writes; those are reported separately by
+/// `metadata.hasPendingWrites`, which this type does not carry.
+class ListSnapshot<T> {
+  const ListSnapshot({required this.items, required this.isFromCache});
+
+  final List<T> items;
+  final bool isFromCache;
+}
+
+/// A collection's `snapshots` method and its metadata option.
+typedef CollectionSnapshots =
+    Stream<QuerySnapshot<Map<String, dynamic>>> Function({
+      bool includeMetadataChanges,
+    });
+
 abstract class FirebaseRepository<T> {
   late final FirebaseFirestore instance;
   final String collectionPath;
@@ -26,8 +45,19 @@ abstract class FirebaseRepository<T> {
   /// `wishlists/<id>/items`, which would leak an id.
   final String collectionName;
 
-  FirebaseRepository(this.collectionPath, {FirebaseFirestore? firestore})
-    : collectionName = _collectionNameFromPath(collectionPath) {
+  /// Overrides `streamAll`'s snapshot stream in tests.
+  ///
+  /// Production leaves it null and watches [instance]. A test injects one to
+  /// record the metadata option the SDK receives, or to supply a snapshot
+  /// whose cache metadata the in-memory fake cannot model.
+  @visibleForTesting
+  final CollectionSnapshots? snapshotsOverride;
+
+  FirebaseRepository(
+    this.collectionPath, {
+    FirebaseFirestore? firestore,
+    this.snapshotsOverride,
+  }) : collectionName = _collectionNameFromPath(collectionPath) {
     instance = firestore ?? FirebaseFirestore.instance;
   }
 
@@ -80,23 +110,31 @@ abstract class FirebaseRepository<T> {
     );
   }
 
-  Stream<List<T>> streamAll() {
+  Stream<ListSnapshot<T>> streamAll() {
     return reportingStream(
-      instance
-          .collection(collectionPath)
-          .snapshots()
-          .map(
-            (snapshot) =>
-                snapshot.docs.map((doc) => fromFirestore(doc)).toList(),
-          ),
+      // `includeMetadataChanges` is what makes a cache-only snapshot emit
+      // again when the server confirms it, even though the documents did not
+      // change.
+      (snapshotsOverride ?? instance.collection(collectionPath).snapshots)(
+        includeMetadataChanges: true,
+      ).map(
+        (snapshot) => ListSnapshot(
+          items: _models(snapshot),
+          isFromCache: snapshot.metadata.isFromCache,
+        ),
+      ),
       FirestoreOp.list,
     );
   }
 
+  /// Projects a query's documents through the subclass's model factory.
+  List<T> _models(QuerySnapshot<Map<String, dynamic>> snapshot) =>
+      snapshot.docs.map((doc) => fromFirestore(doc)).toList();
+
   /// Builds the query behind [streamWhere] and [listWhere].
   ///
-  /// Single source for the query shape and the model projection, so a one-shot
-  /// caller cannot silently diverge from a streaming one.
+  /// Single source for the query shape, so a one-shot caller cannot silently
+  /// diverge from a streaming one. [_models] is the single projection.
   Query<Map<String, dynamic>> _query(
     String field, {
     Object? isEqualTo,
@@ -157,9 +195,7 @@ abstract class FirebaseRepository<T> {
         whereIn: whereIn,
         whereNotIn: whereNotIn,
         isNull: isNull,
-      ).snapshots().map(
-        (snapshot) => snapshot.docs.map((doc) => fromFirestore(doc)).toList(),
-      ),
+      ).snapshots().map(_models),
       FirestoreOp.list,
     );
   }
@@ -195,7 +231,7 @@ abstract class FirebaseRepository<T> {
         whereNotIn: whereNotIn,
         isNull: isNull,
       ).get();
-      return snapshot.docs.map((doc) => fromFirestore(doc)).toList();
+      return _models(snapshot);
     });
   }
 

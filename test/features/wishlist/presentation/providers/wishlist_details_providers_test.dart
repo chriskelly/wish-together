@@ -4,15 +4,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:wishtogether/core/data/firebase_repository.dart';
 import 'package:wishtogether/core/providers.dart';
 import 'package:wishtogether/features/wishlist/application/claim_failure.dart';
 import 'package:wishtogether/features/wishlist/application/claim_item_use_case.dart';
 import 'package:wishtogether/features/wishlist/application/unclaim_item_use_case.dart';
+import 'package:wishtogether/features/wishlist/data/item_repository.dart';
+import 'package:wishtogether/features/wishlist/domain/item.dart';
 import 'package:wishtogether/features/wishlist/presentation/providers/wishlist_details_providers.dart';
 
 class MockClaimItemUseCase extends Mock implements ClaimItemUseCase {}
 
 class MockUnclaimItemUseCase extends Mock implements UnclaimItemUseCase {}
+
+class MockItemRepository extends Mock implements ItemRepository {}
 
 void main() {
   const wishlistId = 'wishlist-1';
@@ -49,6 +54,127 @@ void main() {
     );
     addTearDown(subscription.close);
   }
+
+  group('item read state', () {
+    final item = Item(id: itemId, name: 'Desk lamp');
+
+    ListSnapshot<Item> snapshot(
+      List<Item> items, {
+      required bool isFromCache,
+    }) => ListSnapshot(items: items, isFromCache: isFromCache);
+
+    /// Listens for item-read states; the subscription closes with the test.
+    List<WishlistItems> listenItems(ProviderContainer container) {
+      final states = <WishlistItems>[];
+      final subscription = container.listen(wishlistItemsProvider(wishlistId), (
+        _,
+        next,
+      ) {
+        if (next.hasValue) states.add(next.requireValue);
+      }, fireImmediately: true);
+      addTearDown(subscription.close);
+      return states;
+    }
+
+    Future<List<WishlistItems>> itemsFrom(
+      Stream<ListSnapshot<Item>> snapshots,
+    ) async {
+      final repository = MockItemRepository();
+      when(() => repository.streamAll()).thenAnswer((_) => snapshots);
+      final container = ProviderContainer.test(
+        retry: disableAutomaticRetry,
+        overrides: [
+          itemRepositoryProvider(wishlistId).overrideWithValue(repository),
+        ],
+      );
+      final states = listenItems(container);
+      await container.read(wishlistItemsProvider(wishlistId).future);
+      await pumpEventQueue();
+      return states;
+    }
+
+    test('carries the rows', () async {
+      final states = await itemsFrom(
+        Stream.value(snapshot(<Item>[item], isFromCache: true)),
+      );
+
+      expect(states.last.items, <Item>[item]);
+      expect(states.last.isUnconfirmedEmpty, isFalse);
+    });
+
+    test('a lone cache-only empty read is unconfirmed empty', () async {
+      final states = await itemsFrom(
+        Stream.value(snapshot(const <Item>[], isFromCache: true)),
+      );
+
+      expect(states.single.isUnconfirmedEmpty, isTrue);
+    });
+
+    test('a server-confirmed empty read is not unconfirmed', () async {
+      final states = await itemsFrom(
+        Stream.value(snapshot(const <Item>[], isFromCache: false)),
+      );
+
+      expect(states.single.isUnconfirmedEmpty, isFalse);
+    });
+
+    test('cached rows make a later cache-only empty read credible', () async {
+      final states = await itemsFrom(
+        Stream.fromIterable([
+          snapshot(<Item>[item], isFromCache: true),
+          snapshot(const <Item>[], isFromCache: true),
+        ]),
+      );
+
+      expect(states.last.items, isEmpty);
+      expect(states.last.isUnconfirmedEmpty, isFalse);
+    });
+
+    test(
+      'a server-confirmed empty read keeps a later cache-only empty credible',
+      () async {
+        final states = await itemsFrom(
+          Stream.fromIterable([
+            snapshot(const <Item>[], isFromCache: false),
+            snapshot(const <Item>[], isFromCache: true),
+          ]),
+        );
+
+        expect(states.last.isUnconfirmedEmpty, isFalse);
+      },
+    );
+
+    test('a retry does not inherit credibility', () async {
+      final first = StreamController<ListSnapshot<Item>>.broadcast();
+      final second = StreamController<ListSnapshot<Item>>.broadcast();
+      addTearDown(first.close);
+      addTearDown(second.close);
+      var calls = 0;
+      final repository = MockItemRepository();
+      when(() => repository.streamAll()).thenAnswer((_) {
+        calls++;
+        return calls == 1 ? first.stream : second.stream;
+      });
+      final container = ProviderContainer.test(
+        retry: disableAutomaticRetry,
+        overrides: [
+          itemRepositoryProvider(wishlistId).overrideWithValue(repository),
+        ],
+      );
+      final states = listenItems(container);
+
+      first.add(snapshot(<Item>[item], isFromCache: true));
+      await pumpEventQueue();
+      expect(states.last.isUnconfirmedEmpty, isFalse);
+
+      container.invalidate(wishlistItemsProvider(wishlistId));
+      await pumpEventQueue();
+      second.add(snapshot(const <Item>[], isFromCache: true));
+      await pumpEventQueue();
+
+      expect(states.last.isUnconfirmedEmpty, isTrue);
+    });
+  });
 
   group('spoiler toggle', () {
     test('starts spoiler-free and flips on toggle', () {

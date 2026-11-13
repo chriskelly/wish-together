@@ -15,12 +15,9 @@ to the repository root.
 
 ## Layout
 
-| Layer | Files |
-| ----- | ----- |
-| `domain/` | `domain/auth_session.dart`, `domain/user.dart` |
-| `data/` | `data/auth_service.dart`, `data/user_repository.dart`, `data/google_sign_in_stub.dart`, `data/phone_auth_error.dart`, `data/phone_input.dart`, `data/apple_auth_error.dart`, `data/reauth_provider.dart`, `data/delete_account_error.dart`, `data/phone_verification.dart` |
-| `application/` | `application/load_user_profile_use_case.dart`, `application/save_user_profile_use_case.dart`, `application/delete_account_use_case.dart` |
-| `presentation/` | `presentation/login_page.dart`, `presentation/verification_page.dart`, `presentation/profile_page.dart`, `presentation/delete_account_section.dart`, `presentation/home_page.dart` |
+The area is split into `domain/`, `data/`, `application/` and
+`presentation/`. List the current files with
+`find lib/features/auth -name '*.dart' | sort`.
 
 ## Sign-in and deletion types
 

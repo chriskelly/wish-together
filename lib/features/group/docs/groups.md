@@ -13,12 +13,9 @@ relative to `lib/features/group/`, then to the repository root.
 
 ## Layout
 
-| Layer | Files |
-| ----- | ----- |
-| `domain/` | `domain/group.dart` |
-| `data/` | `data/group_repository.dart` |
-| `application/` | `application/create_group_use_case.dart`, `application/join_group_use_case.dart`, `application/leave_group_use_case.dart`, `application/update_group_use_case.dart`, `application/share_wishlist_with_group_use_case.dart` |
-| `presentation/` | `presentation/group_form_page.dart`, `presentation/group_details_page.dart`, `presentation/group_member_row.dart`, `presentation/group_wishlist_row.dart`, `presentation/join_group_page.dart`, `presentation/providers/group_details_providers.dart` |
+The area is split into `domain/`, `data/`, `application/` and
+`presentation/`. List the current files with
+`find lib/features/group -name '*.dart' | sort`.
 
 ## Key types
 

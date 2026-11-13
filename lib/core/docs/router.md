@@ -39,13 +39,20 @@ as `/join?group=123`), which is how an iOS Universal Link starts the router.
   not supported (`docs/deep-links.md`).
 - `redirect_to` is forwarded verbatim as a location; it is never normalized from a fragment
   or an absolute URL.
+- The edit-item route needs the item the list passes in `EditItemRouteArgs`; a deep link or a
+  reload has no such extra, so the route redirects to `/wishlist/<id>` before its builder runs.
+  The same extra carries the form's leave guard, which the route's `onExit` consults for a
+  browser back. The create route needs no item but takes `CreateItemRouteArgs` for a per-push
+  guard, so two create forms cannot detach each other's guard; a browser back while the draft
+  is unsaved asks the same question. A deep link or reload without those args redirects to the
+  list, as the edit route does.
 
 ## How it is tested
 
 - `test/core/router_test.dart` drives `handleRedirect` across the logged-out /
   logged-in-without-name / logged-in-with-name matrix, including join-link redirects, with
   a mocked `AuthSession` and `UserRepository`; it also pins the `getIt<UserRepository>()`
-  fallback.
+  fallback and both form routes' fallbacks when a deep link arrives without their args.
 - `test/core/app_urls_test.dart` pins the Universal-Link mapping: https/host/path allowlist,
   query encoding, and the debug-vs-release host sets.
 - `test/core/deep_links_test.dart` pins the startup queue and warm-link forwarding, including

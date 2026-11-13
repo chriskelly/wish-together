@@ -162,7 +162,7 @@ class WishlistItemRow extends ConsumerWidget {
           context.pushNamed(
             ItemFormPage.editRouteName,
             pathParameters: {'id': wishlistId, 'itemId': item.id!},
-            extra: item,
+            extra: EditItemRouteArgs(item),
           );
         },
         onDelete: () => _deleteItem(context, ref, item.id!),

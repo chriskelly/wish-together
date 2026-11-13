@@ -117,6 +117,7 @@ class WishlistDetailsPage extends ConsumerWidget {
       onPressed: () => context.pushNamed(
         ItemFormPage.createRouteName,
         pathParameters: {'id': wishlistId},
+        extra: CreateItemRouteArgs(),
       ),
       tooltip: 'Add item',
       child: const Icon(Icons.add),

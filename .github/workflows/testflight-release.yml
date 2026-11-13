@@ -101,6 +101,7 @@ jobs:
 
             core.setOutput('pr_number', String(prNumber));
             core.setOutput('head_ref', pr.head.ref);
+            core.setOutput('head_sha', pr.head.sha);
             core.setOutput('no_deploy', String(labels.includes('no-deploy')));
 
       - name: Checkout
@@ -191,6 +192,9 @@ jobs:
           JOB_STATUS: ${{ job.status }}
           # The lane resolves a build number from App Store Connect and republishes it here.
           BUILD_NUMBER: ${{ env.RESOLVED_BUILD_NUMBER || env.BUILD_NUMBER }}
+          # The commit this binary was built from: the triggering iOS CI run for
+          # workflow_run, or the resolved PR head for a manual run.
+          SOURCE_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || steps.pr.outputs.head_sha }}
         with:
           script: |
             const marker = '<!-- testflight-release -->';
@@ -215,6 +219,7 @@ jobs:
                 '### TestFlight — build uploaded',
                 '',
                 `Build number: **${process.env.BUILD_NUMBER}**`,
+                `Source commit: \`${process.env.SOURCE_SHA}\``,
                 '',
                 'Install from TestFlight once Apple finishes processing (usually 10–20 minutes).',
                 '',

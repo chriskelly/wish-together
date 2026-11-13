@@ -85,7 +85,33 @@ root.
   can clear claims but cannot add or rewrite one. The item form's stepper sets a limit of 1–99 or
   unlimited (0, shown as `∞`); on edit its minimum is `max(1, claimCount)`, so a limit cannot be
   lowered below the people who already claimed. A pre-existing finite limit above 99 is kept and
-  cannot be lowered.
+  cannot be lowered. A successful reset clears the page's claim count, so the minimum drops to 1
+  without leaving the form.
+- Both forms save from the app bar's check mark (`Save changes` on an edit, `Save item` on a
+  create), enabled while the form differs from the values it last saved (or opened with) and no
+  save is in flight; tapping it is still the explicit action. Leaving either form with unsaved
+  content — back arrow, system back or the browser's back button — asks Save, Discard or Keep
+  editing, and a save is never attempted silently. System back reaches `PopScope`; a web back
+  can arrive as a `popRoute` first and then as a route replacement, and the replacement path
+  reaches go_router's `onExit` without touching `PopScope`, so both routes carry a guard (the
+  edit route in `EditItemRouteArgs.leaveGuard`, the create route in its own `ItemFormLeaveGuard`)
+  that asks the same question. Whichever path arrives first asks, and the dialog guard keeps the
+  other from stacking. The iOS swipe-back gesture is disabled while the change is unsaved
+  instead of opening the prompt, so the app-bar arrow is the way out there; a create whose write
+  is in flight may leave, so its swipe is not blocked. A browser reload or tab close is the one
+  exit that still drops the form; it is not intercepted, because guarding it would need draft
+  persistence. An edit does not autofocus the name field, so the keyboard
+  does not cover the form before the owner has chosen what to change; creating still does. A
+  failed save stays on the form as a banner with the classified copy and a retry, and the typed
+  values are kept; an edit write still unacknowledged after ten seconds is reported as
+  unconfirmed rather than spinning forever, and the banner's Retry (or the check mark) issues it
+  again. A router redirect caused by the session ending or changing is never held by the prompt,
+  because the form cannot save into a different session. A create is one shot: its check mark
+  and fields stay locked until the write resolves, so a queued create cannot be submitted twice
+  or edited into a state the write does not contain. The owner may leave while that write is in
+  flight; it can still land after they go, and the list stream then shows the item. If it
+  instead fails after they leave, that failure is silent: the page is gone and no retry is
+  offered.
 - Owner-only UI: the add-item FAB, item edit/delete actions, wishlist edit, and the spoiler
   toggle appear only when `wishlist.ownerId == currentUserId`.
 - `WishlistDetailsPage` starts spoiler-free (`SpoilerFree.build()` returns true). Spoiler-free
@@ -115,9 +141,9 @@ root.
 `WishlistDetailsPage` watches `wishlistProvider(id)` and `wishlistItemsProvider(id)`, computes
 `isOwner` from `currentUserIdProvider`, and runs claim/unclaim/delete through `ItemActions`; the
 spoiler toggle is `SpoilerFree`. Each item card is a `WishlistItemRow`. The owner's `ItemFormPage`
-carries the reset-claims action, which calls `ResetClaimsUseCase` and returns to the details page
-so the stream shows the item unclaimed. A wishlist shared with a group appears in that group's
-details page because of `sharedWithGroups`.
+carries the reset-claims action, which calls `ResetClaimsUseCase`, keeps the form open and shows
+`Claims reset.` so a pending edit survives. A wishlist shared with a group appears in that
+group's details page because of `sharedWithGroups`.
 
 ## How it is tested
 
@@ -136,9 +162,15 @@ details page because of `sharedWithGroups`.
   `updateContent` preserving `claims`. The fake transaction has no isolation or rollback, so the
   true concurrency behaviour is proven by the rules tests and the staging smoke test, not here.
 - `test/features/wishlist/presentation/` — `claimFailureMessage` copy (including a full item);
-  `item_form_page_test` pins the stepper's create, edit, unlimited and save behaviour, the
-  reset action always showing on an edit, its confirmation, its pending state, and its failure
-  copies;
+  `item_form_page_test` pins the stepper's create, edit, unlimited and save behaviour, the reset
+  action always showing on an edit, its confirmation, its pending state, and its failure copies,
+  both forms' check-mark enablement and autofocus behaviour, the create leave guard, its locked
+  fields while the write is in flight, the leave dialog from both `PopScope` and the browser's route replacement (keep editing, discard and
+  save on both paths; an invalid save from the back dialog), a failure banner that survives a
+  focus change but clears on a text edit, the failed/offline/unconfirmed save banner and its
+  retry, a rapid edit sequence, edits kept when typed during an in-flight save, a create that
+  cannot be submitted twice, and a reset that stays on the form and refreshes the stepper
+  minimum;
   `wishlist_details_page_test` pins the reader's own and other claims, the unclaimed case, the
   multi/unlimited counts, `Unavailable`, the owner's spoiler-free limit labels and revealed
   status, the row fitting a 320 px phone at 1.3 text scale, the signed-out unclaim copy, and the

@@ -14,12 +14,9 @@ root.
 
 ## Layout
 
-| Layer | Files |
-| ----- | ----- |
-| `domain/` | `domain/wishlist.dart`, `domain/item.dart`, `domain/claim_limit_reached_exception.dart` |
-| `data/` | `data/wishlist_repository.dart`, `data/item_repository.dart` |
-| `application/` | `application/create_wishlist_use_case.dart`, `application/update_wishlist_use_case.dart`, `application/create_item_use_case.dart`, `application/update_item_use_case.dart`, `application/claim_item_use_case.dart`, `application/claim_failure.dart`, `application/unclaim_item_use_case.dart`, `application/reset_claims_use_case.dart` |
-| `presentation/` | `presentation/wishlist_form_page.dart`, `presentation/wishlist_details_page.dart`, `presentation/wishlist_item_row.dart`, `presentation/claim_failure_message.dart`, `presentation/item_form_page.dart`, `presentation/providers/wishlist_details_providers.dart` |
+The area is split into `domain/`, `data/`, `application/` and
+`presentation/`. List the current files with
+`find lib/features/wishlist -name '*.dart' | sort`.
 
 ## Key types
 

@@ -5,7 +5,7 @@
 // invalid limit and leftover legacy keys are written for it, and a map with
 // several claims and no integer limit stops the run. A rerun writes only the
 // remainder. Dry run unless --yes; the default target is staging. See
-// docs/migrations.md for the export, freeze and rollback runbook.
+// docs/migration-runbook.md for the export, freeze and rollback runbook.
 
 import { readFileSync } from 'node:fs';
 

@@ -9,8 +9,7 @@ typedef EntityWidgetBuilder<T> = Widget Function(BuildContext context, T item);
 ///
 /// A caller that already holds the current data — a page whose providers own
 /// the subscriptions — passes it directly: an error, a loading indicator, an
-/// empty placeholder, or the entries. The retired `StreamListBuilder` adapted a
-/// `Stream` to this widget; no production page does that any more.
+/// empty placeholder, or the entries.
 class ListContentBuilder<T> extends StatelessWidget {
   /// The current entries, or `null` while nothing has arrived yet — including
   /// while a stream subscription is being re-established.

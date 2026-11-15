@@ -29,6 +29,7 @@ Paths are relative to `lib/core/`, then to the repository root.
 | `disableAutomaticRetry` / bridge providers | `providers.dart` | The root retry policy and the temporary getIt bridge presentation reads through; see `docs/state.md`. |
 | `PackageInfoLoader` | `platform_info.dart` | The injectable `PackageInfo.fromPlatform` seam shared by the update gate and the build-identity read. |
 | `BrandPalette` / `BrandGeometry` / `buildTextTheme` | `design_tokens.dart` | Brand values, geometry and the type scale. |
+| `fabReserve(BuildContext, {gap})` | `fab_layout.dart` | Bottom reserve that keeps a scrollable page's last row clear of a floating action button. |
 | `lightTheme`, `darkTheme` | `theme.dart` | Material 3 themes built from `BrandPalette`; the only theme entry points. |
 
 ## Data flow

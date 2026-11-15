@@ -17,6 +17,7 @@ import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 import 'package:wishtogether/features/wishlist/domain/item.dart';
 import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
 import 'package:wishtogether/features/wishlist/presentation/wishlist_details_page.dart';
+import 'package:wishtogether/features/wishlist/presentation/wishlist_item_row.dart';
 
 class MockWishlistRepository extends Mock implements WishlistRepository {}
 
@@ -97,15 +98,31 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    /// A 320 px phone at 1.3 text scale: the narrowest layout the review
-    /// requires the claim rows to fit.
-    void useNarrowPhone(WidgetTester tester) {
+    /// Pins a phone-sized viewport, with an optional system text scale and
+    /// bottom safe-area inset. The tear-downs restore the view metrics and the
+    /// text scale.
+    void useViewport(
+      WidgetTester tester,
+      Size size, {
+      double textScale = 1.0,
+      double bottomInset = 0,
+    }) {
       tester.view.devicePixelRatio = 1.0;
-      tester.view.physicalSize = const Size(320, 640);
+      tester.view.physicalSize = size;
+      tester.platformDispatcher.textScaleFactorTestValue = textScale;
+      if (bottomInset > 0) {
+        final padding = FakeViewPadding(bottom: bottomInset);
+        tester.view.padding = padding;
+        tester.view.viewPadding = padding;
+      }
       addTearDown(tester.view.reset);
-      tester.platformDispatcher.textScaleFactorTestValue = 1.3;
       addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
     }
+
+    /// A 320 px phone at 1.3 text scale: the narrowest layout the review
+    /// requires the claim rows to fit.
+    void useNarrowPhone(WidgetTester tester) =>
+        useViewport(tester, const Size(320, 640), textScale: 1.3);
 
     /// The margin the page gives every item row.
     const itemMargin = EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0);
@@ -1006,6 +1023,128 @@ void main() {
 
         final after = tester.state<ScrollableState>(scrollable).position.pixels;
         expect(after, greaterThan(before));
+      });
+    });
+
+    group('FAB clearance', () {
+      /// A standard iPhone: 393 x 852 with a 34 px home-indicator inset. The
+      /// inset matters because the Scaffold body runs to the physical bottom
+      /// while the add button sits above the safe area.
+      void usePhone(WidgetTester tester) =>
+          useViewport(tester, const Size(393, 852), bottomInset: 34);
+
+      /// Leaves the item list at its end, where the last row rests against the
+      /// bottom padding. Fails rather than silently passing if the list is too
+      /// short to scroll.
+      Future<void> scrollToEnd(WidgetTester tester) async {
+        final scrollable = find.descendant(
+          of: find.byType(ListView),
+          matching: find.byType(Scrollable),
+        );
+        final position = tester.state<ScrollableState>(scrollable).position;
+        expect(
+          position.maxScrollExtent,
+          greaterThan(0),
+          reason: 'the end-of-list case needs a list that scrolls',
+        );
+        position.jumpTo(position.maxScrollExtent);
+        await tester.pumpAndSettle();
+      }
+
+      /// Six rows are enough to need scrolling on this phone; the last row is
+      /// the one the add button used to cover.
+      List<Item> scrollingItems() => [
+        for (var index = 0; index < 6; index++)
+          Item(id: 'item-$index', name: 'Item $index'),
+      ];
+      const lastItemName = 'Item 5';
+
+      /// The delete action of the row named [name], not merely the last button
+      /// in the tree: a row that did not build must not stand in for the last.
+      Finder deleteButtonOf(String name) => find.descendant(
+        of: find.ancestor(
+          of: find.text(name),
+          matching: find.byType(WishlistItemRow),
+        ),
+        matching: find.widgetWithIcon(IconButton, Icons.delete_outline),
+      );
+
+      void expectClearOfTheAddButton(WidgetTester tester, Finder deleteButton) {
+        final deleteRect = tester.getRect(deleteButton);
+        final fabRect = tester.getRect(find.byType(FloatingActionButton));
+
+        expect(
+          deleteRect.overlaps(fabRect),
+          isFalse,
+          reason:
+              'the add button $fabRect covers the delete button $deleteRect',
+        );
+      }
+
+      testWidgets(
+        "keeps the last row's delete button clear of the add button at the "
+        'end of a list that scrolls',
+        (tester) async {
+          usePhone(tester);
+          await pumpPage(tester, scrollingItems(), asOwner: true);
+
+          await scrollToEnd(tester);
+
+          expectClearOfTheAddButton(tester, deleteButtonOf(lastItemName));
+        },
+      );
+
+      testWidgets(
+        "keeps the last row's delete button clear of the add button at the "
+        '320 px review size',
+        (tester) async {
+          useViewport(
+            tester,
+            const Size(320, 640),
+            textScale: 1.3,
+            bottomInset: 34,
+          );
+          await pumpPage(tester, scrollingItems(), asOwner: true);
+
+          // At this width the wrapped status label lifts the action row, so
+          // this case guards the narrow layout; the phone case above is the
+          // one that reproduces the overlap.
+          await scrollToEnd(tester);
+
+          expectClearOfTheAddButton(tester, deleteButtonOf(lastItemName));
+        },
+      );
+
+      testWidgets("leaves a single-row list clear of the add button", (
+        tester,
+      ) async {
+        usePhone(tester);
+        await pumpPage(tester, [
+          Item(id: 'item-1', name: itemName),
+        ], asOwner: true);
+
+        // The row sits near the top, so this cannot reproduce the overlap;
+        // it pins the ticket's short-list edge case.
+        expectClearOfTheAddButton(tester, deleteButtonOf(itemName));
+      });
+
+      testWidgets('opens the delete confirmation from the last row', (
+        tester,
+      ) async {
+        usePhone(tester);
+        await pumpPage(tester, scrollingItems(), asOwner: true);
+        await scrollToEnd(tester);
+
+        final deleteButton = deleteButtonOf(lastItemName);
+        expect(
+          deleteButton.hitTestable(),
+          findsOneWidget,
+          reason: 'the add button must not take the delete button taps',
+        );
+        await tester.tap(deleteButton);
+        await tester.pumpAndSettle();
+
+        expect(find.text('Delete Item?'), findsOneWidget);
       });
     });
 

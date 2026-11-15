@@ -15,6 +15,20 @@ class WishlistDetailsPage extends ConsumerWidget {
   static const String routeName = 'wishlistDetails';
   static const String route = '/wishlist/:id';
 
+  /// Bottom space the items list keeps for the add-item FAB: the FAB's height
+  /// (56, not themed), the 16 px margin between it and the safe-area edge, the
+  /// device's bottom inset below that edge, and a 16 px gap. The row adds its
+  /// own card padding, margin and shadow (28 px) below the actions, so the
+  /// delivered gap is larger. The body otherwise runs to the physical bottom
+  /// while the FAB sits above the home indicator, which is what put the last
+  /// row's delete button underneath it. Both edges are measured here so the
+  /// gap holds on every device.
+  static double _fabReserve(BuildContext context) =>
+      56 +
+      kFloatingActionButtonMargin +
+      MediaQuery.viewPaddingOf(context).bottom +
+      16;
+
   final String wishlistId;
 
   const WishlistDetailsPage({super.key, required this.wishlistId});
@@ -53,7 +67,7 @@ class WishlistDetailsPage extends ConsumerWidget {
           userId: userId,
         ),
         emptyMessage: 'This wishlist has no items yet.',
-        listPadding: const EdgeInsets.only(bottom: 48),
+        listPadding: EdgeInsets.only(bottom: _fabReserve(context)),
       ),
       floatingActionButton: _buildFloatingActionButton(context, isOwner),
     );

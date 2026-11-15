@@ -1,0 +1,2 @@
+• The add button no longer covers the last item's delete button when you scroll to the end of a wishlist.
+• On a group page, the Share Wishlist button no longer crowds the Leave Group button.

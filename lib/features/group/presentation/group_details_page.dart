@@ -8,6 +8,7 @@ import 'package:wishtogether/common/widgets/data_section_builder.dart';
 import 'package:wishtogether/common/widgets/list_content_builder.dart';
 import 'package:wishtogether/common/widgets/primary_app_bar.dart';
 import 'package:wishtogether/core/app_urls.dart';
+import 'package:wishtogether/core/fab_layout.dart';
 import 'package:wishtogether/core/providers.dart';
 import 'package:wishtogether/features/auth/domain/user.dart';
 import 'package:wishtogether/features/auth/presentation/home_page.dart';
@@ -38,13 +39,6 @@ class GroupDetailsPage extends ConsumerWidget {
         .toString();
   }
 
-  /// Bottom space the Share Wishlist button takes from the scroll body: the
-  /// button's own height (56 at the Material 3 defaults, and text scaling does
-  /// not change it), the margin the Scaffold keeps between it and the body, and
-  /// a gap so the last row clears the button instead of touching it. Without it
-  /// the last row sits underneath the button and takes its taps.
-  static const double _fabReserve = 56 + kFloatingActionButtonMargin + 16;
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final groupAsync = ref.watch(groupProvider(groupId));
@@ -69,7 +63,9 @@ class GroupDetailsPage extends ConsumerWidget {
         actions: _buildAppBarActions(context, group, isOwner),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + _fabReserve),
+        // Page margin, then the room the Share Wishlist button needs below the
+        // content.
+        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + fabReserve(context)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

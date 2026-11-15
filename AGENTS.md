@@ -69,6 +69,13 @@ because `.` would walk `node_modules`.
   from a trusted network with the `ssh_keys` field of `https://api.github.com/meta`, verify
   the fingerprints against GitHub's documented values, and commit the verified lines.
 
+## Release notes
+
+A customer-facing change adds one short line to `fastlane/metadata/en-US/release_notes.txt` in
+the same PR: plain words for the person who installed the app, no issue numbers or jargon, no
+emoji. The file is cleared after every successful App Store release, so each release must fill
+it again; the release lane refuses an empty file. Details: `docs/release.md`.
+
 ## Architecture and dependency direction
 
 ```text

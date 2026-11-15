@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wishtogether/common/widgets/list_content_builder.dart';
 import 'package:wishtogether/common/widgets/primary_app_bar.dart';
+import 'package:wishtogether/core/fab_layout.dart';
 import 'package:wishtogether/core/providers.dart';
 import 'package:wishtogether/features/wishlist/domain/item.dart';
 import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
@@ -53,7 +54,7 @@ class WishlistDetailsPage extends ConsumerWidget {
           userId: userId,
         ),
         emptyMessage: 'This wishlist has no items yet.',
-        listPadding: const EdgeInsets.only(bottom: 48),
+        listPadding: EdgeInsets.only(bottom: fabReserve(context)),
       ),
       floatingActionButton: _buildFloatingActionButton(context, isOwner),
     );

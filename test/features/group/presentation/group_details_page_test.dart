@@ -145,9 +145,16 @@ void main() {
       Size viewport, {
       String? expectedOverflow,
       Widget Function()? frame,
+      double bottomInset = 0,
     }) async {
       tester.view.devicePixelRatio = 3.0;
       tester.view.physicalSize = viewport * 3.0;
+      if (bottomInset > 0) {
+        // View padding is in physical pixels; the helper takes logical ones.
+        final padding = FakeViewPadding(bottom: bottomInset * 3);
+        tester.view.padding = padding;
+        tester.view.viewPadding = padding;
+      }
       addTearDown(tester.view.reset);
 
       // The page resolves a router before reacting to Leave Group, so the
@@ -267,6 +274,33 @@ void main() {
         },
       );
     }
+
+    testWidgets(
+      'keeps a gap above the floating button at a 48 px bottom inset',
+      (tester) async {
+        const bottomInset = 48.0;
+        const expectedGap = 16.0;
+        await pumpPage(
+          tester,
+          const Size(390, 844),
+          expectedOverflow: overflowAt390,
+          bottomInset: bottomInset,
+        );
+        await scrollToEnd(tester);
+
+        final leaveButtonRect = tester.getRect(leaveGroupButton);
+        final fabRect = tester.getRect(shareWishlistFab);
+        final gap = fabRect.top - leaveButtonRect.bottom;
+
+        expect(
+          gap,
+          greaterThanOrEqualTo(expectedGap),
+          reason:
+              'the floating button $fabRect leaves $gap px above the Leave '
+              'Group tap target $leaveButtonRect at a $bottomInset px inset',
+        );
+      },
+    );
 
     testWidgets('opens the leave confirmation when Leave Group is tapped at '
         'the end of a small phone page', (tester) async {

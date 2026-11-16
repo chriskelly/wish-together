@@ -9,6 +9,7 @@ import 'package:wishtogether/features/wishlist/application/claim_failure.dart';
 import 'package:wishtogether/features/wishlist/application/claim_item_use_case.dart';
 import 'package:wishtogether/features/wishlist/application/clear_stale_claims_use_case.dart';
 import 'package:wishtogether/features/wishlist/application/unclaim_item_use_case.dart';
+import 'package:wishtogether/features/wishlist/data/item_repository.dart';
 import 'package:wishtogether/features/wishlist/domain/stale_claims.dart';
 import 'package:wishtogether/features/wishlist/presentation/providers/wishlist_details_providers.dart';
 
@@ -19,6 +20,8 @@ class MockUnclaimItemUseCase extends Mock implements UnclaimItemUseCase {}
 class MockClearStaleClaimsUseCase extends Mock
     implements ClearStaleClaimsUseCase {}
 
+class MockItemRepository extends Mock implements ItemRepository {}
+
 void main() {
   const wishlistId = 'wishlist-1';
   const itemId = 'item-1';
@@ -26,6 +29,7 @@ void main() {
   late MockClaimItemUseCase claimItemUseCase;
   late MockUnclaimItemUseCase unclaimItemUseCase;
   late MockClearStaleClaimsUseCase clearStaleClaimsUseCase;
+  late MockItemRepository itemRepository;
 
   setUpAll(() {
     registerFallbackValue(StaleClaimsPlan.empty);
@@ -35,12 +39,14 @@ void main() {
     claimItemUseCase = MockClaimItemUseCase();
     unclaimItemUseCase = MockUnclaimItemUseCase();
     clearStaleClaimsUseCase = MockClearStaleClaimsUseCase();
+    itemRepository = MockItemRepository();
   });
 
   ProviderContainer containerWith({
     ClaimItemUseCase? claim,
     UnclaimItemUseCase? unclaim,
     ClearStaleClaimsUseCase? clear,
+    ItemRepository? items,
   }) {
     return ProviderContainer.test(
       retry: disableAutomaticRetry,
@@ -50,6 +56,8 @@ void main() {
           unclaimItemUseCaseProvider.overrideWithValue(unclaim),
         if (clear != null)
           clearStaleClaimsUseCaseProvider.overrideWithValue(clear),
+        if (items != null)
+          itemRepositoryProvider(wishlistId).overrideWithValue(items),
       ],
     );
   }
@@ -80,6 +88,10 @@ void main() {
   });
 
   group('item actions', () {
+    const plan = StaleClaimsPlan({
+      'item-1': {'uid-1'},
+    });
+
     test('claim runs the use case, reports busy and clears it', () async {
       final completer = Completer<void>();
       when(() => claimItemUseCase.execute(wishlistId, itemId))
@@ -142,9 +154,6 @@ void main() {
           .thenAnswer((_) => pending.future);
       final container = containerWith(clear: clearStaleClaimsUseCase);
       listen(container, wishlistItemActionsProvider(wishlistId));
-      const plan = StaleClaimsPlan({
-        'item-1': {'uid-1'},
-      });
 
       final running = container
           .read(wishlistItemActionsProvider(wishlistId).notifier)
@@ -172,9 +181,6 @@ void main() {
           clear: clearStaleClaimsUseCase,
         );
         listen(container, wishlistItemActionsProvider(wishlistId));
-        const plan = StaleClaimsPlan({
-          'item-1': {'uid-1'},
-        });
 
         final claim = container
             .read(wishlistItemActionsProvider(wishlistId).notifier)
@@ -201,9 +207,6 @@ void main() {
           clear: clearStaleClaimsUseCase,
         );
         listen(container, wishlistItemActionsProvider(wishlistId));
-        const plan = StaleClaimsPlan({
-          'item-1': {'uid-1'},
-        });
 
         final clear = container
             .read(wishlistItemActionsProvider(wishlistId).notifier)
@@ -218,5 +221,52 @@ void main() {
         await clear;
       },
     );
+
+    test('a bulk clear does not start while a delete is running', () async {
+      final pending = Completer<void>();
+      when(() => itemRepository.delete(itemId))
+          .thenAnswer((_) => pending.future);
+      final container = containerWith(
+        clear: clearStaleClaimsUseCase,
+        items: itemRepository,
+      );
+      listen(container, wishlistItemActionsProvider(wishlistId));
+
+      final delete = container
+          .read(wishlistItemActionsProvider(wishlistId).notifier)
+          .delete(itemId);
+      final ran = await container
+          .read(wishlistItemActionsProvider(wishlistId).notifier)
+          .clearStaleClaims(plan);
+
+      expect(ran, isFalse);
+      verifyNever(() => clearStaleClaimsUseCase.execute(any(), any()));
+      pending.complete();
+      await delete;
+    });
+
+    test('a delete does not start while a bulk clear is running', () async {
+      final pending = Completer<void>();
+      when(() => clearStaleClaimsUseCase.execute(wishlistId, any()))
+          .thenAnswer((_) => pending.future);
+      when(() => itemRepository.delete(itemId)).thenAnswer((_) async {});
+      final container = containerWith(
+        clear: clearStaleClaimsUseCase,
+        items: itemRepository,
+      );
+      listen(container, wishlistItemActionsProvider(wishlistId));
+
+      final clear = container
+          .read(wishlistItemActionsProvider(wishlistId).notifier)
+          .clearStaleClaims(plan);
+      final ran = await container
+          .read(wishlistItemActionsProvider(wishlistId).notifier)
+          .delete(itemId);
+
+      expect(ran, isFalse);
+      verifyNever(() => itemRepository.delete(itemId));
+      pending.complete();
+      await clear;
+    });
   });
 }

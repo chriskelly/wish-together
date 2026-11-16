@@ -91,31 +91,29 @@ class ItemActions extends Notifier<ItemActionState> {
   /// Returns false when another action is already running, so the caller can
   /// avoid a second success message. Failures propagate unchanged.
   Future<bool> claim(String itemId) => _run(
-    itemId,
+    ItemActionState(busyItemId: itemId),
     () => ref.read(claimItemUseCaseProvider).execute(wishlistId, itemId),
   );
 
   Future<bool> unclaim(String itemId) => _run(
-    itemId,
+    ItemActionState(busyItemId: itemId),
     () => ref.read(unclaimItemUseCaseProvider).execute(wishlistId, itemId),
   );
 
   Future<bool> delete(String itemId) => _run(
-    itemId,
+    ItemActionState(busyItemId: itemId),
     () => ref.read(itemRepositoryProvider(wishlistId)).delete(itemId),
   );
 
   Future<bool> clearStaleClaims(StaleClaimsPlan plan) => _run(
-    null,
+    const ItemActionState(isBulk: true),
     () => ref.read(clearStaleClaimsUseCaseProvider).execute(wishlistId, plan),
-    bulk: true,
   );
 
   Future<bool> _run(
-    String? itemId,
-    Future<void> Function() action, {
-    bool bulk = false,
-  }) async {
+    ItemActionState running,
+    Future<void> Function() action,
+  ) async {
     if (state.isBusy) {
       return false;
     }
@@ -124,7 +122,7 @@ class ItemActions extends Notifier<ItemActionState> {
     // auto-disposed notifier would be gone by the next frame, and a second tap
     // would see a fresh, idle notifier and run the action again.
     final link = ref.keepAlive();
-    state = ItemActionState(busyItemId: itemId, isBulk: bulk);
+    state = running;
     try {
       await action();
       return true;

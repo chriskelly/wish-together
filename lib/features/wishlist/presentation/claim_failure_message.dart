@@ -30,6 +30,10 @@ String claimFailureMessage(Object error) {
 
 /// The owner's partial-clear copy. The prefix is fixed so every reason reads as
 /// a partial outcome rather than a failed single action.
+///
+/// Unlike [claimFailureMessage], this classifies a raw coded error with
+/// [ClaimFailure.from]: the owner's bulk action is its only caller and the use
+/// case's contract is to throw a [ClaimFailure].
 String clearStaleClaimsFailureMessage(Object error) {
   final reason = ClaimFailure.from(error).reason;
   final detail = switch (reason) {

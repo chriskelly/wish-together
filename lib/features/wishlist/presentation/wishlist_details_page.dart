@@ -44,6 +44,9 @@ class WishlistDetailsPage extends ConsumerWidget {
     final stalePlan = isOwner
         ? ref.watch(staleClaimsPlanProvider(wishlistId))
         : StaleClaimsPlan.empty;
+    final isBulkClear = ref.watch(
+      wishlistItemActionsProvider(wishlistId).select((state) => state.isBulk),
+    );
 
     return Scaffold(
       appBar: _buildAppBar(context, ref, wishlist, isOwner, isSpoilerFree),
@@ -52,19 +55,22 @@ class WishlistDetailsPage extends ConsumerWidget {
           if (!stalePlan.isEmpty)
             StaleClaimsBanner(wishlistId: wishlistId, plan: stalePlan),
           Expanded(
-            child: ListContentBuilder<Item>(
-              items: itemsAsync.value,
-              error: itemsAsync.error,
-              entityWidgetBuilder: (context, item) => WishlistItemRow(
-                key: ValueKey(item.id),
-                wishlistId: wishlistId,
-                item: item,
-                isOwner: isOwner,
-                isSpoilerFree: isSpoilerFree,
-                userId: userId,
+            child: AbsorbPointer(
+              absorbing: isBulkClear,
+              child: ListContentBuilder<Item>(
+                items: itemsAsync.value,
+                error: itemsAsync.error,
+                entityWidgetBuilder: (context, item) => WishlistItemRow(
+                  key: ValueKey(item.id),
+                  wishlistId: wishlistId,
+                  item: item,
+                  isOwner: isOwner,
+                  isSpoilerFree: isSpoilerFree,
+                  userId: userId,
+                ),
+                emptyMessage: 'This wishlist has no items yet.',
+                listPadding: EdgeInsets.only(bottom: fabReserve(context)),
               ),
-              emptyMessage: 'This wishlist has no items yet.',
-              listPadding: EdgeInsets.only(bottom: fabReserve(context)),
             ),
           ),
         ],

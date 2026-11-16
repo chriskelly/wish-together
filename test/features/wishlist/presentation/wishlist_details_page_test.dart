@@ -1202,9 +1202,6 @@ void main() {
         claims: {'old-reader': staleClaimAt},
       );
 
-      Finder bannerTrigger() =>
-          find.widgetWithText(TextButton, 'Clear old claims');
-
       Finder bannerButton() => find.descendant(
         of: find.byType(StaleClaimsBanner),
         matching: find.byType(TextButton),
@@ -1216,7 +1213,7 @@ void main() {
       );
 
       Future<void> confirmClear(WidgetTester tester) async {
-        await tester.tap(bannerTrigger());
+        await tester.tap(bannerButton());
         await tester.pumpAndSettle();
         await tester.tap(dialogConfirm());
         await tester.pumpAndSettle();
@@ -1231,7 +1228,8 @@ void main() {
             find.text('You have claim(s) older than 6 months.'),
             findsOneWidget,
           );
-          expect(bannerTrigger(), findsOneWidget);
+          expect(find.text('Clear old claims'), findsOneWidget);
+          expect(bannerButton(), findsOneWidget);
           expect(find.text('1 person can claim'), findsOneWidget);
           expect(find.text('Claimed'), findsNothing);
         },
@@ -1244,7 +1242,7 @@ void main() {
           find.text('You have claim(s) older than 6 months.'),
           findsNothing,
         );
-        expect(bannerTrigger(), findsNothing);
+        expect(bannerButton(), findsNothing);
       });
 
       testWidgets('hides the old-claims banner when every claim is recent', (
@@ -1261,6 +1259,50 @@ void main() {
         expect(
           find.text('You have claim(s) older than 6 months.'),
           findsNothing,
+        );
+      });
+
+      testWidgets('shows the banner when the owner reveals claims', (
+        tester,
+      ) async {
+        await pumpPage(tester, [staleItem()], asOwner: true);
+
+        await tester.tap(find.byTooltip('Show claimed status'));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('You have claim(s) older than 6 months.'),
+          findsOneWidget,
+        );
+        expect(bannerButton(), findsOneWidget);
+        expect(find.text('Claimed'), findsOneWidget);
+      });
+
+      testWidgets('uses the injected clock to decide staleness', (
+        tester,
+      ) async {
+        final claimAt = fixedNow.subtract(const Duration(days: 100));
+        final item = Item(
+          id: 'item-1',
+          name: itemName,
+          claims: {'reader': claimAt},
+        );
+
+        await pumpPage(tester, [item], asOwner: true);
+        expect(
+          find.text('You have claim(s) older than 6 months.'),
+          findsNothing,
+        );
+
+        await pumpPage(
+          tester,
+          [item],
+          asOwner: true,
+          now: fixedNow.add(const Duration(days: 100)),
+        );
+        expect(
+          find.text('You have claim(s) older than 6 months.'),
+          findsOneWidget,
         );
       });
 
@@ -1298,7 +1340,7 @@ void main() {
             find.text('You have claim(s) older than 6 months.'),
             findsOneWidget,
           );
-          expect(bannerTrigger(), findsOneWidget);
+          expect(bannerButton(), findsOneWidget);
           expect(tester.takeException(), isNull);
         },
       );
@@ -1308,7 +1350,7 @@ void main() {
         (tester) async {
           await pumpPage(tester, [staleItem()], asOwner: true);
 
-          await tester.tap(bannerTrigger());
+          await tester.tap(bannerButton());
           await tester.pumpAndSettle();
 
           expect(find.text('Clear old claims?'), findsOneWidget);
@@ -1343,7 +1385,7 @@ void main() {
       ) async {
         await pumpPage(tester, [staleItem()], asOwner: true);
 
-        await tester.tap(bannerTrigger());
+        await tester.tap(bannerButton());
         await tester.pumpAndSettle();
         await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
         await tester.pumpAndSettle();
@@ -1370,7 +1412,7 @@ void main() {
           findsOneWidget,
         );
         expect(find.text('Old claims cleared.'), findsNothing);
-        expect(tester.widget<TextButton>(bannerTrigger()).onPressed, isNotNull);
+        expect(tester.widget<TextButton>(bannerButton()).onPressed, isNotNull);
 
         await confirmClear(tester);
         verify(() => clearStaleClaimsUseCase.execute(any(), any())).called(2);
@@ -1401,7 +1443,7 @@ void main() {
             .thenAnswer((_) => pending.future);
         await pumpPage(tester, [staleItem()], asOwner: true);
 
-        await tester.tap(bannerTrigger());
+        await tester.tap(bannerButton());
         await tester.pumpAndSettle();
         await tester.tap(dialogConfirm());
         await tester.pump();
@@ -1412,6 +1454,27 @@ void main() {
         pending.complete();
         await tester.pumpAndSettle();
         expect(find.text('Old claims cleared.'), findsOneWidget);
+      });
+
+      testWidgets('blocks row actions while the bulk clear runs', (
+        tester,
+      ) async {
+        final pending = Completer<void>();
+        when(() => clearStaleClaimsUseCase.execute(any(), any()))
+            .thenAnswer((_) => pending.future);
+        await pumpPage(tester, [staleItem()], asOwner: true);
+
+        await tester.tap(bannerButton());
+        await tester.pumpAndSettle();
+        await tester.tap(dialogConfirm());
+        await tester.pump();
+
+        await tester.tap(find.byTooltip('Delete'), warnIfMissed: false);
+        await tester.pump();
+        expect(find.text('Delete Item?'), findsNothing);
+
+        pending.complete();
+        await tester.pumpAndSettle();
       });
 
       testWidgets('keeps the success snackbar after the banner unmounts', (
@@ -1431,7 +1494,7 @@ void main() {
           itemStream: items.stream,
         );
 
-        await tester.tap(bannerTrigger());
+        await tester.tap(bannerButton());
         await tester.pumpAndSettle();
         await tester.tap(dialogConfirm());
         await tester.pump();

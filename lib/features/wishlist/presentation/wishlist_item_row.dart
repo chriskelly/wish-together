@@ -9,6 +9,7 @@ import 'package:wishtogether/core/logging/diagnostics.dart';
 import 'package:wishtogether/features/wishlist/application/claim_failure.dart';
 import 'package:wishtogether/features/wishlist/domain/item.dart';
 import 'package:wishtogether/features/wishlist/presentation/claim_failure_message.dart';
+import 'package:wishtogether/features/wishlist/presentation/item_action_feedback.dart';
 import 'package:wishtogether/features/wishlist/presentation/item_form_page.dart';
 import 'package:wishtogether/features/wishlist/presentation/providers/wishlist_details_providers.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -283,7 +284,7 @@ class WishlistItemRow extends ConsumerWidget {
       await launchUrl(uri);
     } else {
       if (context.mounted) {
-        _showSnackBar(context, 'Could not launch $url');
+        showItemSnackBar(context, 'Could not launch $url');
       }
     }
   }
@@ -348,21 +349,14 @@ class WishlistItemRow extends ConsumerWidget {
     required String Function(Object error) failure,
     void Function(Object error, StackTrace stackTrace)? onError,
     ScaffoldMessengerState? messenger,
-  }) async {
-    try {
-      final ran = await action();
-      if (!ran || (messenger == null && !context.mounted)) {
-        return;
-      }
-      _showSnackBar(context, success, messenger: messenger);
-    } catch (error, stackTrace) {
-      onError?.call(error, stackTrace);
-      if (messenger == null && !context.mounted) {
-        return;
-      }
-      _showSnackBar(context, failure(error), messenger: messenger);
-    }
-  }
+  }) => runItemAction(
+    context,
+    action,
+    success: success,
+    failure: failure,
+    onError: onError,
+    messenger: messenger,
+  );
 
   Future<bool?> _showDeleteDialog(BuildContext context) =>
       showConfirmationDialog(
@@ -371,22 +365,4 @@ class WishlistItemRow extends ConsumerWidget {
         content: 'Are you sure you want to delete this item? This action cannot be undone.',
         confirmText: 'Delete',
       );
-
-  void _showSnackBar(
-    BuildContext context,
-    String message, {
-    ScaffoldMessengerState? messenger,
-  }) {
-    if (messenger != null) {
-      if (messenger.mounted) {
-        messenger.showSnackBar(SnackBar(content: Text(message)));
-      }
-      return;
-    }
-    if (!context.mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
-  }
 }

@@ -1190,6 +1190,52 @@ test('the owner can repair a malformed claims map by clearing it', async () => {
   assert.deepEqual(Object.keys(data.claims ?? {}), []);
 });
 
+test('the owner cannot add a claim to an item with a malformed claims map', async () => {
+  const wishlistId = 'wishlist-owner-add-malformed';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      item: { name: 'Gift', claims: 'nope', claimLimit: 2 },
+    }),
+  );
+
+  await assertFails(
+    itemRef(OWNER, wishlistId, itemId).update({
+      [`claims.${OUTSIDER}`]: claimAt(),
+    }),
+  );
+});
+
+test('the owner cannot replace a malformed claims map with a non-empty map', async () => {
+  const wishlistId = 'wishlist-owner-malformed-non-empty';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      item: { name: 'Gift', claims: 'nope', claimLimit: 2 },
+    }),
+  );
+
+  await assertFails(
+    itemRef(OWNER, wishlistId, itemId).update({
+      claims: { [OUTSIDER]: claimAt() },
+    }),
+  );
+});
+
+test('the owner cannot write a non-map claims value over a malformed map', async () => {
+  const wishlistId = 'wishlist-owner-malformed-non-map';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      item: { name: 'Gift', claims: 'nope', claimLimit: 1 },
+    }),
+  );
+
+  await assertFails(
+    itemRef(OWNER, wishlistId, itemId).update({ claims: 'still-nope' }),
+  );
+});
+
 test("the owner cannot rewrite another user's claim while clearing", async () => {
   const wishlistId = 'wishlist-owner-reset-rewrite';
   const itemId = 'item';

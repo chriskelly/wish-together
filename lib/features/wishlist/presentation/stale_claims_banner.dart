@@ -6,6 +6,7 @@ import 'package:wishtogether/core/logging/diagnostics.dart';
 import 'package:wishtogether/features/wishlist/application/claim_failure.dart';
 import 'package:wishtogether/features/wishlist/domain/stale_claims.dart';
 import 'package:wishtogether/features/wishlist/presentation/claim_failure_message.dart';
+import 'package:wishtogether/features/wishlist/presentation/item_action_feedback.dart';
 import 'package:wishtogether/features/wishlist/presentation/providers/wishlist_details_providers.dart';
 
 /// The owner-only prompt to clear claims left over from a previous season.
@@ -83,27 +84,19 @@ class StaleClaimsBanner extends ConsumerWidget {
       return;
     }
 
-    try {
-      final ran = await ref
+    await runItemAction(
+      context,
+      () => ref
           .read(wishlistItemActionsProvider(wishlistId).notifier)
-          .clearStaleClaims(plan);
-      if (!ran) {
-        return;
-      }
-      if (messenger.mounted) {
-        messenger.showSnackBar(
-          const SnackBar(content: Text('Old claims cleared.')),
-        );
-      }
-    } catch (error, stackTrace) {
-      if (error is! ClaimFailure) {
-        appLogOrNull?.error(error, stackTrace);
-      }
-      if (messenger.mounted) {
-        messenger.showSnackBar(
-          SnackBar(content: Text(clearStaleClaimsFailureMessage(error))),
-        );
-      }
-    }
+          .clearStaleClaims(plan),
+      success: 'Old claims cleared.',
+      failure: clearStaleClaimsFailureMessage,
+      messenger: messenger,
+      onError: (error, stackTrace) {
+        if (error is! ClaimFailure) {
+          appLogOrNull?.error(error, stackTrace);
+        }
+      },
+    );
   }
 }

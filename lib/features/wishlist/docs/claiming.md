@@ -63,7 +63,8 @@ The area is split into `domain/`, `data/`, `application/` and
   and throws a signed-out `ClaimFailure` when there is none; `ResetClaimsUseCase` does the same
   signed-out guard and then clears every claim on an item; `ClearStaleClaimsUseCase` removes the
   old keys in a `StaleClaimsPlan`, stops at the first failed write, and throws that
-  `ClaimFailure` with the write's stack trace. It returns without logging for an empty plan.
+  `ClaimFailure` with the write's stack trace. For a signed-in caller, it returns without
+  logging for an empty plan; a signed-out caller still gets the signed-out failure.
   The claim, unclaim, reset and clear use cases report a `claimAction` phase (`started`,
   `completed`, or `denied` with the error code); `ClaimItemUseCase` throws a `ClaimFailure` whose
   reason is one of `accessDenied`, `offline`, `itemMissing`, `signedOut`, `fullyClaimed` or

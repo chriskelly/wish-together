@@ -9,8 +9,9 @@ import 'package:wishtogether/features/wishlist/domain/stale_claims.dart';
 /// Removes the old claims the owner's cleanup selected, one item at a time.
 ///
 /// It stops at the first failed write and throws the classified failure, so
-/// the caller keeps the banner for a retry. An empty plan returns without
-/// logging.
+/// the caller keeps the banner for a retry. For a signed-in caller, an empty
+/// plan returns without logging; a signed-out caller still gets the signed-out
+/// failure.
 class ClearStaleClaimsUseCase {
   Future<void> execute(String wishlistId, StaleClaimsPlan plan) async {
     final log = appLogOrNull;

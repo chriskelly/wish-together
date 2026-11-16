@@ -7,11 +7,14 @@ import 'package:mocktail/mocktail.dart';
 import 'package:wishtogether/core/providers.dart';
 import 'package:wishtogether/features/auth/domain/auth_session.dart';
 import 'package:wishtogether/features/wishlist/application/claim_item_use_case.dart';
+import 'package:wishtogether/features/wishlist/application/clear_stale_claims_use_case.dart';
 import 'package:wishtogether/features/wishlist/application/unclaim_item_use_case.dart';
 import 'package:wishtogether/features/wishlist/data/item_repository.dart';
 import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 import 'package:wishtogether/features/wishlist/domain/item.dart';
+import 'package:wishtogether/features/wishlist/domain/stale_claims.dart';
 import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
+import 'package:wishtogether/features/wishlist/presentation/providers/wishlist_details_providers.dart';
 import 'package:wishtogether/features/wishlist/presentation/wishlist_details_page.dart';
 
 class MockWishlistRepository extends Mock implements WishlistRepository {}
@@ -21,6 +24,9 @@ class MockItemRepository extends Mock implements ItemRepository {}
 class MockClaimItemUseCase extends Mock implements ClaimItemUseCase {}
 
 class MockUnclaimItemUseCase extends Mock implements UnclaimItemUseCase {}
+
+class MockClearStaleClaimsUseCase extends Mock
+    implements ClearStaleClaimsUseCase {}
 
 class MockAuthSession extends Mock implements AuthSession {}
 
@@ -45,18 +51,27 @@ void main() {
   );
   final ownerWishlist = wishlist.copyWith(ownerId: viewerId);
   final item = Item(id: 'item-1', name: 'Desk lamp');
+  final fixedNow = DateTime.utc(2026, 11, 16, 12);
 
   late MockWishlistRepository wishlistRepository;
   late MockItemRepository itemRepository;
   late MockClaimItemUseCase claimItemUseCase;
   late MockUnclaimItemUseCase unclaimItemUseCase;
+  late MockClearStaleClaimsUseCase clearStaleClaimsUseCase;
   late MockAuthSession authSession;
+
+  setUpAll(() {
+    registerFallbackValue(StaleClaimsPlan.empty);
+  });
 
   setUp(() {
     wishlistRepository = MockWishlistRepository();
     itemRepository = MockItemRepository();
     claimItemUseCase = MockClaimItemUseCase();
     unclaimItemUseCase = MockUnclaimItemUseCase();
+    clearStaleClaimsUseCase = MockClearStaleClaimsUseCase();
+    when(() => clearStaleClaimsUseCase.execute(any(), any()))
+        .thenAnswer((_) async {});
     authSession = MockAuthSession();
     when(() => authSession.currentUserId).thenReturn(viewerId);
   });
@@ -71,6 +86,10 @@ void main() {
         authSessionProvider.overrideWithValue(authSession),
         claimItemUseCaseProvider.overrideWithValue(claimItemUseCase),
         unclaimItemUseCaseProvider.overrideWithValue(unclaimItemUseCase),
+        clearStaleClaimsUseCaseProvider.overrideWithValue(
+          clearStaleClaimsUseCase,
+        ),
+        wishlistNowProvider.overrideWithValue(fixedNow),
       ],
       child: MaterialApp(
         home: frame?.call() ?? WishlistDetailsPage(wishlistId: wishlistId),

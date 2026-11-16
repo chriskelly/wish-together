@@ -9,8 +9,10 @@ the product.
 - Deleting a wishlist goes through `deleteWithItems`, because Firestore does not remove a
   sub-collection with its parent.
 - A claim writes only the caller's own key in `claims`, and never the rest of the item. An
-  owner's content edit writes content and `claimLimit` only, never `claims`; a separate reset
-  deletes every claim in one write, and the rules accept it only when the map ends empty.
+  owner's content edit writes content and `claimLimit` only, never `claims`. A separate claim
+  removal deletes any subset of claim keys in one write; the rules accept it only when no key is
+  added and no existing value changes. A malformed stored `claims` value can only be cleared to
+  empty.
 - A finite claim limit never drops below the item's current claim count; the item form's
   minimum on edit is `max(1, claimCount)`. A successful reset lowers that minimum to 1 in place
   and keeps the form (and any pending edit) open.
@@ -23,11 +25,19 @@ the product.
   instead; a reader of a shared list always sees the state. Single-claim rows never show a
   count; multi and unlimited rows show the count summary while room remains, and a full reader
   row shows `Unavailable` with no count.
+- The owner's details page also shows the owner-only `StaleClaimsBanner` when any claim is older
+  than `staleClaimAge` (183 days), including in the default spoiler-free view. It names no item,
+  no claimant and no count, and every row keeps its spoiler-free limit label; it is the one
+  aggregate exception. Its clear runs through `ItemActions.clearStaleClaims`, so it shares the
+  page-wide busy guard with claim/unclaim/delete. It removes only the planned old keys, keeps
+  recent claims, and keeps the banner for a retry on a partial failure. `staleClaimAgeLabel` is
+  the only user-facing form of the cutoff. The banner and its failure copy are covered by
+  `wishlist_details_page_test.dart`, `claim_failure_message_test.dart`, and the provider tests.
 - `WishlistDetailsPage` is a `ConsumerWidget`; its item rows are `WishlistItemRow`, which owns
   the card rendering and the claim/unclaim/delete side effects. The page keeps the reads, the
-  app bar and navigation. Row rendering and claim copy are covered by
-  `wishlist_details_page_test.dart`; the delete flow, the busy guard and the stream lifetime by
-  `wishlist_details_state_test.dart`.
+  app bar, navigation, and the owner-only `StaleClaimsBanner`, whose bulk clear goes through
+  `ItemActions`. Row rendering and claim copy are covered by `wishlist_details_page_test.dart`;
+  the delete flow, the busy guard and the stream lifetime by `wishlist_details_state_test.dart`.
 
 ## Reference
 

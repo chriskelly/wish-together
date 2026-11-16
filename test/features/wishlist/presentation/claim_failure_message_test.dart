@@ -85,4 +85,84 @@ void main() {
       expect(message, isNot(contains('boom')));
     });
   });
+
+  group('clearStaleClaimsFailureMessage', () {
+    test('prefixes a denied clear without naming the error code', () {
+      // Arrange
+      final error = ClaimFailure(
+        ClaimFailureReason.accessDenied,
+        code: 'permission-denied',
+      );
+
+      // Act
+      final message = clearStaleClaimsFailureMessage(error);
+
+      // Assert
+      expect(
+        message,
+        "Not all old claims were cleared. You don't have permission to clear "
+        'these claims.',
+      );
+      expect(message, isNot(contains('permission-denied')));
+    });
+
+    test('asks a signed-out owner to sign in again', () {
+      // Arrange
+      const error = ClaimFailure(ClaimFailureReason.signedOut);
+
+      // Act
+      final message = clearStaleClaimsFailureMessage(error);
+
+      // Assert
+      expect(
+        message,
+        'Not all old claims were cleared. Please sign in again to clear old '
+        'claims.',
+      );
+    });
+
+    test('reuses the offline copy', () {
+      // Arrange
+      const error = ClaimFailure(ClaimFailureReason.offline);
+
+      // Act
+      final message = clearStaleClaimsFailureMessage(error);
+
+      // Assert
+      expect(
+        message,
+        "Not all old claims were cleared. Couldn't reach the server. Check "
+        'your connection and try again.',
+      );
+    });
+
+    test('reports a deleted item as gone', () {
+      // Arrange
+      const error = ClaimFailure(ClaimFailureReason.itemMissing);
+
+      // Act
+      final message = clearStaleClaimsFailureMessage(error);
+
+      // Assert
+      expect(
+        message,
+        'Not all old claims were cleared. One of these items no longer exists. '
+        'Refresh and try again.',
+      );
+    });
+
+    test('falls back to try again for a full or unclassified failure', () {
+      expect(
+        clearStaleClaimsFailureMessage(
+          const ClaimFailure(ClaimFailureReason.fullyClaimed),
+        ),
+        'Not all old claims were cleared. Please try again.',
+      );
+
+      final message = clearStaleClaimsFailureMessage(Exception('boom'));
+
+      expect(message, 'Not all old claims were cleared. Please try again.');
+      expect(message, isNot(contains('boom')));
+    });
+  });
 }

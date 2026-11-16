@@ -56,10 +56,7 @@ void main() {
       // Arrange
       when(() => mockAuthSession.currentUserId).thenReturn(userId);
       when(
-        () => mockItemRepository.removeClaims(
-          any(),
-          uids: any(named: 'uids'),
-        ),
+        () => mockItemRepository.removeClaims(any(), uids: any(named: 'uids')),
       ).thenAnswer((_) async {});
 
       // Act
@@ -99,59 +96,55 @@ void main() {
           ),
         );
         verifyNever(
+          () =>
+              mockItemRepository.removeClaims(any(), uids: any(named: 'uids')),
+        );
+      },
+    );
+
+    test(
+      'stops at the first failed write and throws its classified failure',
+      () async {
+        // Arrange
+        when(() => mockAuthSession.currentUserId).thenReturn(userId);
+        when(
+          () =>
+              mockItemRepository.removeClaims(any(), uids: any(named: 'uids')),
+        ).thenAnswer((invocation) {
+          if (invocation.positionalArguments.first == 'item-2') {
+            throw const CodedError('permission-denied');
+          }
+          return Future<void>.value();
+        });
+
+        // Act & Assert
+        await expectLater(
+          clearStaleClaimsUseCase.execute(wishlistId, plan),
+          throwsA(
+            isA<ClaimFailure>()
+                .having(
+                  (failure) => failure.reason,
+                  'reason',
+                  ClaimFailureReason.accessDenied,
+                )
+                .having((failure) => failure.code, 'code', 'permission-denied'),
+          ),
+        );
+        verifyNever(
           () => mockItemRepository.removeClaims(
-            any(),
+            'item-3',
             uids: any(named: 'uids'),
           ),
         );
       },
     );
 
-    test('stops at the first failed write and throws its classified failure', () async {
-      // Arrange
-      when(() => mockAuthSession.currentUserId).thenReturn(userId);
-      when(
-        () => mockItemRepository.removeClaims(
-          any(),
-          uids: any(named: 'uids'),
-        ),
-      ).thenAnswer((invocation) {
-        if (invocation.positionalArguments.first == 'item-2') {
-          throw const CodedError('permission-denied');
-        }
-        return Future<void>.value();
-      });
-
-      // Act & Assert
-      await expectLater(
-        clearStaleClaimsUseCase.execute(wishlistId, plan),
-        throwsA(
-          isA<ClaimFailure>()
-              .having(
-                (failure) => failure.reason,
-                'reason',
-                ClaimFailureReason.accessDenied,
-              )
-              .having((failure) => failure.code, 'code', 'permission-denied'),
-        ),
-      );
-      verifyNever(
-        () => mockItemRepository.removeClaims(
-          'item-3',
-          uids: any(named: 'uids'),
-        ),
-      );
-    });
-
     test("keeps the write's stack trace on the ClaimFailure", () async {
       // Arrange
       const String marker = 'original-failure-site';
       when(() => mockAuthSession.currentUserId).thenReturn(userId);
       when(
-        () => mockItemRepository.removeClaims(
-          any(),
-          uids: any(named: 'uids'),
-        ),
+        () => mockItemRepository.removeClaims(any(), uids: any(named: 'uids')),
       ).thenAnswer((invocation) {
         if (invocation.positionalArguments.first == 'item-2') {
           return Error.throwWithStackTrace(
@@ -204,10 +197,7 @@ void main() {
     test('reports started then completed', () async {
       when(() => mockAuthSession.currentUserId).thenReturn(userId);
       when(
-        () => mockItemRepository.removeClaims(
-          any(),
-          uids: any(named: 'uids'),
-        ),
+        () => mockItemRepository.removeClaims(any(), uids: any(named: 'uids')),
       ).thenAnswer((_) async {});
 
       await clearStaleClaimsUseCase.execute(wishlistId, plan);
@@ -230,10 +220,7 @@ void main() {
       expect(event.phase, ClaimPhase.denied);
       expect(event.code, unauthenticatedCode);
       verifyNever(
-        () => mockItemRepository.removeClaims(
-          any(),
-          uids: any(named: 'uids'),
-        ),
+        () => mockItemRepository.removeClaims(any(), uids: any(named: 'uids')),
       );
     });
 
@@ -241,10 +228,7 @@ void main() {
       const code = 'permission-denied';
       when(() => mockAuthSession.currentUserId).thenReturn(userId);
       when(
-        () => mockItemRepository.removeClaims(
-          any(),
-          uids: any(named: 'uids'),
-        ),
+        () => mockItemRepository.removeClaims(any(), uids: any(named: 'uids')),
       ).thenAnswer((invocation) {
         if (invocation.positionalArguments.first == 'item-2') {
           throw const CodedError(code);
@@ -274,10 +258,7 @@ void main() {
 
       expect(phasesOf(sink), isEmpty);
       verifyNever(
-        () => mockItemRepository.removeClaims(
-          any(),
-          uids: any(named: 'uids'),
-        ),
+        () => mockItemRepository.removeClaims(any(), uids: any(named: 'uids')),
       );
     });
   });

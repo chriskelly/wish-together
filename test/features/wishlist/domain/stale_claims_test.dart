@@ -12,43 +12,41 @@ void main() {
 
   group('StaleClaimsPlan.fromItems', () {
     test('a claim exactly 183 days old is not stale', () {
-      final plan = StaleClaimsPlan.fromItems(
-        [item('item-1', {'uid-1': now.subtract(const Duration(days: 183))})],
-        now: now,
-      );
+      final plan = StaleClaimsPlan.fromItems([
+        item('item-1', {'uid-1': now.subtract(const Duration(days: 183))}),
+      ], now: now);
 
       expect(plan.isEmpty, isTrue);
     });
 
     test('a claim one second older than 183 days is stale', () {
-      final plan = StaleClaimsPlan.fromItems(
-        [
-          item('item-1', {
-            'uid-1': now
-                .subtract(const Duration(days: 183))
-                .subtract(const Duration(seconds: 1)),
-          }),
-        ],
-        now: now,
-      );
+      final plan = StaleClaimsPlan.fromItems([
+        item('item-1', {
+          'uid-1': now
+              .subtract(const Duration(days: 183))
+              .subtract(const Duration(seconds: 1)),
+        }),
+      ], now: now);
 
-      expect(plan.byItem, {'item-1': {'uid-1'}});
+      expect(plan.byItem, {
+        'item-1': {'uid-1'},
+      });
     });
 
     test('a recent claim on the same item is never part of the plan', () {
-      final plan = StaleClaimsPlan.fromItems(
-        [item('item-1', {'old': staleAt, 'recent': recentAt})],
-        now: now,
-      );
+      final plan = StaleClaimsPlan.fromItems([
+        item('item-1', {'old': staleAt, 'recent': recentAt}),
+      ], now: now);
 
-      expect(plan.byItem, {'item-1': {'old'}});
+      expect(plan.byItem, {
+        'item-1': {'old'},
+      });
     });
 
     test('a future-dated claim is not stale', () {
-      final plan = StaleClaimsPlan.fromItems(
-        [item('item-1', {'uid-1': now.add(const Duration(days: 1))})],
-        now: now,
-      );
+      final plan = StaleClaimsPlan.fromItems([
+        item('item-1', {'uid-1': now.add(const Duration(days: 1))}),
+      ], now: now);
 
       expect(plan.isEmpty, isTrue);
     });
@@ -60,27 +58,26 @@ void main() {
     });
 
     test('an item without an id is skipped', () {
-      final plan = StaleClaimsPlan.fromItems(
-        [item(null, {'uid-1': staleAt})],
-        now: now,
-      );
+      final plan = StaleClaimsPlan.fromItems([
+        item(null, {'uid-1': staleAt}),
+      ], now: now);
 
       expect(plan.isEmpty, isTrue);
     });
 
     test('a later clock makes the same claim stale', () {
       final claimAt = now.subtract(const Duration(days: 100));
-      final today = StaleClaimsPlan.fromItems(
-        [item('item-1', {'uid-1': claimAt})],
-        now: now,
-      );
-      final later = StaleClaimsPlan.fromItems(
-        [item('item-1', {'uid-1': claimAt})],
-        now: now.add(const Duration(days: 100)),
-      );
+      final today = StaleClaimsPlan.fromItems([
+        item('item-1', {'uid-1': claimAt}),
+      ], now: now);
+      final later = StaleClaimsPlan.fromItems([
+        item('item-1', {'uid-1': claimAt}),
+      ], now: now.add(const Duration(days: 100)));
 
       expect(today.isEmpty, isTrue);
-      expect(later.byItem, {'item-1': {'uid-1'}});
+      expect(later.byItem, {
+        'item-1': {'uid-1'},
+      });
     });
   });
 }

@@ -35,6 +35,11 @@ class Item {
 
   bool isClaimedBy(String? uid) => uid != null && claims.containsKey(uid);
 
+  /// A null or omitted argument keeps the current value, so this cannot remove
+  /// [description] or [url]. Clearing those is an owner edit, which belongs to
+  /// the update use case; a caller that builds an [Item] itself must carry
+  /// [id], [name], [claims], [claimLimit] and whichever of [description] or
+  /// [url] it is not clearing.
   Item copyWith({
     String? id,
     String? name,

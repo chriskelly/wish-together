@@ -1,1 +1,2 @@
-Wishlists now warn you when items still have claims from over six months ago, with a simple way to clear them.
+• An item's link or description now stays cleared when you remove it.
+• Wishlists now warn you when items still have claims from over six months ago, with a simple way to clear them.

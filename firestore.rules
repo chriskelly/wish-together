@@ -172,13 +172,19 @@ service cloud.firestore {
                  && ownerLimitIsValid();
         }
 
-        // The owner may also clear every claim in one write. The value must
-        // stay a map and must end empty, so an owner can remove claims but
-        // never add or rewrite one.
-        function ownerClearsClaims() {
+        // The owner may remove any claim keys in one write. The value must stay
+        // a map, no key may be added, and no existing value may change, so an
+        // owner can remove claims but never add or rewrite one. A malformed
+        // stored value (not a map) can only be cleared to empty, which is the
+        // owner's repair. Clearing every key is the reset path; removing only
+        // the old keys is the stale-claim cleanup.
+        function ownerRemovesClaims() {
           return changed().hasOnly(['claims'])
                  && requestClaims() is map
-                 && requestClaims().size() == 0;
+                 && (!(storedClaims() is map)
+                     ? requestClaims().size() == 0
+                     : requestClaims().diff(storedClaims()).addedKeys().size() == 0
+                       && requestClaims().diff(storedClaims()).changedKeys().size() == 0);
         }
 
         // Narrower than the wishlist read above: an item is readable only by its
@@ -198,10 +204,11 @@ service cloud.firestore {
         // The owner's update is field-scoped so a whole-document write cannot
         // drop a reader's claim, and it is refused until the document has a
         // limit (a legacy document is migrated before these rules deploy). A
-        // separate reset path clears every claim, and only down to empty.
+        // separate removal path may delete any subset of claims, but never add
+        // or rewrite one.
         allow update: if (isParentOwner()
                           && resource.data.keys().hasAny(['claimLimit'])
-                          && (ownerEditsContent() || ownerClearsClaims()))
+                          && (ownerEditsContent() || ownerRemovesClaims()))
                       || (canReadParent()
                           && changed().hasOnly(['claims'])
                           && ownClaimOnly()

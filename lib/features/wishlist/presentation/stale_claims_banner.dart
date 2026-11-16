@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:wishtogether/common/widgets/button_loading_indicator.dart';
 import 'package:wishtogether/common/widgets/confirmation_dialog.dart';
-import 'package:wishtogether/core/logging/diagnostics.dart';
-import 'package:wishtogether/features/wishlist/application/claim_failure.dart';
 import 'package:wishtogether/features/wishlist/domain/stale_claims.dart';
 import 'package:wishtogether/features/wishlist/presentation/claim_failure_message.dart';
 import 'package:wishtogether/features/wishlist/presentation/item_action_feedback.dart';
@@ -92,11 +90,7 @@ class StaleClaimsBanner extends ConsumerWidget {
       success: 'Old claims cleared.',
       failure: clearStaleClaimsFailureMessage,
       messenger: messenger,
-      onError: (error, stackTrace) {
-        if (error is! ClaimFailure) {
-          appLogOrNull?.error(error, stackTrace);
-        }
-      },
+      onError: logUnclassifiedClaimFailure,
     );
   }
 }

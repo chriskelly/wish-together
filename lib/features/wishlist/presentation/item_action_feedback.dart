@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:wishtogether/core/logging/diagnostics.dart';
+import 'package:wishtogether/features/wishlist/application/claim_failure.dart';
 
 /// Runs one page command and shows its success or classified failure copy.
 ///
 /// A command that did not run (because another page action holds the guard)
 /// shows nothing. A captured [messenger] keeps the copy alive after the widget
-/// that started the action unmounts.
+/// that started the action unmounts. [onError] sees every failure before the
+/// copy, so a caller can report an unclassified error without changing it.
 Future<void> runItemAction(
   BuildContext context,
   Future<bool> Function() action, {
@@ -25,6 +28,14 @@ Future<void> runItemAction(
       return;
     }
     showItemSnackBar(context, failure(error), messenger: messenger);
+  }
+}
+
+/// Reports an unexpected claim-path error. A classified [ClaimFailure] is
+/// already reported by the write that produced it.
+void logUnclassifiedClaimFailure(Object error, StackTrace stackTrace) {
+  if (error is! ClaimFailure) {
+    appLogOrNull?.error(error, stackTrace);
   }
 }
 

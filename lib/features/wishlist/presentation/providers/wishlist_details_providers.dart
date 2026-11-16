@@ -64,8 +64,9 @@ final wishlistItemActionsProvider =
 /// The command state: the item action that is running, the bulk clear, or
 /// neither.
 ///
-/// It has no `==` because the only watcher selects a record of booleans; the
-/// notifier reads the state to serialise actions.
+/// It has no `==` because each watcher selects a primitive (the banner a record
+/// of two booleans, the page the bulk flag); the notifier reads the state to
+/// serialise actions.
 class ItemActionState {
   const ItemActionState({this.busyItemId, this.isBulk = false});
 
@@ -118,9 +119,10 @@ class ItemActions extends Notifier<ItemActionState> {
       return false;
     }
 
-    // A plain read opens and closes a temporary listener. Without this link an
-    // auto-disposed notifier would be gone by the next frame, and a second tap
-    // would see a fresh, idle notifier and run the action again.
+    // The page keeps this notifier alive while it is mounted, but an action can
+    // outlive the page. This link holds the auto-disposed notifier until the
+    // write completes, so its `finally` still runs and the command is not
+    // silently detached.
     final link = ref.keepAlive();
     state = running;
     try {

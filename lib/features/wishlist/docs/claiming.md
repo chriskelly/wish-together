@@ -164,8 +164,9 @@ spoiler toggle is `SpoilerFree`. For the owner it also watches `staleClaimsPlanP
 which derives from the same item stream and `wishlistNowProvider`, and renders
 `StaleClaimsBanner` above the list when the plan is non-empty. The banner's clear calls
 `ItemActions.clearStaleClaims`, so it shares the page-wide busy guard: its button is disabled
-while any page action runs, and its spinner means the bulk clear itself is running. Each item card
-is a `WishlistItemRow`. The owner's `ItemFormPage` carries the reset-claims action, which calls
+while any page action runs, and its spinner means the bulk clear itself is running. While the
+bulk clear runs the page also watches `ItemActions` for `isBulk` and absorbs list input, so no
+row action can start. Each item card is a `WishlistItemRow`. The owner's `ItemFormPage` carries the reset-claims action, which calls
 `ResetClaimsUseCase`, keeps the form open and shows `Claims reset.` so a pending edit survives. A
 wishlist shared with a group appears in that group's details page because of
 `sharedWithGroups`.

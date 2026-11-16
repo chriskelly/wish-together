@@ -54,6 +54,9 @@ class WishlistDetailsPage extends ConsumerWidget {
         children: [
           if (!stalePlan.isEmpty)
             StaleClaimsBanner(wishlistId: wishlistId, plan: stalePlan),
+          // The list is inert while the bulk clear writes item by item; the
+          // banner's spinner is the progress indicator. The data guard in
+          // ItemActions remains the backstop for non-pointer activation.
           Expanded(
             child: AbsorbPointer(
               absorbing: isBulkClear,

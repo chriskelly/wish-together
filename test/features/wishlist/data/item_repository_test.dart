@@ -308,6 +308,74 @@ void main() {
       });
     });
 
+    group('removeClaims', () {
+      const itemId = 'remove_claims_item';
+
+      test('removes only the named claims and keeps the rest', () async {
+        await seed(itemId, <String, dynamic>{
+          'name': 'Gift',
+          'claims': <String, dynamic>{
+            'reader-1': Timestamp.fromDate(claimedAt),
+            'reader-2': Timestamp.fromDate(
+              claimedAt.add(const Duration(hours: 1)),
+            ),
+            'reader-3': Timestamp.fromDate(
+              claimedAt.add(const Duration(hours: 2)),
+            ),
+          },
+          'claimLimit': 3,
+        });
+
+        await itemRepository.removeClaims(
+          itemId,
+          uids: {'reader-1', 'reader-3'},
+        );
+
+        final data = await stored(itemId);
+        final claims = data['claims'] as Map<String, dynamic>;
+        expect(claims.keys, unorderedEquals(['reader-2']));
+        expect(
+          claims['reader-2'],
+          Timestamp.fromDate(claimedAt.add(const Duration(hours: 1))),
+        );
+      });
+
+      test('leaves content and the limit untouched', () async {
+        await seed(itemId, <String, dynamic>{
+          'name': 'Gift',
+          'description': 'Kept description',
+          'url': 'https://example.com/kept',
+          'claims': <String, dynamic>{
+            'reader-1': Timestamp.fromDate(claimedAt),
+          },
+          'claimLimit': 1,
+        });
+
+        await itemRepository.removeClaims(itemId, uids: {'reader-1'});
+
+        final data = await stored(itemId);
+        expect(data['name'], 'Gift');
+        expect(data['description'], 'Kept description');
+        expect(data['url'], 'https://example.com/kept');
+        expect(data['claimLimit'], 1);
+      });
+
+      test('does nothing when the set is empty', () async {
+        await seed(itemId, <String, dynamic>{
+          'name': 'Gift',
+          'claims': <String, dynamic>{
+            'reader-1': Timestamp.fromDate(claimedAt),
+          },
+          'claimLimit': 1,
+        });
+
+        await itemRepository.removeClaims(itemId, uids: const <String>{});
+
+        final data = await stored(itemId);
+        expect((data['claims'] as Map).keys, contains('reader-1'));
+      });
+    });
+
     group('updateContent', () {
       test('writes the four content fields and preserves the claims', () async {
         const itemId = 'content_edit';

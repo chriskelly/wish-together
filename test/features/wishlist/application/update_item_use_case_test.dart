@@ -78,12 +78,76 @@ void main() {
       verifyNever(() => mockItemRepository.update(any(), any()));
     });
 
+    test('clears the stored url when the form sends null', () async {
+      // Arrange
+      final existingItem = Item(
+        id: itemId,
+        name: 'Old Name',
+        url: 'https://old.com',
+      );
+
+      // Act
+      await updateItemUseCase.execute(
+        wishlistId,
+        existingItem,
+        name: existingItem.name,
+        description: null,
+        url: null,
+      );
+
+      // Assert
+      verify(
+        () => mockItemRepository.updateContent(
+          itemId,
+          name: 'Old Name',
+          description: null,
+          url: null,
+          claimLimit: 1,
+        ),
+      ).called(1);
+    });
+
+    test('clears the stored description when the form sends null', () async {
+      // Arrange
+      final existingItem = Item(
+        id: itemId,
+        name: 'Old Name',
+        description: 'Old description',
+      );
+
+      // Act
+      await updateItemUseCase.execute(
+        wishlistId,
+        existingItem,
+        name: existingItem.name,
+        description: null,
+        url: null,
+      );
+
+      // Assert
+      verify(
+        () => mockItemRepository.updateContent(
+          itemId,
+          name: 'Old Name',
+          description: null,
+          url: null,
+          claimLimit: 1,
+        ),
+      ).called(1);
+    });
+
     test('keeps the existing limit when none is given', () async {
       // Arrange: an unlimited item must not be silently downgraded to 1.
       final unlimitedItem = Item(id: itemId, name: 'Old Name', claimLimit: 0);
 
       // Act
-      await updateItemUseCase.execute(wishlistId, unlimitedItem, name: 'New');
+      await updateItemUseCase.execute(
+        wishlistId,
+        unlimitedItem,
+        name: 'New',
+        description: null,
+        url: null,
+      );
 
       // Assert
       verify(
@@ -102,7 +166,13 @@ void main() {
       final item = Item(id: itemId, name: 'Old Name', claimLimit: 1);
 
       // Act
-      await updateItemUseCase.execute(wishlistId, item, claimLimit: 5);
+      await updateItemUseCase.execute(
+        wishlistId,
+        item,
+        description: null,
+        url: null,
+        claimLimit: 5,
+      );
 
       // Assert
       verify(
@@ -115,33 +185,6 @@ void main() {
         ),
       ).called(1);
     });
-
-    test(
-      'keeps the existing description and url when they are omitted',
-      () async {
-        // Arrange
-        final item = Item(
-          id: itemId,
-          name: 'Old Name',
-          description: 'Old description',
-          url: 'https://old.com',
-        );
-
-        // Act
-        await updateItemUseCase.execute(wishlistId, item, name: 'New Name');
-
-        // Assert
-        verify(
-          () => mockItemRepository.updateContent(
-            itemId,
-            name: 'New Name',
-            description: 'Old description',
-            url: 'https://old.com',
-            claimLimit: 1,
-          ),
-        ).called(1);
-      },
-    );
 
     test('propagates exceptions from ItemRepository', () async {
       // Arrange
@@ -159,7 +202,13 @@ void main() {
 
       // Act & Assert
       expect(
-        () => updateItemUseCase.execute(wishlistId, item, name: 'New Name'),
+        () => updateItemUseCase.execute(
+          wishlistId,
+          item,
+          name: 'New Name',
+          description: null,
+          url: null,
+        ),
         throwsA(same(exception)),
       );
     });

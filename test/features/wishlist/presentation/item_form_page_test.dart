@@ -784,13 +784,20 @@ void main() {
     const editedDescription = 'A warm reading light';
     const editedUrl = 'https://example.com/lamp';
 
-    Item lamp({String name = itemName, int claimLimit = 1, int claims = 0}) =>
-        Item(
-          id: 'item-1',
-          name: name,
-          claimLimit: claimLimit,
-          claims: claimsBy(claims),
-        );
+    Item lamp({
+      String name = itemName,
+      String? description,
+      String? url,
+      int claimLimit = 1,
+      int claims = 0,
+    }) => Item(
+      id: 'item-1',
+      name: name,
+      description: description,
+      url: url,
+      claimLimit: claimLimit,
+      claims: claimsBy(claims),
+    );
 
     testWidgets('does not open the keyboard on an edit', (tester) async {
       await pumpForm(tester, item: lamp());
@@ -817,6 +824,27 @@ void main() {
 
       expect(saveEnabled(tester), isTrue);
       expect(saveAction(), findsOneWidget);
+    });
+
+    testWidgets('writes the stored description and link on a rename', (
+      tester,
+    ) async {
+      final item = lamp(description: editedDescription, url: editedUrl);
+      await pumpForm(tester, item: item);
+      await editName(tester, editedName);
+
+      await tapSave(tester);
+
+      verify(
+        () => updateItemUseCase.execute(
+          wishlistId,
+          item,
+          name: editedName,
+          description: editedDescription,
+          url: editedUrl,
+          claimLimit: 1,
+        ),
+      ).called(1);
     });
 
     testWidgets('leaves immediately when nothing changed', (tester) async {

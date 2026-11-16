@@ -50,7 +50,9 @@ The area is split into `domain/`, `data/`, `application/` and
 - `ClaimLimitReachedException` lives in `domain/` so data and application can name the same
   condition.
 - Use cases: create/update wishlist; `CreateItemUseCase` and `UpdateItemUseCase` carry
-  `claimLimit` (`UpdateItemUseCase` keeps the item's existing limit when none is given);
+  `claimLimit`. `UpdateItemUseCase` writes `name`, `description`, `url` and `claimLimit`: a null
+  `description` or `url` writes a null field, which the model reads as no value (the form sends
+  null for a cleared box), while an omitted `name` or `claimLimit` keeps the stored value;
   `ClaimItemUseCase` claims for the current uid; `UnclaimItemUseCase` resolves the current uid
   and throws a signed-out `ClaimFailure` when there is none; `ResetClaimsUseCase` does the same
   signed-out guard and then clears every claim on an item.
@@ -147,7 +149,8 @@ group's details page because of `sharedWithGroups`.
 - `test/features/wishlist/domain/` — `Item` helpers, the empty-claims default, an invalid or
   missing limit reading as `1`, the map round-trip, and dropping an unparseable claim value.
 - `test/features/wishlist/application/` — the use cases with `mocktail` mocks registered in
-  `getIt`: create/update carry `claimLimit`, update is field-scoped, unclaim passes the uid and
+  `getIt`: create/update carry `claimLimit`, update is field-scoped and writes a cleared
+  description or url as null, unclaim passes the uid and
   fails signed out, reset clears the item, fails signed out and classifies a denied write, claim
   rejects a full item as `fullyClaimed`, and `ClaimFailure.from` maps the exception before any
   Firestore code.

@@ -27,3 +27,24 @@ String claimFailureMessage(Object error) {
     ClaimFailureReason.unknown => "Couldn't claim this item. Please try again.",
   };
 }
+
+/// The owner's partial-clear copy. The prefix is fixed so every reason reads as
+/// a partial outcome rather than a failed single action.
+///
+/// Unlike [claimFailureMessage], this classifies a raw coded error with
+/// [ClaimFailure.from]: the owner's bulk action is its only caller and the use
+/// case's contract is to throw a [ClaimFailure].
+String clearStaleClaimsFailureMessage(Object error) {
+  final reason = ClaimFailure.from(error).reason;
+  final detail = switch (reason) {
+    ClaimFailureReason.signedOut => 'Please sign in again to clear old claims.',
+    ClaimFailureReason.offline => offlineFailureMessage,
+    ClaimFailureReason.accessDenied =>
+      "You don't have permission to clear these claims.",
+    ClaimFailureReason.itemMissing =>
+      'One of these items no longer exists. Refresh and try again.',
+    ClaimFailureReason.fullyClaimed ||
+    ClaimFailureReason.unknown => 'Please try again.',
+  };
+  return 'Not all old claims were cleared. $detail';
+}

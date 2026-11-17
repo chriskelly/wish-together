@@ -18,6 +18,10 @@ const String familySharedWishlistId = 'fam-l1';
 /// The date every claim in this scenario was made.
 ///
 /// Fixed so a screenshot and a test agree; a fixture must not read the clock.
+/// The stale-claims banner compares this date with the real clock, so from
+/// 2027-03-22 the viewer's own list will show it. The page tests pin the clock;
+/// the dev composition still uses the real one. Refresh this date (and
+/// `scripts/seed-demo.mjs`) deliberately when that happens.
 final Timestamp _claimedOn = Timestamp.fromDate(DateTime.utc(2026, 9, 20, 18));
 
 /// The link an item points at, in the same shape the demo seed uses.

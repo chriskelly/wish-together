@@ -47,9 +47,8 @@ class ItemRepository extends FirebaseRepository<Item> {
   }
 
   /// Removes only [claimedBy]'s claim, leaving other claimants untouched.
-  Future<void> unclaim(String itemId, {required String claimedBy}) {
-    return updateData(itemId, {'claims.$claimedBy': FieldValue.delete()});
-  }
+  Future<void> unclaim(String itemId, {required String claimedBy}) =>
+      removeClaims(itemId, uids: {claimedBy});
 
   /// Removes every claim from [itemId], touching no other field.
   ///
@@ -58,6 +57,19 @@ class ItemRepository extends FirebaseRepository<Item> {
   /// reset deletes the map rather than blocking future claims.
   Future<void> resetClaims(String itemId) {
     return updateData(itemId, {'claims': FieldValue.delete()});
+  }
+
+  /// Removes [uids]' claims from [itemId], leaving every other key untouched.
+  ///
+  /// A reset is the special case that deletes the whole `claims` field; this
+  /// method deletes only the named keys, so a recent claim can survive.
+  Future<void> removeClaims(String itemId, {required Set<String> uids}) {
+    if (uids.isEmpty) {
+      return Future<void>.value();
+    }
+    return updateData(itemId, {
+      for (final uid in uids) 'claims.$uid': FieldValue.delete(),
+    });
   }
 
   /// Claims [itemId] for [claimedBy], touching no other field.

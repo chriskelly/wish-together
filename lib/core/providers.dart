@@ -6,6 +6,7 @@ import 'package:wishtogether/features/group/application/leave_group_use_case.dar
 import 'package:wishtogether/features/group/application/share_wishlist_with_group_use_case.dart';
 import 'package:wishtogether/features/group/data/group_repository.dart';
 import 'package:wishtogether/features/wishlist/application/claim_item_use_case.dart';
+import 'package:wishtogether/features/wishlist/application/clear_stale_claims_use_case.dart';
 import 'package:wishtogether/features/wishlist/application/unclaim_item_use_case.dart';
 import 'package:wishtogether/features/wishlist/data/item_repository.dart';
 import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
@@ -58,6 +59,10 @@ final claimItemUseCaseProvider = Provider<ClaimItemUseCase>(
 
 final unclaimItemUseCaseProvider = Provider<UnclaimItemUseCase>(
   (ref) => getIt<UnclaimItemUseCase>(),
+);
+
+final clearStaleClaimsUseCaseProvider = Provider<ClearStaleClaimsUseCase>(
+  (ref) => getIt<ClearStaleClaimsUseCase>(),
 );
 
 /// The signed-in uid, re-read when the last screen watching it leaves.

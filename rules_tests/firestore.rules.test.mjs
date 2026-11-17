@@ -972,8 +972,9 @@ test('the owner cannot drop claims in a write that also changes content', async 
   );
 });
 
-// The owner may clear every claim in one write, but only down to empty. The
-// reset cannot add or rewrite a claim, and it is not a content edit.
+// The owner may remove any subset of claims in one write. The write cannot add
+// a claim or rewrite one, and it is not a content edit. A malformed stored map
+// can only be cleared to empty.
 test('the owner clears every claim in one write', async () => {
   const wishlistId = 'wishlist-owner-reset';
   const itemId = 'item';
@@ -1074,8 +1075,8 @@ test('the owner clears a claim left by a deleted user', async () => {
   assert.deepEqual(Object.keys(data.claims ?? {}), []);
 });
 
-test('the owner cannot clear only some claims', async () => {
-  const wishlistId = 'wishlist-owner-reset-partial';
+test('the owner can clear only some claims', async () => {
+  const wishlistId = 'wishlist-owner-remove-subset';
   const itemId = 'item';
   await seed((s) =>
     seedWishlistWithItem(s, wishlistId, itemId, {
@@ -1087,21 +1088,164 @@ test('the owner cannot clear only some claims', async () => {
     }),
   );
 
-  await assertFails(
+  await assertSucceeds(
     itemRef(OWNER, wishlistId, itemId).update({
       [`claims.${MEMBER}`]: deleteField(),
     }),
+  );
+
+  const data = (await itemRef(OWNER, wishlistId, itemId).get()).data();
+  assert.equal(data.claims[MEMBER], undefined);
+  assert.ok(data.claims[OUTSIDER]);
+});
+
+test('the owner cannot add a claim for another user', async () => {
+  const wishlistId = 'wishlist-owner-add-claim';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      item: {
+        name: 'Gift',
+        claims: { [MEMBER]: claimAt() },
+        claimLimit: 2,
+      },
+    }),
+  );
+
+  await assertFails(
+    itemRef(OWNER, wishlistId, itemId).update({
+      [`claims.${OUTSIDER}`]: claimAt(),
+    }),
+  );
+});
+
+test('the owner cannot change a claim timestamp', async () => {
+  const wishlistId = 'wishlist-owner-rewrite-claim';
+  const itemId = 'item';
+  const first = Timestamp.fromDate(new Date('2026-01-01T00:00:00Z'));
+  const second = Timestamp.fromDate(new Date('2026-02-01T00:00:00Z'));
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      item: {
+        name: 'Gift',
+        claims: { [MEMBER]: first },
+        claimLimit: 2,
+      },
+    }),
+  );
+
+  await assertFails(
+    itemRef(OWNER, wishlistId, itemId).update({
+      [`claims.${MEMBER}`]: second,
+    }),
+  );
+});
+
+test('the owner may remove a claim key from an item with no claims map', async () => {
+  const wishlistId = 'wishlist-owner-remove-absent-map';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      item: { name: 'Gift', claimLimit: 2 },
+    }),
+  );
+
+  await assertSucceeds(
+    itemRef(OWNER, wishlistId, itemId).update({
+      [`claims.${OUTSIDER}`]: deleteField(),
+    }),
+  );
+});
+
+test('the owner cannot add a claim to an item with no claims map', async () => {
+  const wishlistId = 'wishlist-owner-add-absent-map';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      item: { name: 'Gift', claimLimit: 2 },
+    }),
+  );
+
+  await assertFails(
+    itemRef(OWNER, wishlistId, itemId).update({
+      [`claims.${OUTSIDER}`]: claimAt(),
+    }),
+  );
+});
+
+test('the owner can repair a malformed claims map by clearing it', async () => {
+  const wishlistId = 'wishlist-owner-repair-malformed';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      item: { name: 'Gift', claims: 'nope', claimLimit: 1 },
+    }),
+  );
+
+  await assertSucceeds(
+    itemRef(OWNER, wishlistId, itemId).update({ claims: deleteField() }),
+  );
+
+  const data = (await itemRef(OWNER, wishlistId, itemId).get()).data();
+  assert.deepEqual(Object.keys(data.claims ?? {}), []);
+});
+
+test('the owner cannot add a claim to an item with a malformed claims map', async () => {
+  const wishlistId = 'wishlist-owner-add-malformed';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      item: { name: 'Gift', claims: 'nope', claimLimit: 2 },
+    }),
+  );
+
+  await assertFails(
+    itemRef(OWNER, wishlistId, itemId).update({
+      [`claims.${OUTSIDER}`]: claimAt(),
+    }),
+  );
+});
+
+test('the owner cannot replace a malformed claims map with a non-empty map', async () => {
+  const wishlistId = 'wishlist-owner-malformed-non-empty';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      item: { name: 'Gift', claims: 'nope', claimLimit: 2 },
+    }),
+  );
+
+  await assertFails(
+    itemRef(OWNER, wishlistId, itemId).update({
+      claims: { [OUTSIDER]: claimAt() },
+    }),
+  );
+});
+
+test('the owner cannot write a non-map claims value over a malformed map', async () => {
+  const wishlistId = 'wishlist-owner-malformed-non-map';
+  const itemId = 'item';
+  await seed((s) =>
+    seedWishlistWithItem(s, wishlistId, itemId, {
+      item: { name: 'Gift', claims: 'nope', claimLimit: 1 },
+    }),
+  );
+
+  await assertFails(
+    itemRef(OWNER, wishlistId, itemId).update({ claims: 'still-nope' }),
   );
 });
 
 test("the owner cannot rewrite another user's claim while clearing", async () => {
   const wishlistId = 'wishlist-owner-reset-rewrite';
   const itemId = 'item';
+  const first = Timestamp.fromDate(new Date('2026-01-01T00:00:00Z'));
+  const second = Timestamp.fromDate(new Date('2026-02-01T00:00:00Z'));
   await seed((s) =>
     seedWishlistWithItem(s, wishlistId, itemId, {
       item: {
         name: 'Gift',
-        claims: { [MEMBER]: claimAt(), [OUTSIDER]: claimAt() },
+        claims: { [MEMBER]: first, [OUTSIDER]: claimAt() },
         claimLimit: 2,
       },
     }),
@@ -1109,7 +1253,7 @@ test("the owner cannot rewrite another user's claim while clearing", async () =>
 
   await assertFails(
     itemRef(OWNER, wishlistId, itemId).update({
-      claims: { [MEMBER]: claimAt() },
+      claims: { [MEMBER]: second },
     }),
   );
 });

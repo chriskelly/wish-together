@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -5,17 +7,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:wishtogether/common/widgets/brand_card.dart';
+import 'package:wishtogether/common/widgets/button_loading_indicator.dart';
 import 'package:wishtogether/common/widgets/status_pill.dart';
 import 'package:wishtogether/core/providers.dart';
 import 'package:wishtogether/core/theme.dart';
 import 'package:wishtogether/features/auth/domain/auth_session.dart';
 import 'package:wishtogether/features/wishlist/application/claim_failure.dart';
 import 'package:wishtogether/features/wishlist/application/claim_item_use_case.dart';
+import 'package:wishtogether/features/wishlist/application/clear_stale_claims_use_case.dart';
 import 'package:wishtogether/features/wishlist/application/unclaim_item_use_case.dart';
 import 'package:wishtogether/features/wishlist/data/item_repository.dart';
 import 'package:wishtogether/features/wishlist/data/wishlist_repository.dart';
 import 'package:wishtogether/features/wishlist/domain/item.dart';
+import 'package:wishtogether/features/wishlist/domain/stale_claims.dart';
 import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
+import 'package:wishtogether/features/wishlist/presentation/providers/wishlist_details_providers.dart';
+import 'package:wishtogether/features/wishlist/presentation/stale_claims_banner.dart';
 import 'package:wishtogether/features/wishlist/presentation/wishlist_details_page.dart';
 import 'package:wishtogether/features/wishlist/presentation/wishlist_item_row.dart';
 
@@ -26,6 +33,9 @@ class MockItemRepository extends Mock implements ItemRepository {}
 class MockClaimItemUseCase extends Mock implements ClaimItemUseCase {}
 
 class MockUnclaimItemUseCase extends Mock implements UnclaimItemUseCase {}
+
+class MockClearStaleClaimsUseCase extends Mock
+    implements ClearStaleClaimsUseCase {}
 
 class MockAuthSession extends Mock implements AuthSession {}
 
@@ -42,12 +52,20 @@ void main() {
       ownerId: ownerId,
       sharedWithGroups: const ['group-1'],
     );
+    final fixedNow = DateTime.utc(2026, 11, 16, 12);
+    final staleClaimAt = fixedNow.subtract(const Duration(days: 200));
+    final recentClaimAt = fixedNow.subtract(const Duration(days: 30));
 
     late MockWishlistRepository wishlistRepository;
     late MockItemRepository itemRepository;
     late MockClaimItemUseCase claimItemUseCase;
     late MockUnclaimItemUseCase unclaimItemUseCase;
+    late MockClearStaleClaimsUseCase clearStaleClaimsUseCase;
     late MockAuthSession authSession;
+
+    setUpAll(() {
+      registerFallbackValue(StaleClaimsPlan.empty);
+    });
 
     setUp(() {
       wishlistRepository = MockWishlistRepository();
@@ -61,6 +79,9 @@ void main() {
 
       claimItemUseCase = MockClaimItemUseCase();
       unclaimItemUseCase = MockUnclaimItemUseCase();
+      clearStaleClaimsUseCase = MockClearStaleClaimsUseCase();
+      when(() => clearStaleClaimsUseCase.execute(any(), any()))
+          .thenAnswer((_) async {});
     });
 
     /// Pumps the page for an item stream that has already emitted [items].
@@ -69,6 +90,8 @@ void main() {
       List<Item> items, {
       ThemeData? theme,
       bool asOwner = false,
+      DateTime? now,
+      Stream<List<Item>>? itemStream,
     }) async {
       if (asOwner) {
         when(
@@ -76,7 +99,7 @@ void main() {
         ).thenAnswer((_) => Stream.value(wishlist.copyWith(ownerId: viewerId)));
       }
       when(() => itemRepository.streamAll())
-          .thenAnswer((_) => Stream.value(items));
+          .thenAnswer((_) => itemStream ?? Stream.value(items));
 
       await tester.pumpWidget(
         ProviderScope(
@@ -88,6 +111,10 @@ void main() {
             authSessionProvider.overrideWithValue(authSession),
             claimItemUseCaseProvider.overrideWithValue(claimItemUseCase),
             unclaimItemUseCaseProvider.overrideWithValue(unclaimItemUseCase),
+            clearStaleClaimsUseCaseProvider.overrideWithValue(
+              clearStaleClaimsUseCase,
+            ),
+            wishlistNowProvider.overrideWithValue(now ?? fixedNow),
           ],
           child: MaterialApp(
             theme: theme ?? lightTheme,
@@ -1166,6 +1193,323 @@ void main() {
         expect(card, findsOneWidget);
         expect(tester.widget<BrandCard>(card).margin, itemMargin);
       }
+    });
+
+    group('stale claims banner', () {
+      Item staleItem() => Item(
+        id: 'item-1',
+        name: itemName,
+        claims: {'old-reader': staleClaimAt},
+      );
+
+      Finder bannerButton() => find.descendant(
+        of: find.byType(StaleClaimsBanner),
+        matching: find.byType(TextButton),
+      );
+
+      Finder dialogConfirm() => find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.widgetWithText(TextButton, 'Clear old claims'),
+      );
+
+      Future<void> confirmClear(WidgetTester tester) async {
+        await tester.tap(bannerButton());
+        await tester.pumpAndSettle();
+        await tester.tap(dialogConfirm());
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets(
+        'shows the old-claims banner to the owner in the default spoiler-free view',
+        (tester) async {
+          await pumpPage(tester, [staleItem()], asOwner: true);
+
+          expect(
+            find.text('You have claim(s) older than 6 months.'),
+            findsOneWidget,
+          );
+          expect(find.text('Clear old claims'), findsOneWidget);
+          expect(bannerButton(), findsOneWidget);
+          expect(find.text('1 person can claim'), findsOneWidget);
+          expect(find.text('Claimed'), findsNothing);
+        },
+      );
+
+      testWidgets('hides the old-claims banner from a reader', (tester) async {
+        await pumpPage(tester, [staleItem()]);
+
+        expect(
+          find.text('You have claim(s) older than 6 months.'),
+          findsNothing,
+        );
+        expect(bannerButton(), findsNothing);
+      });
+
+      testWidgets('hides the old-claims banner when every claim is recent', (
+        tester,
+      ) async {
+        await pumpPage(tester, [
+          Item(
+            id: 'item-1',
+            name: itemName,
+            claims: {'recent-reader': recentClaimAt},
+          ),
+        ], asOwner: true);
+
+        expect(
+          find.text('You have claim(s) older than 6 months.'),
+          findsNothing,
+        );
+      });
+
+      testWidgets('shows the banner when the owner reveals claims', (
+        tester,
+      ) async {
+        await pumpPage(tester, [staleItem()], asOwner: true);
+
+        await tester.tap(find.byTooltip('Show claimed status'));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('You have claim(s) older than 6 months.'),
+          findsOneWidget,
+        );
+        expect(bannerButton(), findsOneWidget);
+        expect(find.text('Claimed'), findsOneWidget);
+      });
+
+      testWidgets('uses the injected clock to decide staleness', (
+        tester,
+      ) async {
+        final claimAt = fixedNow.subtract(const Duration(days: 100));
+        final item = Item(
+          id: 'item-1',
+          name: itemName,
+          claims: {'reader': claimAt},
+        );
+
+        await pumpPage(tester, [item], asOwner: true);
+        expect(
+          find.text('You have claim(s) older than 6 months.'),
+          findsNothing,
+        );
+
+        await pumpPage(
+          tester,
+          [item],
+          asOwner: true,
+          now: fixedNow.add(const Duration(days: 100)),
+        );
+        expect(
+          find.text('You have claim(s) older than 6 months.'),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets(
+        'hides the old-claims banner when the item stream is in error',
+        (tester) async {
+          final items = StreamController<List<Item>>();
+          addTearDown(items.close);
+          items.add([staleItem()]);
+
+          await pumpPage(
+            tester,
+            const [],
+            asOwner: true,
+            itemStream: items.stream,
+          );
+          items.addError(Exception('the item read failed'));
+          await tester.pumpAndSettle();
+
+          expect(
+            find.text('You have claim(s) older than 6 months.'),
+            findsNothing,
+          );
+          expect(find.textContaining('An error occurred'), findsOneWidget);
+        },
+      );
+
+      testWidgets(
+        'the old-claims banner fits a 320 px phone at 1.3 text scale',
+        (tester) async {
+          useNarrowPhone(tester);
+          await pumpPage(tester, [staleItem()], asOwner: true);
+
+          expect(
+            find.text('You have claim(s) older than 6 months.'),
+            findsOneWidget,
+          );
+          expect(bannerButton(), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        },
+      );
+
+      testWidgets(
+        'clearing old claims asks for confirmation and passes the plan',
+        (tester) async {
+          await pumpPage(tester, [staleItem()], asOwner: true);
+
+          await tester.tap(bannerButton());
+          await tester.pumpAndSettle();
+
+          expect(find.text('Clear old claims?'), findsOneWidget);
+          expect(
+            find.text(
+              'This removes any item claims older than 6 months. '
+              "Claims made in the last 6 months are kept. This can't be undone.",
+            ),
+            findsOneWidget,
+          );
+
+          await tester.tap(dialogConfirm());
+          await tester.pumpAndSettle();
+
+          final captured =
+              verify(
+                    () => clearStaleClaimsUseCase.execute(
+                      wishlistId,
+                      captureAny(),
+                    ),
+                  ).captured.single
+                  as StaleClaimsPlan;
+          expect(captured.byItem, {
+            'item-1': {'old-reader'},
+          });
+          expect(find.text('Old claims cleared.'), findsOneWidget);
+        },
+      );
+
+      testWidgets('cancelling the confirmation leaves the claims alone', (
+        tester,
+      ) async {
+        await pumpPage(tester, [staleItem()], asOwner: true);
+
+        await tester.tap(bannerButton());
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+        await tester.pumpAndSettle();
+
+        verifyNever(() => clearStaleClaimsUseCase.execute(any(), any()));
+      });
+
+      testWidgets('shows the partial copy when a write fails', (tester) async {
+        when(() => clearStaleClaimsUseCase.execute(any(), any())).thenThrow(
+          const ClaimFailure(
+            ClaimFailureReason.accessDenied,
+            code: 'permission-denied',
+          ),
+        );
+        await pumpPage(tester, [staleItem()], asOwner: true);
+
+        await confirmClear(tester);
+
+        expect(
+          find.text(
+            "Not all old claims were cleared. You don't have permission to "
+            'clear these claims.',
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('Old claims cleared.'), findsNothing);
+        expect(tester.widget<TextButton>(bannerButton()).onPressed, isNotNull);
+
+        await confirmClear(tester);
+        verify(() => clearStaleClaimsUseCase.execute(any(), any())).called(2);
+      });
+
+      testWidgets(
+        'shows the generic partial copy when the use case throws unexpectedly',
+        (tester) async {
+          when(() => clearStaleClaimsUseCase.execute(any(), any()))
+              .thenThrow(Exception('boom'));
+          await pumpPage(tester, [staleItem()], asOwner: true);
+
+          await confirmClear(tester);
+
+          expect(
+            find.text('Not all old claims were cleared. Please try again.'),
+            findsOneWidget,
+          );
+          expect(find.textContaining('boom'), findsNothing);
+        },
+      );
+
+      testWidgets('disables the clear button while the action runs', (
+        tester,
+      ) async {
+        final pending = Completer<void>();
+        when(() => clearStaleClaimsUseCase.execute(any(), any()))
+            .thenAnswer((_) => pending.future);
+        await pumpPage(tester, [staleItem()], asOwner: true);
+
+        await tester.tap(bannerButton());
+        await tester.pumpAndSettle();
+        await tester.tap(dialogConfirm());
+        await tester.pump();
+
+        expect(find.byType(ButtonLoadingIndicator), findsOneWidget);
+        expect(tester.widget<TextButton>(bannerButton()).onPressed, isNull);
+
+        pending.complete();
+        await tester.pumpAndSettle();
+        expect(find.text('Old claims cleared.'), findsOneWidget);
+      });
+
+      testWidgets('blocks row actions while the bulk clear runs', (
+        tester,
+      ) async {
+        final pending = Completer<void>();
+        when(() => clearStaleClaimsUseCase.execute(any(), any()))
+            .thenAnswer((_) => pending.future);
+        await pumpPage(tester, [staleItem()], asOwner: true);
+
+        await tester.tap(bannerButton());
+        await tester.pumpAndSettle();
+        await tester.tap(dialogConfirm());
+        await tester.pump();
+
+        await tester.tap(find.byTooltip('Delete'), warnIfMissed: false);
+        await tester.pump();
+        expect(find.text('Delete Item?'), findsNothing);
+
+        pending.complete();
+        await tester.pumpAndSettle();
+      });
+
+      testWidgets('keeps the success snackbar after the banner unmounts', (
+        tester,
+      ) async {
+        final pending = Completer<void>();
+        when(() => clearStaleClaimsUseCase.execute(any(), any()))
+            .thenAnswer((_) => pending.future);
+        final items = StreamController<List<Item>>();
+        addTearDown(items.close);
+        items.add([staleItem()]);
+
+        await pumpPage(
+          tester,
+          const [],
+          asOwner: true,
+          itemStream: items.stream,
+        );
+
+        await tester.tap(bannerButton());
+        await tester.pumpAndSettle();
+        await tester.tap(dialogConfirm());
+        await tester.pump();
+
+        items.add([Item(id: 'item-1', name: itemName)]);
+        await tester.pump();
+        expect(
+          find.text('You have claim(s) older than 6 months.'),
+          findsNothing,
+        );
+
+        pending.complete();
+        await tester.pumpAndSettle();
+        expect(find.text('Old claims cleared.'), findsOneWidget);
+      });
     });
   });
 }

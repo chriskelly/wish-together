@@ -6,9 +6,11 @@ import 'package:wishtogether/common/widgets/primary_app_bar.dart';
 import 'package:wishtogether/core/fab_layout.dart';
 import 'package:wishtogether/core/providers.dart';
 import 'package:wishtogether/features/wishlist/domain/item.dart';
+import 'package:wishtogether/features/wishlist/domain/stale_claims.dart';
 import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
 import 'package:wishtogether/features/wishlist/presentation/item_form_page.dart';
 import 'package:wishtogether/features/wishlist/presentation/providers/wishlist_details_providers.dart';
+import 'package:wishtogether/features/wishlist/presentation/stale_claims_banner.dart';
 import 'package:wishtogether/features/wishlist/presentation/wishlist_form_page.dart';
 import 'package:wishtogether/features/wishlist/presentation/wishlist_item_row.dart';
 
@@ -39,22 +41,42 @@ class WishlistDetailsPage extends ConsumerWidget {
     final userId = ref.watch(currentUserIdProvider);
     final isOwner = wishlist.ownerId == userId;
     final itemsAsync = ref.watch(wishlistItemsProvider(wishlistId));
+    final stalePlan = isOwner
+        ? ref.watch(staleClaimsPlanProvider(wishlistId))
+        : StaleClaimsPlan.empty;
+    final isBulkClear = ref.watch(
+      wishlistItemActionsProvider(wishlistId).select((state) => state.isBulk),
+    );
 
     return Scaffold(
       appBar: _buildAppBar(context, ref, wishlist, isOwner, isSpoilerFree),
-      body: ListContentBuilder<Item>(
-        items: itemsAsync.value,
-        error: itemsAsync.error,
-        entityWidgetBuilder: (context, item) => WishlistItemRow(
-          key: ValueKey(item.id),
-          wishlistId: wishlistId,
-          item: item,
-          isOwner: isOwner,
-          isSpoilerFree: isSpoilerFree,
-          userId: userId,
-        ),
-        emptyMessage: 'This wishlist has no items yet.',
-        listPadding: EdgeInsets.only(bottom: fabReserve(context)),
+      body: Column(
+        children: [
+          if (!stalePlan.isEmpty)
+            StaleClaimsBanner(wishlistId: wishlistId, plan: stalePlan),
+          // The list is inert while the bulk clear writes item by item; the
+          // banner's spinner is the progress indicator. The data guard in
+          // ItemActions remains the backstop for non-pointer activation.
+          Expanded(
+            child: AbsorbPointer(
+              absorbing: isBulkClear,
+              child: ListContentBuilder<Item>(
+                items: itemsAsync.value,
+                error: itemsAsync.error,
+                entityWidgetBuilder: (context, item) => WishlistItemRow(
+                  key: ValueKey(item.id),
+                  wishlistId: wishlistId,
+                  item: item,
+                  isOwner: isOwner,
+                  isSpoilerFree: isSpoilerFree,
+                  userId: userId,
+                ),
+                emptyMessage: 'This wishlist has no items yet.',
+                listPadding: EdgeInsets.only(bottom: fabReserve(context)),
+              ),
+            ),
+          ),
+        ],
       ),
       floatingActionButton: _buildFloatingActionButton(context, isOwner),
     );

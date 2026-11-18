@@ -19,7 +19,13 @@ define or `lib/core/logging/sentry_startup.dart`.
   because the pre-merge deploy uploads no symbols. `configure` removes the SDK's
   `LoadReleaseIntegration` for staging, since that integration would otherwise fill both from
   `PackageInfo`. `.github/workflows/ci-web.yml` passes `preview` for a preview channel and `production` for the live
-  site; `.github/workflows/deploy-staging.yml` passes `staging`.
+  site; `.github/workflows/deploy-staging.yml` passes `staging`; `fastlane/Fastfile` passes
+  `testflight` for a TestFlight upload and nothing for an App Store release, which keeps deriving
+  `production`. The build emits `wishtogether-sentry-environment=<value>`, and the TestFlight lane
+  greps the compiled `App.framework/App` for it and for the DSN, so a lost define fails the lane
+  instead of shipping. Startup reads the override back out of that marker
+  (`sentryEnvironmentOverrideFrom`); that read is what keeps the literal in the shipped program,
+  because a constant nothing references is tree-shaken.
 - **Sentry's own handlers are the only global error handlers.** `SentryFlutter.init` installs
   `FlutterErrorIntegration` and `PlatformDispatcher.onError` (on web, its own
   `runZonedGuarded`), so the app does not install a second pair; `beforeSend` is what keeps the
@@ -38,7 +44,10 @@ in `docs/diagnostics.md`.
 ## How it is tested
 
 - `test/core/logging/sentry_startup_test.dart` — empty/whitespace DSN disables; environment and staging rules;
-  release/dist naming; the Sentry option values; iOS build read and fallback.
+  release/dist naming; the compiled environment marker and its startup read; the Sentry option values; iOS build read and fallback.
+- `scripts/test/check-ipa-diagnostics.test.mjs` — the archive guard rejects a missing, blank or
+  mismatched marker; `scripts/test/fastfile-sentry-environment.test.mjs` — each lane passes the
+  value it should.
 - `test/core/logging/sentry_sink_test.dart` — breadcrumb vs event, stack passthrough, one scope write per session
   change, sign-out clears the user, transport failures swallowed.
 - `test/core/logging/diagnostics_test.dart` — Sentry sink present only with a transport, provider mapping.

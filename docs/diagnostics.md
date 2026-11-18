@@ -55,8 +55,8 @@ would help — configure them in the Sentry console, not in this file.
   that survives a crash loop exhausting the event quota.
 
 **One rule is not a preference:** scope every alert and every saved search to
-`environment:production`. Preview channels and the staging dispatch report to this same project
-and must never page anyone.
+`environment:production`. Preview channels, the staging dispatch and TestFlight uploads report to
+this same project and must never page anyone.
 
 Nothing checks that any rule exists. Read this section as what is *possible*, not what is
 *configured*.
@@ -95,7 +95,8 @@ is a secret and authorises the upload.
 | same-repo PR preview channel | `preview` | `wishtogether@<sha>` / `web-<sha>` | source maps uploaded and served |
 | fork or Dependabot PR | none — no DSN | — | — |
 | staging dispatch | `staging` | none (deliberate) | none (no release to attach them to) |
-| TestFlight / App Store | `production` (derived from the release build) | `wishtogether@<CFBundleVersion>` / `ios-<build>` | dSYMs uploaded, untagged |
+| TestFlight (PR or manual upload) | `testflight` | `wishtogether@<CFBundleVersion>` / `ios-<build>` | dSYMs uploaded, untagged |
+| App Store release | `production` (derived from the release build) | `wishtogether@<CFBundleVersion>` / `ios-<build>` | dSYMs uploaded, untagged |
 | local, test, iOS CI | none — no DSN | — | — |
 
 - The web identity is the commit SHA: `.github/workflows/ci-web.yml` compiles with `--dart-define=WT_BUILD_ID=<sha>`
@@ -115,13 +116,16 @@ is a secret and authorises the upload.
   to save 3.2 MB that no browser fetches unless devtools is open. The check that matters is
   before the upload: the workflow fails when `main.dart.js` or its map is missing, so a Flutter
   upgrade that stops emitting maps cannot silently leave events unsymbolicated.
-- **Not yet guarded: the environment define itself.** Both bundle guards assert the DSN and the
-  build id, and the staging guard asserts the Firestore target, but nothing proves the bundle
-  was compiled with `WT_SENTRY_ENVIRONMENT`. Delete that define and the build reports
-  `environment=production` while every guard still passes — a preview would page the operator.
-  The fix is a unique compile-time marker emitted from app code (as
-  `wishtogether-firestore-target` does) and grepped by both guards; until then, keep the define
-  in the same edit as the DSN.
+- **The environment define is guarded in the TestFlight lane.** `sentry_startup.dart` emits
+  `wishtogether-sentry-environment=<value>` as one compile-time literal, and
+  `fastlane/Fastfile` checks the archive's `App.framework/App` for that marker and for the DSN
+  through `scripts/check-ipa-diagnostics.mjs`, before the symbol upload. A build whose define
+  never reached the compiler carries a bare or different marker and fails the lane instead of
+  reporting `environment=production` while every other guard passes. The App Store lane passes
+  no environment and requires only the DSN, because its value is derived from the release build.
+  The web guards (`ci-web.yml`, `deploy-staging.yml`) still assert only the DSN, the build id
+  and, for staging, the Firestore target: a web build that loses `WT_SENTRY_ENVIRONMENT` still
+  reports `production`, so keep that define in the same edit as the DSN there.
 - The numeric organisation and project ids are parsed from the DSN by
   `scripts/sentry-identity.mjs`, so the repository stores no Sentry slug. That parser expects a
   current-format SaaS DSN (`https://<key>@o<org>.ingest.<region>.sentry.io/<project>`); a legacy

@@ -76,7 +76,7 @@ returns `No columns selected`, which looks like a broken query but is a missing 
 | Tag / key | Meaning |
 | --- | --- |
 | `event` | `error`, `firestoreError`, `authState`, `updateGate`, `claimAction`, `sessionStart`, `routeChanged`, `appCheck`. Only four families become searchable events. |
-| `environment` | `production` (live site, TestFlight, App Store), `preview` (PR channel), `staging`, `debug` (local). Alerts only ever look at `production`. |
+| `environment` | `production` (live site, App Store), `preview` (PR channel), `staging`, `testflight` (TestFlight uploads), `debug` (local). Alerts only ever look at `production`. |
 | `release` / `dist` | `wishtogether@<sha>` / `web-<sha>` on web, `wishtogether@<CFBundleVersion>` / `ios-<build>` on iOS. `dev` means a build without `WT_BUILD_ID`. |
 | `route` | always a pattern (`/wishlist/:id`), never a resolved path with an id |
 | `collection` | `wishlists`, `items`, `groups`, `users`, or `other` |

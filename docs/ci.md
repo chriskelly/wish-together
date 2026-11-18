@@ -79,7 +79,9 @@ from that committed file fails the clone before signing.
 
 On a Mac with Xcode: `bundle install`, then `bundle exec fastlane match appstore` to create
 or renew the signing assets in the cert repo (add a read-only deploy key to the cert repo and
-set `MATCH_GIT_PRIVATE_KEY`). Before the first `app-store-release`, the App Store Connect
+set `MATCH_GIT_PRIVATE_KEY`). The signing lanes also need Node 22: the archive guard that proves
+the Sentry defines reached the build runs `scripts/check-ipa-diagnostics.mjs` before the symbol
+upload. Before the first `app-store-release`, the App Store Connect
 listing (description, screenshots, privacy) must be complete — precheck validates the live
 listing, not the PR. The lane creates or updates the editable App Store version for the tag;
 the listing itself is maintained in App Store Connect **except for What's New**, which lives

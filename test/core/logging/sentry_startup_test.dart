@@ -132,7 +132,7 @@ void main() {
 
     test('treats the bare prefix as no override', () {
       expect(
-        sentryEnvironmentOverrideFrom('wishtogether-sentry-environment='),
+        sentryEnvironmentOverrideFrom(sentryEnvironmentStampPrefix),
         isEmpty,
       );
     });

@@ -235,7 +235,10 @@ def check_ipa_diagnostics!(sentry_environment:)
 end
 
 def build_ipa(marketing_version:, build_number:, sentry_environment:)
-  if sentry_environment&.strip&.empty?
+  # One normalised value feeds both the define and the guard, so surrounding
+  # whitespace cannot make the compiled marker differ from the expected one.
+  sentry_environment = sentry_environment&.strip
+  if sentry_environment&.empty?
     UI.user_error!("sentry_environment is blank; pass nil to derive the environment")
   end
 

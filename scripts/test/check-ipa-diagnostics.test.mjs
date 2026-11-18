@@ -83,12 +83,19 @@ test('exits 1 when the binary does not exist', () => {
   assert.match(result.stderr, /cannot read the bundle/);
 });
 
-test('the marker prefix matches the constant the app emits', () => {
+test('the marker constants match what the app emits', () => {
   const source = readFileSync(DART_SOURCE, 'utf8');
 
-  assert.ok(
-    source.includes(
-      `const String sentryEnvironmentStampPrefix = '${ENVIRONMENT_MARKER_PREFIX}';`,
+  assert.match(
+    source,
+    new RegExp(
+      `const String sentryEnvironmentStampPrefix\\s*=\\s*'${ENVIRONMENT_MARKER_PREFIX}';`,
     ),
+  );
+  // The stamp must stay one compile-time literal built from the prefix and the
+  // environment, or the lane greps for a value the binary cannot contain.
+  assert.match(
+    source,
+    /const String sentryEnvironmentStamp\s*=\s*'\$sentryEnvironmentStampPrefix\$wtSentryEnvironment';/,
   );
 });

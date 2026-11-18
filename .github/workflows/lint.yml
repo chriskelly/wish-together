@@ -19,6 +19,7 @@ on:
       - 'scripts/**'
       - 'tool/**'
       - 'lib/dev/fixtures/**'
+      - 'lib/core/logging/sentry_startup.dart'
       - 'firebase.staging.json'
   push:
     branches: [master]
@@ -33,6 +34,7 @@ on:
       - 'scripts/**'
       - 'tool/**'
       - 'lib/dev/fixtures/**'
+      - 'lib/core/logging/sentry_startup.dart'
       - 'firebase.staging.json'
 
 permissions:

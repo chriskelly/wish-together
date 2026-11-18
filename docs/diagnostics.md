@@ -95,7 +95,7 @@ is a secret and authorises the upload.
 | same-repo PR preview channel | `preview` | `wishtogether@<sha>` / `web-<sha>` | source maps uploaded and served |
 | fork or Dependabot PR | none — no DSN | — | — |
 | staging dispatch | `staging` | none (deliberate) | none (no release to attach them to) |
-| TestFlight (PR or manual upload) | `testflight` | `wishtogether@<CFBundleVersion>` / `ios-<build>` | dSYMs uploaded, untagged |
+| TestFlight lane (PR-triggered or manual dispatch) | `testflight` | `wishtogether@<CFBundleVersion>` / `ios-<build>` | dSYMs uploaded, untagged |
 | App Store release | `production` (derived from the release build) | `wishtogether@<CFBundleVersion>` / `ios-<build>` | dSYMs uploaded, untagged |
 | local, test, iOS CI | none — no DSN | — | — |
 

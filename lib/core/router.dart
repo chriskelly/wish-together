@@ -4,6 +4,7 @@ import 'package:wishtogether/core/logging/app_event.dart';
 import 'package:wishtogether/core/logging/app_log.dart';
 import 'package:wishtogether/core/logging/diagnostics.dart';
 import 'package:wishtogether/core/logging/redaction.dart';
+import 'package:wishtogether/core/route_state.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
 import 'package:wishtogether/features/auth/domain/auth_session.dart';
@@ -223,6 +224,16 @@ GoRoute homePageRoute() => GoRoute(
   routes: [wishlistDetailsPageRoute(), groupDetailsPageRoute()],
 );
 
+/// The `:id` of the page a nested route hangs under, or null when the state
+/// carries no usable segment.
+///
+/// A redirect or builder uses this to fall back instead of dereferencing a
+/// missing id.
+String? _parentId(GoRouterState state) {
+  final id = state.pathParameters['id'];
+  return id == null || id.trim().isEmpty ? null : id;
+}
+
 GoRoute wishlistDetailsPageRoute() => GoRoute(
   name: WishlistDetailsPage.routeName,
   path: WishlistDetailsPage.route.substring(1),
@@ -243,32 +254,53 @@ GoRoute itemFormPageCreateRoute() => GoRoute(
   // Same per-push guard shape as the edit route, so a second create form
   // cannot detach the first one's browser-back guard.
   onExit: (BuildContext context, GoRouterState state) {
-    final extra = state.extra;
-    return extra is CreateItemRouteArgs
-        ? extra.leaveGuard.requestLeave()
-        : true;
+    final args = routeExtra<CreateItemRouteArgs>(state);
+    return args == null ? true : args.leaveGuard.requestLeave();
   },
   // A deep link or reload has no guard to reach; send it back to the list so
-  // the draft cannot be silently dropped by an unguarded browser back.
-  redirect: (BuildContext context, GoRouterState state) =>
-      state.extra is CreateItemRouteArgs
-      ? null
-      : '/wishlist/${state.pathParameters['id']!}',
+  // the draft cannot be silently dropped by an unguarded browser back. Without
+  // an id there is no list to return to, so home is the only safe destination.
+  redirect: (BuildContext context, GoRouterState state) {
+    final wishlistId = _parentId(state);
+    if (wishlistId == null) {
+      return HomePage.route;
+    }
+    return routeExtra<CreateItemRouteArgs>(state) == null
+        ? '/wishlist/$wishlistId'
+        : null;
+  },
+  // A browser-history restore rebuilds the pushed page with its extra dropped
+  // (the history codec cannot encode a leave guard), and that restore can
+  // bypass the redirect above. Never build the form without its guard.
   builder: (BuildContext context, GoRouterState state) {
-    final args = state.extra! as CreateItemRouteArgs;
-    return ItemFormPage(
-      wishlistId: state.pathParameters['id']!,
-      leaveGuard: args.leaveGuard,
-    );
+    final args = routeExtra<CreateItemRouteArgs>(state);
+    final wishlistId = _parentId(state);
+    if (args == null || wishlistId == null) {
+      return const RouteUnavailablePage();
+    }
+    return ItemFormPage(wishlistId: wishlistId, leaveGuard: args.leaveGuard);
   },
 );
 
 GoRoute wishlistFormPageEditRoute() => GoRoute(
   name: WishlistFormPage.editRouteName,
   path: WishlistFormPage.editRoute,
+  // The form needs the wishlist it was opened with; a deep link or reload has
+  // no extra, so send it back to the list rather than casting null.
+  redirect: (BuildContext context, GoRouterState state) {
+    final wishlistId = _parentId(state);
+    if (wishlistId == null) {
+      return HomePage.route;
+    }
+    return routeExtra<Wishlist>(state) == null ? '/wishlist/$wishlistId' : null;
+  },
+  // A restore can bypass the redirect above; the form cannot be built without
+  // the wishlist it edits.
   builder: (BuildContext context, GoRouterState state) {
-    final wishlist = state.extra as Wishlist;
-    return WishlistFormPage(wishlist: wishlist);
+    final wishlist = routeExtra<Wishlist>(state);
+    return wishlist == null
+        ? const RouteUnavailablePage()
+        : WishlistFormPage(wishlist: wishlist);
   },
 );
 
@@ -279,18 +311,28 @@ GoRoute itemFormPageEditRoute() => GoRoute(
   // reaches the form's PopScope; onExit is the hook that can stop it and let
   // the form ask about its unsaved change.
   onExit: (BuildContext context, GoRouterState state) {
-    final extra = state.extra;
-    return extra is EditItemRouteArgs ? extra.leaveGuard.requestLeave() : true;
+    final args = routeExtra<EditItemRouteArgs>(state);
+    return args == null ? true : args.leaveGuard.requestLeave();
   },
   // The page needs the item it was opened with; a deep link or a reload has no
   // extra, so send it back to the list rather than casting null.
-  redirect: (BuildContext context, GoRouterState state) =>
-      state.extra is EditItemRouteArgs
-      ? null
-      : '/wishlist/${state.pathParameters['id']!}',
+  redirect: (BuildContext context, GoRouterState state) {
+    final wishlistId = _parentId(state);
+    if (wishlistId == null) {
+      return HomePage.route;
+    }
+    return routeExtra<EditItemRouteArgs>(state) == null
+        ? '/wishlist/$wishlistId'
+        : null;
+  },
+  // A restore can bypass the redirect above; never build the form without its
+  // item and guard.
   builder: (BuildContext context, GoRouterState state) {
-    final wishlistId = state.pathParameters['id']!;
-    final args = state.extra as EditItemRouteArgs;
+    final args = routeExtra<EditItemRouteArgs>(state);
+    final wishlistId = _parentId(state);
+    if (args == null || wishlistId == null) {
+      return const RouteUnavailablePage();
+    }
     return ItemFormPage(
       wishlistId: wishlistId,
       item: args.item,
@@ -306,16 +348,29 @@ GoRoute groupDetailsPageRoute() => GoRoute(
     final groupId = state.pathParameters['id']!;
     return GroupDetailsPage(groupId: groupId);
   },
-  routes: [
-    GoRoute(
-      name: GroupFormPage.editRouteName,
-      path: GroupFormPage.editRoute,
-      builder: (BuildContext context, GoRouterState state) {
-        final group = state.extra as Group;
-        return GroupFormPage(group: group);
-      },
-    ),
-  ],
+  routes: [groupFormPageEditRoute()],
+);
+
+GoRoute groupFormPageEditRoute() => GoRoute(
+  name: GroupFormPage.editRouteName,
+  path: GroupFormPage.editRoute,
+  // The form needs the group it was opened with; a deep link or reload has no
+  // extra, so send it back to the group rather than casting null.
+  redirect: (BuildContext context, GoRouterState state) {
+    final groupId = _parentId(state);
+    if (groupId == null) {
+      return HomePage.route;
+    }
+    return routeExtra<Group>(state) == null ? '/group/$groupId' : null;
+  },
+  // A restore can bypass the redirect above; the form cannot be built without
+  // the group it edits.
+  builder: (BuildContext context, GoRouterState state) {
+    final group = routeExtra<Group>(state);
+    return group == null
+        ? const RouteUnavailablePage()
+        : GroupFormPage(group: group);
+  },
 );
 
 GoRoute loginPageRoute() => GoRoute(
@@ -328,7 +383,7 @@ GoRoute loginPageRoute() => GoRoute(
 GoRoute verificationPageRoute() => GoRoute(
   path: VerificationPage.route,
   builder: (BuildContext context, GoRouterState state) {
-    final verificationId = state.extra as String?;
+    final verificationId = routeExtra<String>(state);
     if (verificationId == null) {
       return const Scaffold(
         body: Center(child: Text('Invalid verification link.')),

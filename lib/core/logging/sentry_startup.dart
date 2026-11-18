@@ -16,10 +16,30 @@ const String wtSentryDsn = String.fromEnvironment('WT_SENTRY_DSN');
 /// Environment override supplied at compile time.
 ///
 /// Empty means derive it: `production` in release builds, `debug` otherwise.
-/// `staging` is the pre-merge host, which carries no release.
+/// `staging` is the pre-merge host, which carries no release; `testflight` is
+/// passed by the TestFlight lane.
 const String wtSentryEnvironment = String.fromEnvironment(
   'WT_SENTRY_ENVIRONMENT',
 );
+
+/// A distinctive marker emitted into the compiled program so a lane can prove
+/// the environment define reached the artifact, as `firestoreTargetStamp`
+/// does for the Firestore database. The bare value is not a marker: Flutter
+/// and its plugins contain words such as `testflight`.
+const String sentryEnvironmentStampPrefix = 'wishtogether-sentry-environment=';
+const String sentryEnvironmentStamp =
+    '$sentryEnvironmentStampPrefix$wtSentryEnvironment';
+
+/// Recovers the `WT_SENTRY_ENVIRONMENT` value from a compiled [stamp].
+///
+/// Startup resolves the override this way instead of reading
+/// [wtSentryEnvironment] directly: a constant that nothing reads is removed by
+/// the compiler, and the lane greps the shipped binary for
+/// [sentryEnvironmentStamp]. A stamp without the prefix means no override.
+String sentryEnvironmentOverrideFrom(String stamp) =>
+    stamp.startsWith(sentryEnvironmentStampPrefix)
+    ? stamp.substring(sentryEnvironmentStampPrefix.length)
+    : '';
 
 const String _productionEnvironment = 'production';
 const String _stagingEnvironment = 'staging';
@@ -98,16 +118,24 @@ class SentryStartup {
     required this.identity,
   });
 
+  /// Builds the configuration from the compile-time defines.
+  ///
+  /// [environment] overrides the compiled value; null reads the override from
+  /// the marker compiled into this binary. [stamp] names that marker and lets a
+  /// test drive the compiled path without a `--dart-define`.
   factory SentryStartup.fromEnvironment({
     required BuildIdentity identity,
     required bool releaseMode,
     String dsn = wtSentryDsn,
-    String environment = wtSentryEnvironment,
+    String? environment,
+    String? stamp,
   }) => SentryStartup(
     dsn: dsn.trim(),
     environment: environmentFor(
       releaseMode: releaseMode,
-      override: environment,
+      override:
+          environment ??
+          sentryEnvironmentOverrideFrom(stamp ?? sentryEnvironmentStamp),
     ),
     identity: identity,
   );

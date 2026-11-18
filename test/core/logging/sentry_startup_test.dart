@@ -9,6 +9,7 @@ import 'package:wishtogether/core/logging/session_context.dart';
 const String dsn = 'https://public@example.invalid/1';
 const String webBuild = 'abc123';
 const String iosBuild = '57';
+const String testflightStamp = 'wishtogether-sentry-environment=testflight';
 
 PackageInfo packageInfoWith(String buildNumber) => PackageInfo(
   appName: 'WishTogether',
@@ -97,6 +98,49 @@ void main() {
       expect(options.replay.onErrorSampleRate, 0);
       expect(options.beforeSend, same(scrubEvent));
       expect(options.beforeBreadcrumb, same(scrubBreadcrumb));
+    });
+
+    test('reads the compiled environment when no override is injected', () {
+      final startup = SentryStartup.fromEnvironment(
+        identity: const BuildIdentity(build: iosBuild, platform: 'ios'),
+        releaseMode: true,
+        dsn: dsn,
+        stamp: testflightStamp,
+      );
+
+      expect(startup.environment, 'testflight');
+    });
+
+    test('keeps release and dist for a TestFlight build', () {
+      final startup = SentryStartup.fromEnvironment(
+        identity: const BuildIdentity(build: iosBuild, platform: 'ios'),
+        releaseMode: true,
+        dsn: dsn,
+        environment: 'testflight',
+      );
+
+      expect(startup.release, 'wishtogether@$iosBuild');
+      expect(startup.dist, 'ios-$iosBuild');
+    });
+  });
+
+  group('compiled Sentry environment', () {
+    test('recovers the override from the compiled marker', () {
+      expect(sentryEnvironmentOverrideFrom(testflightStamp), 'testflight');
+    });
+
+    test('treats the bare prefix as no override', () {
+      expect(
+        sentryEnvironmentOverrideFrom(sentryEnvironmentStampPrefix),
+        isEmpty,
+      );
+    });
+
+    test('ignores text without the marker prefix', () {
+      expect(
+        sentryEnvironmentOverrideFrom('something-else=testflight'),
+        isEmpty,
+      );
     });
   });
 

@@ -98,6 +98,59 @@ void main() {
       expect(options.beforeSend, same(scrubEvent));
       expect(options.beforeBreadcrumb, same(scrubBreadcrumb));
     });
+
+    test('reads the compiled environment when no override is injected', () {
+      final startup = SentryStartup.fromEnvironment(
+        identity: const BuildIdentity(build: iosBuild, platform: 'ios'),
+        releaseMode: true,
+        dsn: dsn,
+        stamp: 'wishtogether-sentry-environment=testflight',
+      );
+
+      expect(startup.environment, 'testflight');
+    });
+
+    test('keeps release and dist for a TestFlight build', () {
+      final startup = SentryStartup.fromEnvironment(
+        identity: const BuildIdentity(build: iosBuild, platform: 'ios'),
+        releaseMode: true,
+        dsn: dsn,
+        environment: 'testflight',
+      );
+
+      expect(startup.environment, 'testflight');
+      expect(startup.release, 'wishtogether@$iosBuild');
+      expect(startup.dist, 'ios-$iosBuild');
+    });
+  });
+
+  group('compiled Sentry environment', () {
+    test('pins the marker the TestFlight lane greps', () {
+      expect(sentryEnvironmentStampPrefix, 'wishtogether-sentry-environment=');
+    });
+
+    test('recovers the override from the compiled marker', () {
+      expect(
+        sentryEnvironmentOverrideFrom(
+          'wishtogether-sentry-environment=testflight',
+        ),
+        'testflight',
+      );
+    });
+
+    test('treats the bare prefix as no override', () {
+      expect(
+        sentryEnvironmentOverrideFrom('wishtogether-sentry-environment='),
+        isEmpty,
+      );
+    });
+
+    test('ignores text without the marker prefix', () {
+      expect(
+        sentryEnvironmentOverrideFrom('something-else=testflight'),
+        isEmpty,
+      );
+    });
   });
 
   group('DSN gating', () {

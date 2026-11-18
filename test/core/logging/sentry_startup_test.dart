@@ -9,6 +9,7 @@ import 'package:wishtogether/core/logging/session_context.dart';
 const String dsn = 'https://public@example.invalid/1';
 const String webBuild = 'abc123';
 const String iosBuild = '57';
+const String testflightStamp = 'wishtogether-sentry-environment=testflight';
 
 PackageInfo packageInfoWith(String buildNumber) => PackageInfo(
   appName: 'WishTogether',
@@ -104,7 +105,7 @@ void main() {
         identity: const BuildIdentity(build: iosBuild, platform: 'ios'),
         releaseMode: true,
         dsn: dsn,
-        stamp: 'wishtogether-sentry-environment=testflight',
+        stamp: testflightStamp,
       );
 
       expect(startup.environment, 'testflight');
@@ -125,17 +126,8 @@ void main() {
   });
 
   group('compiled Sentry environment', () {
-    test('pins the marker the TestFlight lane greps', () {
-      expect(sentryEnvironmentStampPrefix, 'wishtogether-sentry-environment=');
-    });
-
     test('recovers the override from the compiled marker', () {
-      expect(
-        sentryEnvironmentOverrideFrom(
-          'wishtogether-sentry-environment=testflight',
-        ),
-        'testflight',
-      );
+      expect(sentryEnvironmentOverrideFrom(testflightStamp), 'testflight');
     });
 
     test('treats the bare prefix as no override', () {

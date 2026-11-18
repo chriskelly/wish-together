@@ -99,11 +99,12 @@ test('the marker constants match what the app emits', () => {
     ),
   );
 
-  // The stamp must stay one compile-time literal made from the prefix and the
-  // environment, or the lane greps for a value the binary cannot contain.
-  // Either interpolation spelling is fine; only the composition matters.
-  const stamp =
-    /const String sentryEnvironmentStamp = ([^;]+);/.exec(source)?.[1] ?? '';
-  assert.ok(stamp.includes('sentryEnvironmentStampPrefix'));
-  assert.ok(stamp.includes('wtSentryEnvironment'));
+  // The stamp must stay one compile-time literal built from the prefix and the
+  // environment, in that order, or the lane greps for a value the binary cannot
+  // contain.
+  assert.ok(
+    source.includes(
+      "const String sentryEnvironmentStamp = '$sentryEnvironmentStampPrefix$wtSentryEnvironment';",
+    ),
+  );
 });

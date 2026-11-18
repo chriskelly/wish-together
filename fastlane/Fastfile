@@ -200,16 +200,61 @@ def sentry_dsn
   dsn
 end
 
-def build_ipa(marketing_version:, build_number:)
+# TestFlight is not production: every alert filters on environment:production,
+# so a TestFlight event must never match one. The App Store lane passes `nil`,
+# which leaves the environment derived from the release build.
+TESTFLIGHT_SENTRY_ENVIRONMENT = "testflight"
+
+# Checks the archive itself, not the command line, because a define that never
+# reached the compiled Dart would otherwise ship a build reporting to an
+# environment no alert watches. The AOT snapshot is
+# `<archive>/Products/Applications/*.app/Frameworks/App.framework/App`; the
+# .ipa is a zip and the Runner binary holds no Dart. `nil` means the lane passed
+# no environment and only the DSN is required.
+def check_ipa_diagnostics!(sentry_environment:)
+  binaries = Dir[
+    File.join(
+      PROJECT_ROOT,
+      "build/ios/archive/*.xcarchive/Products/Applications/*.app/Frameworks/App.framework/App"
+    )
+  ]
+  if binaries.empty?
+    UI.user_error!(
+      "No App.framework/App under build/ios/archive — did `flutter build ipa` run?"
+    )
+  end
+  binary = binaries.max_by { |path| File.mtime(path) }
+
+  args = [binary, sentry_dsn]
+  args << sentry_environment unless sentry_environment.nil?
+  command = args.map { |arg| Shellwords.escape(arg) }.join(" ")
+
+  Dir.chdir(PROJECT_ROOT) do
+    sh("node scripts/check-ipa-diagnostics.mjs #{command}")
+  end
+end
+
+def build_ipa(marketing_version:, build_number:, sentry_environment:)
+  if !sentry_environment.nil? && sentry_environment.strip.empty?
+    UI.user_error!("sentry_environment is blank; omit it to derive the environment")
+  end
+
+  defines = ["--dart-define=WT_SENTRY_DSN=#{Shellwords.escape(sentry_dsn)}"]
+  unless sentry_environment.nil?
+    defines << "--dart-define=WT_SENTRY_ENVIRONMENT=#{Shellwords.escape(sentry_environment)}"
+  end
+
   Dir.chdir(PROJECT_ROOT) do
     sh(
       "flutter build ipa --release " \
       "--export-options-plist=#{Shellwords.escape(EXPORT_OPTIONS_PATH)} " \
       "--build-name=#{Shellwords.escape(marketing_version.to_s)} " \
       "--build-number=#{Shellwords.escape(build_number.to_s)} " \
-      "--dart-define=WT_SENTRY_DSN=#{Shellwords.escape(sentry_dsn)}"
+      "#{defines.join(' ')}"
     )
   end
+
+  check_ipa_diagnostics!(sentry_environment: sentry_environment)
 end
 
 # Uploads the dSYMs the build just produced. The organisation and project ids are
@@ -293,7 +338,11 @@ platform :ios do
 
     build_number = resolve_build_number
     publish_build_number(build_number)
-    build_ipa(marketing_version: testflight_marketing_version, build_number: build_number)
+    build_ipa(
+      marketing_version: testflight_marketing_version,
+      build_number: build_number,
+      sentry_environment: TESTFLIGHT_SENTRY_ENVIRONMENT
+    )
     upload_symbols(build_number: build_number)
 
     upload_to_testflight(
@@ -316,7 +365,13 @@ platform :ios do
     validate_release_version!(marketing_version)
     build_number = resolve_build_number
     publish_build_number(build_number)
-    build_ipa(marketing_version: marketing_version, build_number: build_number)
+    build_ipa(
+      marketing_version: marketing_version,
+      build_number: build_number,
+      # A release build derives `production`; only TestFlight carries a
+      # compile-time environment, so this lane must stay underived.
+      sentry_environment: nil
+    )
     upload_symbols(build_number: build_number, wait_for_processing: false)
 
     upload_to_app_store(

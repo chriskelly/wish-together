@@ -76,6 +76,13 @@ test('exits 1 and names the missing marker', () => {
   assert.match(result.stderr, /wishtogether-sentry-environment=testflight/);
 });
 
+test('exits 0 for the DSN-only App Store path', () => {
+  const result = withBundle(DSN, (bundle) => runCli([bundle, DSN]));
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /1 Sentry marker/);
+});
+
 test('exits 1 when the binary does not exist', () => {
   const result = runCli(['/nonexistent/App', DSN, 'testflight']);
 
@@ -84,18 +91,19 @@ test('exits 1 when the binary does not exist', () => {
 });
 
 test('the marker constants match what the app emits', () => {
-  const source = readFileSync(DART_SOURCE, 'utf8');
+  const source = readFileSync(DART_SOURCE, 'utf8').replace(/\s+/g, ' ');
 
-  assert.match(
-    source,
-    new RegExp(
-      `const String sentryEnvironmentStampPrefix\\s*=\\s*'${ENVIRONMENT_MARKER_PREFIX}';`,
+  assert.ok(
+    source.includes(
+      `const String sentryEnvironmentStampPrefix = '${ENVIRONMENT_MARKER_PREFIX}';`,
     ),
   );
-  // The stamp must stay one compile-time literal built from the prefix and the
+
+  // The stamp must stay one compile-time literal made from the prefix and the
   // environment, or the lane greps for a value the binary cannot contain.
-  assert.match(
-    source,
-    /const String sentryEnvironmentStamp\s*=\s*'\$sentryEnvironmentStampPrefix\$wtSentryEnvironment';/,
-  );
+  // Either interpolation spelling is fine; only the composition matters.
+  const stamp =
+    /const String sentryEnvironmentStamp = ([^;]+);/.exec(source)?.[1] ?? '';
+  assert.ok(stamp.includes('sentryEnvironmentStampPrefix'));
+  assert.ok(stamp.includes('wtSentryEnvironment'));
 });

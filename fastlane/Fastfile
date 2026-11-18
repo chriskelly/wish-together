@@ -211,7 +211,7 @@ TESTFLIGHT_SENTRY_ENVIRONMENT = "testflight"
 # `<archive>/Products/Applications/*.app/Frameworks/App.framework/App`; the
 # .ipa is a zip and the Runner binary holds no Dart. `nil` means the lane passed
 # no environment and only the DSN is required.
-def check_ipa_diagnostics!(sentry_environment:)
+def check_ipa_diagnostics!(dsn:, sentry_environment:)
   binaries = Dir[
     File.join(
       PROJECT_ROOT,
@@ -225,7 +225,7 @@ def check_ipa_diagnostics!(sentry_environment:)
   end
   binary = binaries.max_by { |path| File.mtime(path) }
 
-  args = [binary, sentry_dsn]
+  args = [binary, dsn]
   args << sentry_environment unless sentry_environment.nil?
   command = args.map { |arg| Shellwords.escape(arg) }.join(" ")
 
@@ -242,7 +242,8 @@ def build_ipa(marketing_version:, build_number:, sentry_environment:)
     UI.user_error!("sentry_environment is blank; pass nil to derive the environment")
   end
 
-  defines = ["--dart-define=WT_SENTRY_DSN=#{Shellwords.escape(sentry_dsn)}"]
+  dsn = sentry_dsn
+  defines = ["--dart-define=WT_SENTRY_DSN=#{Shellwords.escape(dsn)}"]
   unless sentry_environment.nil?
     defines << "--dart-define=WT_SENTRY_ENVIRONMENT=#{Shellwords.escape(sentry_environment)}"
   end
@@ -257,7 +258,7 @@ def build_ipa(marketing_version:, build_number:, sentry_environment:)
     )
   end
 
-  check_ipa_diagnostics!(sentry_environment: sentry_environment)
+  check_ipa_diagnostics!(dsn: dsn, sentry_environment: sentry_environment)
 end
 
 # Uploads the dSYMs the build just produced. The organisation and project ids are
@@ -372,7 +373,8 @@ platform :ios do
       marketing_version: marketing_version,
       build_number: build_number,
       # A release build derives `production`; only TestFlight carries a
-      # compile-time environment, so this lane must stay underived.
+      # compile-time environment, so this lane must pass no environment and
+      # leave production derived.
       sentry_environment: nil
     )
     upload_symbols(build_number: build_number, wait_for_processing: false)

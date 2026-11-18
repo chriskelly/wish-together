@@ -17,7 +17,7 @@ const String wtSentryDsn = String.fromEnvironment('WT_SENTRY_DSN');
 ///
 /// Empty means derive it: `production` in release builds, `debug` otherwise.
 /// `staging` is the pre-merge host, which carries no release; `testflight` is
-/// mounted by the TestFlight lane.
+/// passed by the TestFlight lane.
 const String wtSentryEnvironment = String.fromEnvironment(
   'WT_SENTRY_ENVIRONMENT',
 );

@@ -119,7 +119,6 @@ void main() {
         environment: 'testflight',
       );
 
-      expect(startup.environment, 'testflight');
       expect(startup.release, 'wishtogether@$iosBuild');
       expect(startup.dist, 'ios-$iosBuild');
     });

@@ -4,7 +4,6 @@ import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/dev/dev_banner.dart';
@@ -17,21 +16,17 @@ import 'package:wishtogether/features/auth/domain/auth_session.dart';
 
 class _MockFirebaseAuth extends Mock implements FirebaseAuth {}
 
-class _MockGoogleSignIn extends Mock implements GoogleSignIn {}
-
 /// A live service that needs no Firebase project.
 ///
-/// `AuthService` reads `FirebaseAuth.instance` and subscribes to the Google
-/// sign-in stream in its constructor, so both arrive as mocks here.
+/// `AuthService` reads `FirebaseAuth.instance` in its constructor, so that
+/// arrives as a mock here. The Google SDK is only touched by a Google flow, and
+/// a live dev session signs in with a custom token.
 LiveDevAuthService liveService() {
   final auth = _MockFirebaseAuth();
   when(() => auth.currentUser).thenReturn(null);
   when(() => auth.authStateChanges())
       .thenAnswer((_) => const Stream<User?>.empty());
-  final google = _MockGoogleSignIn();
-  when(() => google.onCurrentUserChanged)
-      .thenAnswer((_) => const Stream<GoogleSignInAccount?>.empty());
-  return LiveDevAuthService(auth: auth, googleSignIn: google);
+  return LiveDevAuthService(auth: auth);
 }
 
 /// A live launch the tests can hand around without a Firebase project.

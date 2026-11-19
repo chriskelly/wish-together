@@ -15,6 +15,7 @@ import '../../../core/logging/recording_sink.dart';
 
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
+import 'package:wishtogether/features/auth/data/google_auth_error.dart';
 import 'package:wishtogether/features/auth/data/phone_verification.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
 import 'package:wishtogether/features/auth/presentation/login_page.dart';
@@ -22,9 +23,14 @@ import 'package:wishtogether/features/auth/presentation/verification_page.dart';
 
 class MockAuthService extends Mock implements AuthService {}
 
-class MockGoogleSignIn extends Mock implements GoogleSignIn {}
-
 class MockUserRepository extends Mock implements UserRepository {}
+
+/// A service mock whose platform is already answered.
+MockAuthService mockAuthService({bool isWeb = false}) {
+  final authService = MockAuthService();
+  when(() => authService.isWeb).thenReturn(isWeb);
+  return authService;
+}
 
 const String phoneNumber = '4085551234';
 const String verificationId = 'native-verification-id';
@@ -90,7 +96,8 @@ void main() {
   group('LoginPage support code', () {
     setUp(() async {
       await getIt.reset();
-      getIt.registerSingleton<AuthService>(MockAuthService());
+      final authService = mockAuthService();
+      getIt.registerSingleton<AuthService>(authService);
       getIt.registerSingleton<AppLog>(
         AppLog(session: testSession, sinks: const []),
       );
@@ -109,7 +116,8 @@ void main() {
   group('LoginPage title', () {
     setUp(() async {
       await getIt.reset();
-      getIt.registerSingleton<AuthService>(MockAuthService());
+      final authService = mockAuthService();
+      getIt.registerSingleton<AuthService>(authService);
       getIt.registerSingleton<AppLog>(
         AppLog(session: testSession, sinks: const []),
       );
@@ -192,16 +200,12 @@ void main() {
     });
   });
 
-  group('LoginPage sign-in failures', () {
+  group('LoginPage Google sign-in', () {
     late MockAuthService authService;
-    late MockGoogleSignIn googleSignIn;
 
     setUp(() async {
       await getIt.reset();
-      authService = MockAuthService();
-      googleSignIn = MockGoogleSignIn();
-      when(() => authService.googleSignIn).thenReturn(googleSignIn);
-      when(() => googleSignIn.signIn()).thenThrow(Exception('sign-in failed'));
+      authService = mockAuthService();
       getIt.registerSingleton<AuthService>(authService);
       getIt.registerSingleton<AppLog>(
         AppLog(session: testSession, sinks: const []),
@@ -210,14 +214,158 @@ void main() {
 
     tearDown(getIt.reset);
 
-    testWidgets('hands a Google failure to the service for reporting', (
+    testWidgets('shows a neutral message when the picker is cancelled', (
       tester,
     ) async {
+      // Arrange
+      when(() => authService.signInWithGoogle()).thenThrow(
+        const GoogleSignInException(code: GoogleSignInExceptionCode.canceled),
+      );
       await tester.pumpWidget(const MaterialApp(home: LoginPage()));
+
+      // Act
       await tester.tap(find.text('Sign in with Google'));
       await tester.pump();
 
-      verify(() => authService.reportSignInFailure(any())).called(1);
+      // Assert
+      expect(find.text(googleSignInCancelledMessage), findsOneWidget);
+      expect(find.textContaining('Google sign-in failed'), findsNothing);
+    });
+
+    testWidgets('keeps the failure text for another Google error', (
+      tester,
+    ) async {
+      // Arrange
+      when(() => authService.signInWithGoogle()).thenThrow(
+        const GoogleSignInException(
+          code: GoogleSignInExceptionCode.clientConfigurationError,
+          description: 'bad configuration',
+        ),
+      );
+      await tester.pumpWidget(const MaterialApp(home: LoginPage()));
+
+      // Act
+      await tester.tap(find.text('Sign in with Google'));
+      await tester.pump();
+
+      // Assert
+      expect(find.textContaining('Google sign-in failed'), findsOneWidget);
+      expect(find.text(googleSignInCancelledMessage), findsNothing);
+    });
+  });
+
+  group('LoginPage web Google setup', () {
+    late MockAuthService authService;
+
+    setUp(() async {
+      await getIt.reset();
+      authService = mockAuthService(isWeb: true);
+      getIt.registerSingleton<AuthService>(authService);
+      getIt.registerSingleton<AppLog>(
+        AppLog(session: testSession, sinks: const []),
+      );
+    });
+
+    tearDown(getIt.reset);
+
+    testWidgets('starts Google initialization once when the page opens', (
+      tester,
+    ) async {
+      // Arrange: the GIS SDK load stays in flight.
+      final prepared = Completer<void>();
+      when(() => authService.prepareGoogleSignIn())
+          .thenAnswer((_) => prepared.future);
+
+      // Act
+      await tester.pumpWidget(const MaterialApp(home: LoginPage()));
+      await tester.pump();
+
+      // Assert
+      verify(() => authService.prepareGoogleSignIn()).called(1);
+      prepared.complete();
+      await tester.pump();
+    });
+
+    testWidgets('replaces the button when initialization fails', (
+      tester,
+    ) async {
+      // Arrange: the real service rejects its future; it does not throw
+      // synchronously from the call.
+      when(() => authService.prepareGoogleSignIn()).thenAnswer(
+        (_) => Future<void>.error(
+          const GoogleSignInException(
+            code: GoogleSignInExceptionCode.unknownError,
+          ),
+        ),
+      );
+
+      // Act
+      await tester.pumpWidget(const MaterialApp(home: LoginPage()));
+      await tester.pump();
+
+      // Assert
+      expect(
+        find.text(LoginPage.googleSignInUnavailableMessage),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('falls back when initialization never completes', (
+      tester,
+    ) async {
+      // Arrange: a blocked GIS script leaves the prepare future pending.
+      final prepared = Completer<void>();
+      when(() => authService.prepareGoogleSignIn())
+          .thenAnswer((_) => prepared.future);
+
+      // Act
+      await tester.pumpWidget(const MaterialApp(home: LoginPage()));
+      await tester.pump(LoginPage.googlePrepareTimeout);
+      await tester.pump();
+
+      // Assert
+      expect(
+        find.text(LoginPage.googleSignInUnavailableMessage),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a disposed page ignores a late initialization failure', (
+      tester,
+    ) async {
+      // Arrange
+      final prepared = Completer<void>();
+      when(() => authService.prepareGoogleSignIn())
+          .thenAnswer((_) => prepared.future);
+      await tester.pumpWidget(const MaterialApp(home: LoginPage()));
+      await tester.pump();
+
+      // Act: leave the page, then fail the in-flight prepare.
+      await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
+      prepared.completeError(
+        const GoogleSignInException(
+          code: GoogleSignInExceptionCode.unknownError,
+        ),
+      );
+      await tester.pump();
+
+      // Assert
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('native pages never initialize Google', (tester) async {
+      // Arrange: the page is native even though this group registered web.
+      when(() => authService.isWeb).thenReturn(false);
+
+      // Act
+      await tester.pumpWidget(const MaterialApp(home: LoginPage()));
+      await tester.pump();
+
+      // Assert
+      verifyNever(() => authService.prepareGoogleSignIn());
+      expect(find.text('Sign in with Google'), findsOneWidget);
     });
   });
 
@@ -226,7 +374,7 @@ void main() {
 
     setUp(() async {
       await getIt.reset();
-      authService = MockAuthService();
+      authService = mockAuthService();
       getIt.registerSingleton<AuthService>(authService);
       getIt.registerSingleton<AppLog>(
         AppLog(session: testSession, sinks: const []),
@@ -319,7 +467,7 @@ void main() {
 
     setUp(() async {
       await getIt.reset();
-      authService = MockAuthService();
+      authService = mockAuthService();
       getIt.registerSingleton<AuthService>(authService);
       getIt.registerSingleton<AppLog>(
         AppLog(session: testSession, sinks: const []),
@@ -401,7 +549,7 @@ void main() {
 
     setUp(() async {
       await getIt.reset();
-      authService = MockAuthService();
+      authService = mockAuthService();
       userRepository = MockUserRepository();
       when(() => authService.currentUserId).thenReturn(null);
       when(() => authService.uidChanges)

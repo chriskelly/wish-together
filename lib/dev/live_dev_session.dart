@@ -84,12 +84,7 @@ Future<Widget> buildLiveDevApp(
 /// re-authenticates against the real provider and then deletes a real Auth user,
 /// and the Auth project is shared with production.
 class LiveDevAuthService extends AuthService {
-  LiveDevAuthService({
-    super.auth,
-    super.isWeb,
-    super.appleCredentialFetcher,
-    super.googleSignIn,
-  });
+  LiveDevAuthService({super.auth, super.isWeb, super.appleCredentialFetcher});
 
   @override
   bool get supportsAccountDeletion => false;

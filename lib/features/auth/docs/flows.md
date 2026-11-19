@@ -156,7 +156,8 @@ session, `AuthListenable` drops the signed-in state at the same moment; the
   `AppleCredentialFetcher` (credential exchange, the SHA-256 nonce relationship, the missing
   identity token, and error propagation). Google coverage: one initialization per plugin
   instance and the per-platform client ids; native idToken-only sign-in and reauthentication;
-  web event exchange and the single subscription; cancellation breadcrumbs; kebab-case
+  web event exchange, the single subscription and the ignored sign-out event;
+  cancellation breadcrumbs; kebab-case
   warnings; missing idTokens; a pending or failed initialization that must not block sign-out
   or deletion; deletion's link-aware bounded revocation; and the cleanup/sign-out failure
   logging. It also covers `deleteAccount` (delete then revoke, the signed-out no-op, and a

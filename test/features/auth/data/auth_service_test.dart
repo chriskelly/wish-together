@@ -688,6 +688,22 @@ void main() {
         ),
       ).called(1);
     });
+
+    test('on web, ignores a sign-out event', () async {
+      // ARRANGE
+      final googleSignIn = MockGoogleSignIn();
+      final prepared = await preparedWebGoogleService(mockAuth, googleSignIn);
+      when(() => mockAuth.signOut()).thenAnswer((_) async {});
+
+      // ACT
+      prepared.events.add(GoogleSignInAuthenticationEventSignOut());
+      await pumpEventQueue();
+
+      // ASSERT: only sign-in events carry a credential; a sign-out event must
+      // not exchange anything or touch the Firebase session.
+      verifyNever(() => mockAuth.signInWithCredential(any()));
+      verifyNever(() => mockAuth.signOut());
+    });
   });
 
   group('AuthService.signOut', () {

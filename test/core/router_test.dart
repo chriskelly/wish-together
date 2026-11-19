@@ -23,6 +23,7 @@ import 'package:wishtogether/features/auth/presentation/profile_page.dart';
 import 'package:wishtogether/features/auth/presentation/verification_page.dart';
 import 'package:wishtogether/features/group/domain/group.dart';
 import 'package:wishtogether/features/group/presentation/group_form_page.dart';
+import 'package:wishtogether/features/group/presentation/join_group_page.dart';
 import 'package:wishtogether/features/wishlist/domain/item.dart';
 import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
 import 'package:wishtogether/features/wishlist/presentation/item_form_page.dart';
@@ -35,6 +36,15 @@ class MockAuthSession extends Mock implements AuthSession {}
 class MockUserRepository extends Mock implements UserRepository {}
 
 const joinPath = '/join?group=123';
+
+/// The widget a route page builds, for tests that inspect page content without
+/// mounting it. The context is the test's, not the page's, so this cannot
+/// verify an inherited lookup such as `GoRouterState.of(context)`.
+Widget pageChild(GoRoute route, BuildContext context, GoRouterState state) {
+  final page = route.pageBuilder!(context, state) as MaterialPage<void>;
+  final child = page.child;
+  return child is Builder ? child.builder(context) : child;
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -611,21 +621,6 @@ void main() {
   });
 
   group('route extras', () {
-    Future<BuildContext> pumpContext(WidgetTester tester) async {
-      late BuildContext captured;
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Builder(
-            builder: (BuildContext context) {
-              captured = context;
-              return const SizedBox.shrink();
-            },
-          ),
-        ),
-      );
-      return captured;
-    }
-
     GoRouter newRouter() {
       final router = stateFixtureRouter();
       addTearDown(router.dispose);
@@ -633,7 +628,7 @@ void main() {
     }
 
     testWidgets('a create redirect without an id goes home', (tester) async {
-      final context = await pumpContext(tester);
+      final context = await pumpRouterContext(tester);
       final router = newRouter();
 
       final result = await itemFormPageCreateRoute().redirect!(
@@ -645,7 +640,7 @@ void main() {
     });
 
     testWidgets('a create redirect with a blank id goes home', (tester) async {
-      final context = await pumpContext(tester);
+      final context = await pumpRouterContext(tester);
       final router = newRouter();
 
       final result = await itemFormPageCreateRoute().redirect!(
@@ -663,7 +658,7 @@ void main() {
     testWidgets('a create redirect without args returns to the list', (
       tester,
     ) async {
-      final context = await pumpContext(tester);
+      final context = await pumpRouterContext(tester);
       final router = newRouter();
       const wishlistId = 'w1';
 
@@ -682,7 +677,7 @@ void main() {
     testWidgets('a create redirect with args lets the form build', (
       tester,
     ) async {
-      final context = await pumpContext(tester);
+      final context = await pumpRouterContext(tester);
       final router = newRouter();
       const wishlistId = 'w1';
 
@@ -700,10 +695,11 @@ void main() {
     });
 
     testWidgets('a create builder without args is unavailable', (tester) async {
-      final context = await pumpContext(tester);
+      final context = await pumpRouterContext(tester);
       final router = newRouter();
 
-      final widget = itemFormPageCreateRoute().builder!(
+      final widget = pageChild(
+        itemFormPageCreateRoute(),
         context,
         stateFixture(
           router,
@@ -718,10 +714,11 @@ void main() {
     testWidgets('a create builder without an id is unavailable', (
       tester,
     ) async {
-      final context = await pumpContext(tester);
+      final context = await pumpRouterContext(tester);
       final router = newRouter();
 
-      final widget = itemFormPageCreateRoute().builder!(
+      final widget = pageChild(
+        itemFormPageCreateRoute(),
         context,
         stateFixture(
           router,
@@ -736,12 +733,13 @@ void main() {
     testWidgets('a create builder with an id and args builds the form', (
       tester,
     ) async {
-      final context = await pumpContext(tester);
+      final context = await pumpRouterContext(tester);
       final router = newRouter();
       const wishlistId = 'w1';
       final args = CreateItemRouteArgs();
 
-      final widget = itemFormPageCreateRoute().builder!(
+      final widget = pageChild(
+        itemFormPageCreateRoute(),
         context,
         stateFixture(
           router,
@@ -756,11 +754,12 @@ void main() {
     });
 
     testWidgets('an item edit without args is unavailable', (tester) async {
-      final context = await pumpContext(tester);
+      final context = await pumpRouterContext(tester);
       final router = newRouter();
       const wishlistId = 'w1';
 
-      final widget = itemFormPageEditRoute().builder!(
+      final widget = pageChild(
+        itemFormPageEditRoute(),
         context,
         stateFixture(
           router,
@@ -778,7 +777,7 @@ void main() {
     testWidgets('an item edit without args returns to the list', (
       tester,
     ) async {
-      final context = await pumpContext(tester);
+      final context = await pumpRouterContext(tester);
       final router = newRouter();
       const wishlistId = 'w1';
 
@@ -798,7 +797,7 @@ void main() {
     });
 
     testWidgets('an item edit with args is allowed', (tester) async {
-      final context = await pumpContext(tester);
+      final context = await pumpRouterContext(tester);
       final router = newRouter();
       const wishlistId = 'w1';
       final args = EditItemRouteArgs(Item(name: 'Lamp'));
@@ -820,12 +819,13 @@ void main() {
     });
 
     testWidgets('an item edit with args builds the form', (tester) async {
-      final context = await pumpContext(tester);
+      final context = await pumpRouterContext(tester);
       final router = newRouter();
       const wishlistId = 'w1';
       final args = EditItemRouteArgs(Item(name: 'Lamp'));
 
-      final widget = itemFormPageEditRoute().builder!(
+      final widget = pageChild(
+        itemFormPageEditRoute(),
         context,
         stateFixture(
           router,
@@ -845,7 +845,7 @@ void main() {
     testWidgets('a wishlist edit without its extra returns to the list', (
       tester,
     ) async {
-      final context = await pumpContext(tester);
+      final context = await pumpRouterContext(tester);
       final router = newRouter();
       const wishlistId = 'w1';
 
@@ -862,7 +862,7 @@ void main() {
     });
 
     testWidgets('a wishlist edit with its extra is allowed', (tester) async {
-      final context = await pumpContext(tester);
+      final context = await pumpRouterContext(tester);
       final router = newRouter();
       const wishlistId = 'w1';
       final wishlist = Wishlist(
@@ -887,11 +887,12 @@ void main() {
     testWidgets('a wishlist edit without its extra is unavailable', (
       tester,
     ) async {
-      final context = await pumpContext(tester);
+      final context = await pumpRouterContext(tester);
       final router = newRouter();
       const wishlistId = 'w1';
 
-      final widget = wishlistFormPageEditRoute().builder!(
+      final widget = pageChild(
+        wishlistFormPageEditRoute(),
         context,
         stateFixture(
           router,
@@ -906,7 +907,7 @@ void main() {
     testWidgets('a wishlist edit with its extra builds the form', (
       tester,
     ) async {
-      final context = await pumpContext(tester);
+      final context = await pumpRouterContext(tester);
       final router = newRouter();
       const wishlistId = 'w1';
       final wishlist = Wishlist(
@@ -915,7 +916,8 @@ void main() {
         ownerId: 'owner',
       );
 
-      final widget = wishlistFormPageEditRoute().builder!(
+      final widget = pageChild(
+        wishlistFormPageEditRoute(),
         context,
         stateFixture(
           router,
@@ -931,7 +933,7 @@ void main() {
     testWidgets('a group edit without its extra returns to the group', (
       tester,
     ) async {
-      final context = await pumpContext(tester);
+      final context = await pumpRouterContext(tester);
       final router = newRouter();
       const groupId = 'g1';
 
@@ -948,7 +950,7 @@ void main() {
     });
 
     testWidgets('a group edit with its extra is allowed', (tester) async {
-      final context = await pumpContext(tester);
+      final context = await pumpRouterContext(tester);
       final router = newRouter();
       const groupId = 'g1';
       final group = Group(
@@ -974,11 +976,12 @@ void main() {
     testWidgets('a group edit without its extra is unavailable', (
       tester,
     ) async {
-      final context = await pumpContext(tester);
+      final context = await pumpRouterContext(tester);
       final router = newRouter();
       const groupId = 'g1';
 
-      final widget = groupFormPageEditRoute().builder!(
+      final widget = pageChild(
+        groupFormPageEditRoute(),
         context,
         stateFixture(
           router,
@@ -991,7 +994,7 @@ void main() {
     });
 
     testWidgets('a group edit with its extra builds the form', (tester) async {
-      final context = await pumpContext(tester);
+      final context = await pumpRouterContext(tester);
       final router = newRouter();
       const groupId = 'g1';
       final group = Group(
@@ -1001,7 +1004,8 @@ void main() {
         members: const <String>['owner'],
       );
 
-      final widget = groupFormPageEditRoute().builder!(
+      final widget = pageChild(
+        groupFormPageEditRoute(),
         context,
         stateFixture(
           router,
@@ -1017,16 +1021,34 @@ void main() {
     testWidgets('a wrong-typed verification extra shows the invalid link', (
       tester,
     ) async {
-      final context = await pumpContext(tester);
+      final context = await pumpRouterContext(tester);
       final router = newRouter();
 
-      final widget = verificationPageRoute().builder!(
+      final widget = pageChild(
+        verificationPageRoute(),
         context,
         stateFixture(router, location: VerificationPage.route, extra: 42),
       );
       await tester.pumpWidget(MaterialApp(home: widget));
 
       expect(find.text('Invalid verification link.'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a missing invitation group shows the invalid link', (
+      tester,
+    ) async {
+      final context = await pumpRouterContext(tester);
+      final router = newRouter();
+
+      final widget = pageChild(
+        joinGroupPageRoute(),
+        context,
+        stateFixture(router, location: JoinGroupPage.route),
+      );
+      await tester.pumpWidget(MaterialApp(home: widget));
+
+      expect(find.text('Invalid invitation link.'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });

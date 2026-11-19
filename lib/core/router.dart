@@ -4,6 +4,7 @@ import 'package:wishtogether/core/logging/app_event.dart';
 import 'package:wishtogether/core/logging/app_log.dart';
 import 'package:wishtogether/core/logging/diagnostics.dart';
 import 'package:wishtogether/core/logging/redaction.dart';
+import 'package:wishtogether/core/route_error_page.dart';
 import 'package:wishtogether/core/route_state.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
@@ -120,6 +121,8 @@ GoRouter createRouter(
     refreshListenable: AuthListenable(session),
     redirect: (BuildContext context, GoRouterState state) =>
         handleRedirect(state.uri.toString(), session, userRepo: repository),
+    errorPageBuilder: (BuildContext context, GoRouterState state) =>
+        _materialPage(state, RouteErrorPage(error: state.error)),
     // `logRouteLiterals` mirrors these page path constants; the literal test in
     // test/core/logging/route_literals_test.dart fails if one is missing.
     routes: <RouteBase>[
@@ -218,7 +221,57 @@ String? _redirectToProfile(Uri uri, String originalUri) {
   return '${ProfilePage.route}?$redirectToParam=${Uri.encodeComponent(redirectTo)}';
 }
 
-GoRoute homePageRoute() => GoRoute(
+/// Builds the Flutter Material page for a route.
+///
+/// go_router 18 chooses its default page by looking for `material_ui`'s
+/// `MaterialApp`. This app mounts the Flutter SDK's `MaterialApp.router`, so
+/// an automatic page would be a `NoTransitionPage` with no Material
+/// transition. Every route states its page here instead; do not migrate the
+/// app to `material_ui` to satisfy go_router's check.
+Page<void> _materialPage(GoRouterState state, Widget child) {
+  return MaterialPage<void>(
+    key: state.pageKey,
+    name: state.name ?? state.path,
+    arguments: <String, String>{
+      ...state.pathParameters,
+      ...state.uri.queryParameters,
+    },
+    restorationId: state.pageKey.value,
+    child: child,
+  );
+}
+
+/// A [GoRoute] whose page is always a Flutter SDK [MaterialPage].
+///
+/// The factory keeps the page-type choice in one place: a route added with a
+/// bare `builder` and no `pageBuilder` would fall back to go_router's
+/// `material_ui` detection and silently lose its transition.
+///
+/// The route builder runs inside a [Builder] under the page, matching
+/// go_router's own Material page adapter, so an inherited lookup such as
+/// `GoRouterState.of(context)` sees the page context.
+GoRoute _materialRoute({
+  required String path,
+  String? name,
+  required GoRouterWidgetBuilder builder,
+  GoRouterRedirect? redirect,
+  ExitCallback? onExit,
+  List<RouteBase> routes = const <RouteBase>[],
+}) {
+  return GoRoute(
+    path: path,
+    name: name,
+    redirect: redirect,
+    onExit: onExit,
+    routes: routes,
+    pageBuilder: (BuildContext context, GoRouterState state) => _materialPage(
+      state,
+      Builder(builder: (BuildContext context) => builder(context, state)),
+    ),
+  );
+}
+
+GoRoute homePageRoute() => _materialRoute(
   path: HomePage.route,
   builder: (BuildContext context, GoRouterState state) => const HomePage(),
   routes: [wishlistDetailsPageRoute(), groupDetailsPageRoute()],
@@ -234,7 +287,7 @@ String? _parentId(GoRouterState state) {
   return id == null || id.trim().isEmpty ? null : id;
 }
 
-GoRoute wishlistDetailsPageRoute() => GoRoute(
+GoRoute wishlistDetailsPageRoute() => _materialRoute(
   name: WishlistDetailsPage.routeName,
   path: WishlistDetailsPage.route.substring(1),
   builder: (BuildContext context, GoRouterState state) {
@@ -248,7 +301,7 @@ GoRoute wishlistDetailsPageRoute() => GoRoute(
   ],
 );
 
-GoRoute itemFormPageCreateRoute() => GoRoute(
+GoRoute itemFormPageCreateRoute() => _materialRoute(
   name: ItemFormPage.createRouteName,
   path: ItemFormPage.createRoute,
   // Same per-push guard shape as the edit route, so a second create form
@@ -282,7 +335,7 @@ GoRoute itemFormPageCreateRoute() => GoRoute(
   },
 );
 
-GoRoute wishlistFormPageEditRoute() => GoRoute(
+GoRoute wishlistFormPageEditRoute() => _materialRoute(
   name: WishlistFormPage.editRouteName,
   path: WishlistFormPage.editRoute,
   // The form needs the wishlist it was opened with; a deep link or reload has
@@ -304,7 +357,7 @@ GoRoute wishlistFormPageEditRoute() => GoRoute(
   },
 );
 
-GoRoute itemFormPageEditRoute() => GoRoute(
+GoRoute itemFormPageEditRoute() => _materialRoute(
   name: ItemFormPage.editRouteName,
   path: ItemFormPage.editRoute,
   // A browser back replaces the route instead of popping it, so it never
@@ -341,7 +394,7 @@ GoRoute itemFormPageEditRoute() => GoRoute(
   },
 );
 
-GoRoute groupDetailsPageRoute() => GoRoute(
+GoRoute groupDetailsPageRoute() => _materialRoute(
   name: GroupDetailsPage.routeName,
   path: GroupDetailsPage.route.substring(1),
   builder: (BuildContext context, GoRouterState state) {
@@ -351,7 +404,7 @@ GoRoute groupDetailsPageRoute() => GoRoute(
   routes: [groupFormPageEditRoute()],
 );
 
-GoRoute groupFormPageEditRoute() => GoRoute(
+GoRoute groupFormPageEditRoute() => _materialRoute(
   name: GroupFormPage.editRouteName,
   path: GroupFormPage.editRoute,
   // The form needs the group it was opened with; a deep link or reload has no
@@ -373,14 +426,14 @@ GoRoute groupFormPageEditRoute() => GoRoute(
   },
 );
 
-GoRoute loginPageRoute() => GoRoute(
+GoRoute loginPageRoute() => _materialRoute(
   path: LoginPage.route,
   builder: (BuildContext context, GoRouterState state) {
     return const LoginPage();
   },
 );
 
-GoRoute verificationPageRoute() => GoRoute(
+GoRoute verificationPageRoute() => _materialRoute(
   path: VerificationPage.route,
   builder: (BuildContext context, GoRouterState state) {
     final verificationId = routeExtra<String>(state);
@@ -397,21 +450,21 @@ GoRoute verificationPageRoute() => GoRoute(
   },
 );
 
-GoRoute wishlistFormPageRoute() => GoRoute(
+GoRoute wishlistFormPageRoute() => _materialRoute(
   path: WishlistFormPage.createRoute,
   builder: (BuildContext context, GoRouterState state) {
     return const WishlistFormPage();
   },
 );
 
-GoRoute groupFormPageRoute() => GoRoute(
+GoRoute groupFormPageRoute() => _materialRoute(
   path: GroupFormPage.createRoute,
   builder: (BuildContext context, GoRouterState state) {
     return const GroupFormPage();
   },
 );
 
-GoRoute profilePageRoute() => GoRoute(
+GoRoute profilePageRoute() => _materialRoute(
   path: ProfilePage.route,
   builder: (BuildContext context, GoRouterState state) {
     final redirectTo = state.uri.queryParameters[redirectToParam];
@@ -419,7 +472,7 @@ GoRoute profilePageRoute() => GoRoute(
   },
 );
 
-GoRoute joinGroupPageRoute() => GoRoute(
+GoRoute joinGroupPageRoute() => _materialRoute(
   name: JoinGroupPage.routeName,
   path: JoinGroupPage.route,
   builder: (BuildContext context, GoRouterState state) {

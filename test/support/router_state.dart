@@ -1,4 +1,5 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 /// A router that exists only to supply a [RouteConfiguration] to a
@@ -16,6 +17,25 @@ GoRouter stateFixtureRouter() => GoRouter(
     ),
   ],
 );
+
+/// Pumps a `MaterialApp` and returns a context below it.
+///
+/// Route callbacks under test need a context with Material ancestors without
+/// mounting the page they build.
+Future<BuildContext> pumpRouterContext(WidgetTester tester) async {
+  late BuildContext captured;
+  await tester.pumpWidget(
+    MaterialApp(
+      home: Builder(
+        builder: (BuildContext context) {
+          captured = context;
+          return const SizedBox.shrink();
+        },
+      ),
+    ),
+  );
+  return captured;
+}
 
 /// The state a route callback receives, with only the fields routes read.
 GoRouterState stateFixture(

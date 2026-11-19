@@ -24,6 +24,18 @@ composition roots may inject one. It also takes an optional `initialLocation` (a
 as `/join?group=123`), which is how an iOS Universal Link starts the router.
 `handleRedirect`'s fallback is for direct callers and tests.
 
+## Pages and the app-type check
+
+go_router 18 picks its default page by looking for `material_ui`'s `MaterialApp` in the
+widget tree. This app mounts the Flutter SDK's `MaterialApp.router` (`lib/main.dart`), so
+go_router's fallback would turn every route into a `NoTransitionPage` and the error page
+into its bare `ErrorScreen`. Every `GoRoute` therefore goes through `_materialRoute`, which
+supplies a Flutter `MaterialPage` and runs the route builder in a `Builder` under the page,
+and `createRouter` supplies an `errorPageBuilder` that wraps `RouteErrorPage` in the same
+page type. Do not migrate the app to `material_ui` to make the automatic detection pass, and
+do not add a route with a bare `builder` and no page. The page type is pinned by
+`test/core/router_pages_test.dart`.
+
 ## Invariants
 
 - A logged-out user is redirected to `/login`, preserving the original destination in the
@@ -61,6 +73,9 @@ as `/join?group=123`), which is how an iOS Universal Link starts the router.
   a mocked `AuthSession` and `UserRepository`; it also pins the `getIt<UserRepository>()`
   fallback and the create, item-edit, wishlist-edit and group-edit redirects and builders,
   including their no-extra fallbacks.
+- `test/core/router_pages_test.dart` walks the configured route graph and pins every route to
+  a `MaterialPage`, then pins a normal route at runtime, the unknown-location error page's
+  Material chrome, and its Home action.
 - `test/core/route_state_test.dart` pins `routeExtra`'s type gate and the unavailable page;
   `test/core/router_extra_guard_test.dart` rejects a direct extra read outside
   `route_state.dart` and an immediately null-checked `routeExtra` result (a local can still

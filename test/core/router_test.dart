@@ -37,7 +37,9 @@ class MockUserRepository extends Mock implements UserRepository {}
 
 const joinPath = '/join?group=123';
 
-/// The widget a route page builds, unwrapping the page's builder context.
+/// The widget a route page builds, for tests that inspect page content without
+/// mounting it. The context is the test's, not the page's, so this cannot
+/// verify an inherited lookup such as `GoRouterState.of(context)`.
 Widget pageChild(GoRoute route, BuildContext context, GoRouterState state) {
   final page = route.pageBuilder!(context, state) as MaterialPage<void>;
   final child = page.child;

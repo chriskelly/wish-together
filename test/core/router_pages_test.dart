@@ -53,16 +53,21 @@ void main() {
         if (pageBuilder == null) {
           withoutMaterialPage.add('${route.path} (no pageBuilder)');
         } else {
-          final page = pageBuilder(
-            context,
-            stateFixture(
-              router,
-              location: route.path,
-              pathParameters: const <String, String>{'id': 'w1'},
-            ),
+          final state = stateFixture(
+            router,
+            location: route.path,
+            pathParameters: const <String, String>{'id': 'w1'},
           );
+          final page = pageBuilder(context, state);
           if (page is! MaterialPage) {
             withoutMaterialPage.add(route.path);
+          } else {
+            if (page.key != state.pageKey) {
+              withoutMaterialPage.add('${route.path} (page key)');
+            }
+            if (page.restorationId != state.pageKey.value) {
+              withoutMaterialPage.add('${route.path} (restoration id)');
+            }
           }
         }
         visit(route.routes);
@@ -120,8 +125,15 @@ void main() {
     expect(find.byType(RouteErrorPage), findsOneWidget);
     expect(find.widgetWithText(AppBar, 'Page Not Found'), findsOneWidget);
     expect(find.text('Home'), findsOneWidget);
+    expect(
+      tester.widget<RouteErrorPage>(find.byType(RouteErrorPage)).error,
+      isNotNull,
+    );
     final navigator = tester.widgetList<Navigator>(find.byType(Navigator)).last;
     expect(navigator.pages.last, isA<MaterialPage<void>>());
+
+    await tester.tap(find.text('Home'));
+    expect(router.routeInformationProvider.value.uri.path, '/');
   });
 
   testWidgets('the error page Home action returns to the root', (tester) async {

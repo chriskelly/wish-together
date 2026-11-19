@@ -1,1 +1,1 @@
-Fixed a crash when returning to the add-item form.
+Fixed a crash when going back from the add-item form.

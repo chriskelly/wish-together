@@ -51,7 +51,8 @@ as `/join?group=123`), which is how an iOS Universal Link starts the router.
   refresh re-parse the encoded match list, whose codec cannot serialise a leave guard or a
   domain object, so a restored page can be rebuilt with no extra even though the original push
   carried one. Routes read extras only through `routeExtra` (`route_state.dart`); a restore
-  that still reaches a builder renders `RouteUnavailablePage` instead of a throwing build.
+  that still reaches one of those form builders renders `RouteUnavailablePage` instead of a
+  throwing build.
 
 ## How it is tested
 

@@ -36,13 +36,13 @@ dependencies:
     sdk: flutter
 
   # Firebase: the plugins' iOS packages pin one shared firebase-ios-sdk, so bump
-  # them together. These floors pull 12.19.3, which dropped the roots chaining to
-  # the compromised eMudhra CA (an unrelated EmSign root remains).
-  firebase_core: ^4.15.1
-  firebase_auth: ^6.7.1
-  firebase_app_check: ^0.4.9
-  cloud_firestore: ^6.10.1
-  firebase_remote_config: ^6.7.1
+  # them together. These floors pull 13.2.0, which excludes the roots chaining to
+  # the compromised eMudhra CA.
+  firebase_core: ^5.2.0
+  firebase_auth: ^7.1.0
+  firebase_app_check: ^0.5.2
+  cloud_firestore: ^7.2.0
+  firebase_remote_config: ^7.1.0
 
   go_router: ^18.1.4
   url_launcher: ^6.3.3
@@ -60,9 +60,9 @@ dependencies:
   # A runtime dependency, not a dev one: the committed development entrypoint
   # (lib/dev/dev_main.dart) imports it, and `flutter analyze` fails a lib/ import
   # of a dev_dependency. It ships in no bundle — nothing under lib/ outside
-  # lib/dev/ imports it. The floor is the first release that compiles against
-  # cloud_firestore 6.10.x.
-  fake_cloud_firestore: ^4.4.0
+  # lib/dev/ imports it. The floor is the first release whose own constraint
+  # requires cloud_firestore ^7.1.0.
+  fake_cloud_firestore: ^4.5.0
   # 3.5.0 adds material_ui, which is why environment.flutter now records the
   # 3.47 floor; provider semantics are unchanged.
   flutter_riverpod: ^3.5.0

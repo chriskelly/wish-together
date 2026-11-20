@@ -21,12 +21,17 @@ The area is split into `domain/`, `data/`, `application/` and
 
 ## Sign-in and deletion types
 
-- `AuthService implements AuthSession` — wraps `FirebaseAuth`, `GoogleSignIn`, and
-  `SignInWithApple`. Adds `googleSignIn`, `isWeb`, the sign-in and
-  re-authentication flows, `signInProvider()` and `deleteAccount()`.
-  `supportsAccountDeletion` is `true`. Google sign-in is completed by
-  subscribing to `_googleSignIn.onCurrentUserChanged` and exchanging the account for a
-  Firebase `GoogleAuthProvider` credential. Phone auth is **split by platform**: web uses
+- `AuthService implements AuthSession` — wraps `FirebaseAuth`, the `GoogleSignIn`
+  singleton, and `SignInWithApple`. Adds `isWeb`, `prepareGoogleSignIn()`,
+  `signInWithGoogle()`, the re-authentication flows, `signInProvider()` and
+  `deleteAccount()`. `supportsAccountDeletion` is `true`. Google Sign-In v7 separates
+  authentication from authorization: the app exchanges an idToken for a Firebase
+  `GoogleAuthProvider` credential, requests no Google API scopes and never builds an
+  access token. Native uses `authenticate()`; web uses `google_sign_in_web`'s
+  `renderButton` plus `authenticationEvents`. A cancellation (native `canceled`, or
+  the plugin's `unknownError` with `access_denied` / `popup_closed_by_user`) stays a
+  breadcrumb; every other Google failure records one `authState` warning with the
+  kebab-case enum code. Phone auth is **split by platform**: web uses
   `startWebPhoneSignIn(...)` (which calls `FirebaseAuth.signInWithPhoneNumber` and keeps the
   returned `ConfirmationResult`) and `confirmPhoneCode(...)` (which confirms it); native uses
   `verifyPhoneNumber(...)` plus `signInWithPhoneCredential(...)`. `confirmPhoneCode(...)` is
@@ -49,12 +54,10 @@ The area is split into `domain/`, `data/`, `application/` and
   never reports a callback is bounded by its `timeout` — 60 s by default,
   injectable — and reports an `authState` failure with `code: 'timeout'`), `isWeb`, and
   `deleteAccount()`. Failed sign-ins report an `authState` event with the provider
-  outcome and the structured error code; the identifier the user typed and the
-  exception message are never reported. A user cancelling a prompt reports the
-  outcome with no code (a breadcrumb, not an auth-failure event). Provider-SDK
-  errors whose `code` is not a string (Apple authorization errors, some Google
-  sign-in errors) also stay breadcrumbs; only `FirebaseAuthException` codes reach
-  the auth-failure event family.
+  outcome and a structured code; the identifier the user typed and the exception
+  message are never reported. A user cancelling a prompt reports the outcome with no
+  code (a breadcrumb, not an auth-failure event). Apple authorization errors, whose
+  `code` is not a string, stay breadcrumbs.
 - `reauthCancelledCode` — the `FirebaseAuthException` code the re-authentication
   helpers throw when the user dismisses a prompt; `deleteAccountErrorMessage`
   turns it into silence rather than an error.
@@ -125,9 +128,16 @@ via the identity token and flows into the profile document through the router; A
 returns the name/email on the *first* sign-in, and this flow does not persist the name (the
 onboarding page still collects a display name).
 
-On web, the Google button is rendered by `google_sign_in_web` and `AuthService` handles the
-credential. Either path triggers the router redirect: no name → `/profile`, otherwise
-`redirect_to` or `/`.
+On web, the Google button is rendered by `google_sign_in_web`. `LoginPage` starts
+`prepareGoogleSignIn()` when it opens, because the plugin's button stays on "Getting ready"
+until the singleton is initialized. A GIS sign-in event is handled by `AuthService`'s
+`authenticationEvents` listener, and a cancelled popup stays silent. If initialization fails
+or does not complete within 15 seconds, the page replaces the button with a message offering
+a reload or phone sign-in, because a second initialize is not allowed. On native, the
+app-owned button calls
+`signInWithGoogle()`; a cancelled picker shows "Sign-in cancelled" instead of the failure
+text. Either path triggers the router redirect: no name → `/profile`, otherwise `redirect_to`
+or `/`.
 
 ## Deleting an account
 
@@ -144,12 +154,18 @@ session, `AuthListenable` drops the signed-in state at the same moment; the
   mocked `FirebaseAuth` / `ConfirmationResult` (web uses `signInWithPhoneNumber` + `confirm`;
   native uses `signInWithCredential`), plus `signInWithApple` with an injected
   `AppleCredentialFetcher` (credential exchange, the SHA-256 nonce relationship, the missing
-  identity token, and error propagation). It also covers `deleteAccount` (delete then revoke the
-  Google grant, the signed-out no-op, and a failed revocation still counting as success), every
-  re-authentication path (native Google credential, web Google popup, Apple credential, phone
-  code, platform-verified phone credential), `startPhoneVerification` (instant verification,
-  code sent, auto-retrieval timeout, failure, double-fire, timeout, and the web path),
-  `signInProvider`, and `providerIds`.
+  identity token, and error propagation). Google coverage: one initialization per plugin
+  instance and the per-platform client ids; native idToken-only sign-in and reauthentication;
+  web event exchange, the single subscription and the ignored sign-out event;
+  cancellation breadcrumbs; kebab-case
+  warnings; missing idTokens; a pending or failed initialization that must not block sign-out
+  or deletion; deletion's link-aware bounded revocation; and the cleanup/sign-out failure
+  logging. It also covers `deleteAccount` (delete then revoke, the signed-out no-op, and a
+  failed revocation still counting as success), every re-authentication path,
+  `startPhoneVerification`, `signInProvider`, and `providerIds`.
+- `test/features/auth/data/google_auth_error_test.dart` — the cancellation truth table
+  (native `canceled`; web `access_denied` and `popup_closed_by_user`), the negative cases, and
+  the kebab-case codes the wire keeps.
 - `test/features/auth/data/phone_auth_error_test.dart` — the phone error-code → message mapper.
 - `test/features/auth/data/phone_input_test.dart` — the phone input rules: accepted
   separators, rejection of a country code, an eleventh digit and non-digits, and the

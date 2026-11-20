@@ -106,8 +106,9 @@ is involved. Then allowlist the staging host, with the **exact** host (no wildca
 - **App Check:** the staging host shares the production project's App Check registration.
   Enforcement is currently off; if it is enabled later, the staging host and its reCAPTCHA
   key must be registered first (the same prerequisite as the allowlisting above).
-- **Remote Config:** also shared with production. A production `min_supported_build` above the
-  staged build makes the staging site show the blocking force-update screen.
+- **Remote Config:** also shared with production, but the force-update gate is iOS-only: a web
+  build never fetches Remote Config, so the staging site cannot show the blocking screen. The
+  gate is exercised through TestFlight.
 
 ## Demo data
 

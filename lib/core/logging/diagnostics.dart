@@ -72,7 +72,7 @@ LaunchDiagnostics createLaunchDiagnostics({
     session: session,
     sinks: <LogSink>[
       ConsoleSink(enabled: consoleEnabled),
-      if (sentrySink != null) sentrySink,
+      ?sentrySink,
     ],
   );
   return LaunchDiagnostics(log: log, sentrySink: sentrySink);

@@ -1,1 +1,2 @@
 Fixed a crash when going back from the add-item form.
+Dependency and reliability updates

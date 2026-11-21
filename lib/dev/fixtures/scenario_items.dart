@@ -18,8 +18,8 @@ Map<String, dynamic> devItemFields(
 }) {
   return <String, dynamic>{
     'name': name,
-    if (description != null) 'description': description,
-    if (url != null) 'url': url,
+    'description': ?description,
+    'url': ?url,
     'claims': claims,
     'claimLimit': claimLimit,
   };

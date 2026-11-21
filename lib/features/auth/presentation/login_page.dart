@@ -18,11 +18,12 @@ import 'package:wishtogether/core/router.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/apple_auth_error.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
+import 'package:wishtogether/features/auth/data/google_auth_error.dart';
 import 'package:wishtogether/features/auth/data/phone_auth_error.dart';
 import 'package:wishtogether/features/auth/data/phone_input.dart';
 import 'package:wishtogether/features/auth/data/phone_verification.dart';
 import 'package:wishtogether/features/auth/data/google_sign_in_stub.dart'
-    if (dart.library.html) 'package:google_sign_in_web/web_only.dart'
+    if (dart.library.js_interop) 'package:google_sign_in_web/web_only.dart'
     as web_only;
 import 'package:wishtogether/features/auth/presentation/verification_page.dart';
 
@@ -53,6 +54,22 @@ class LoginPage extends StatefulWidget {
       'Enter a 10-digit US phone number without the country code, for example '
       '408 555 1234.';
 
+  /// Shown in place of the web button when the GIS SDK could not initialize.
+  ///
+  /// A failed or blocked initialize never completes the web plugin's ready
+  /// future, so its rendered button would sit on "Getting ready" forever. A
+  /// retry cannot call initialize again; a reload is the recovery.
+  static const String googleSignInUnavailableMessage =
+      'Google sign-in is unavailable. Reload the page or use phone sign-in.';
+
+  /// Bounds the page's wait for web Google initialization.
+  ///
+  /// The GIS script can be blocked for good (ad blocker, CSP, offline), in
+  /// which case the service's shared future never settles. The service future
+  /// stays pending — a second initialize is not allowed — and the page falls
+  /// back to the phone route.
+  static const Duration googlePrepareTimeout = Duration(seconds: 15);
+
   const LoginPage({super.key});
 
   @override
@@ -72,6 +89,9 @@ class _LoginPageState extends State<LoginPage>
   /// tap cannot send a second code or open a second code page.
   bool _requestingCode = false;
 
+  /// Whether the web button must give way to the fallback message.
+  bool _googleSignInUnavailable = false;
+
   static const String _privacyPolicyUrl = 'https://wishtogether.gift/privacy';
 
   @override
@@ -87,6 +107,24 @@ class _LoginPageState extends State<LoginPage>
         curve: Curves.easeInOut,
       ),
     );
+    if (_authService.isWeb) {
+      unawaited(_prepareGoogleSignIn());
+    }
+  }
+
+  Future<void> _prepareGoogleSignIn() async {
+    try {
+      await _authService.prepareGoogleSignIn().timeout(
+        LoginPage.googlePrepareTimeout,
+      );
+    } catch (_) {
+      // A failure is logged by the service; a timeout leaves its shared future
+      // pending. Either way the page must not wait forever.
+      if (!mounted) {
+        return;
+      }
+      setState(() => _googleSignInUnavailable = true);
+    }
   }
 
   @override
@@ -202,29 +240,38 @@ class _LoginPageState extends State<LoginPage>
 
   /// Renders the Google sign-in button.
   ///
-  /// On web this is the button provided by `google_sign_in_web`. On native
+  /// On web this is the button provided by `google_sign_in_web`, or the
+  /// unavailable message when initialization failed or timed out. On native
   /// platforms (iOS/Android) that package is unavailable, so we render our own
   /// button that drives the native Google sign-in flow through [AuthService].
   Widget _googleSignInButton() {
-    if (kIsWeb) {
-      return web_only.renderButton();
+    if (!_authService.isWeb) {
+      return ElevatedButton(
+        onPressed: _signInWithGoogle,
+        child: const Text('Sign in with Google'),
+      );
     }
-    return ElevatedButton(
-      onPressed: _signInWithGoogle,
-      child: const Text('Sign in with Google'),
-    );
+    if (_googleSignInUnavailable) {
+      return Text(
+        LoginPage.googleSignInUnavailableMessage,
+        textAlign: TextAlign.center,
+      );
+    }
+    return web_only.renderButton();
   }
 
   Future<void> _signInWithGoogle() async {
     try {
-      await _authService.googleSignIn.signIn();
+      await _authService.signInWithGoogle();
     } catch (error) {
-      _authService.reportSignInFailure(error);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Google sign-in failed: $error')),
-        );
+      if (!mounted) {
+        return;
       }
+      final message = isGoogleSignInCancellation(error)
+          ? googleSignInCancelledMessage
+          : 'Google sign-in failed: $error';
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
     }
   }
 

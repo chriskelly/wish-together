@@ -20,9 +20,10 @@ version: 1.0.7+1
 
 environment:
   sdk: ^3.13.0
-  # sign_in_with_apple 8.2.0 requires Flutter >= 3.44.0. Recorded explicitly so
-  # the floor is intentional and visible, not just implied by pubspec.lock.
-  flutter: ">=3.44.0"
+  # material_ui 1.11.x, pulled by go_router 18 and flutter_riverpod 3.5,
+  # requires Flutter >= 3.47.0. CI pins 3.47.7. Recorded explicitly so the floor
+  # is intentional and visible, not just implied by pubspec.lock.
+  flutter: ">=3.47.0"
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -35,37 +36,36 @@ dependencies:
     sdk: flutter
 
   # Firebase: the plugins' iOS packages pin one shared firebase-ios-sdk, so bump
-  # them together. These floors pull 12.19.3, which dropped the roots chaining to
-  # the compromised eMudhra CA (an unrelated EmSign root remains).
-  firebase_core: ^4.15.1
-  firebase_auth: ^6.7.1
-  firebase_app_check: ^0.4.9
-  cloud_firestore: ^6.10.1
-  firebase_remote_config: ^6.7.1
+  # them together. These floors pull 13.2.0, which excludes the roots chaining to
+  # the compromised eMudhra CA.
+  firebase_core: ^5.2.0
+  firebase_auth: ^7.1.0
+  firebase_app_check: ^0.5.2
+  cloud_firestore: ^7.2.0
+  firebase_remote_config: ^7.1.0
 
-  go_router: ^17.2.2
+  go_router: ^18.1.4
   url_launcher: ^6.3.3
   intl: ^0.20.3
-  google_sign_in: ^6.3.0
-  google_sign_in_web: ^0.12.4+4
+  google_sign_in: ^7.2.0
+  google_sign_in_web: ^1.1.3
   get_it: ^9.3.0
   sign_in_with_apple: ^8.2.0
   crypto: ^3.0.8
-  package_info_plus: ^9.0.1
+  package_info_plus: ^10.2.2
   app_links: ^7.2.2
-  sentry_flutter: ^10.2.0
+  sentry_flutter: ^10.6.0
   flutter_web_plugins:
     sdk: flutter
   # A runtime dependency, not a dev one: the committed development entrypoint
   # (lib/dev/dev_main.dart) imports it, and `flutter analyze` fails a lib/ import
   # of a dev_dependency. It ships in no bundle — nothing under lib/ outside
-  # lib/dev/ imports it. The floor is the first release that compiles against
-  # cloud_firestore 6.10.x.
-  fake_cloud_firestore: ^4.4.0
-  # 3.5.0 adds material_ui (and its transitive packages) and raises the effective
-  # Flutter floor to 3.47; therefore pinned at 3.4.3 until the floor is raised on
-  # its own merits.
-  flutter_riverpod: 3.4.3
+  # lib/dev/ imports it. The floor is the first release whose own constraint
+  # requires cloud_firestore ^7.1.0.
+  fake_cloud_firestore: ^4.5.0
+  # 3.5.0 adds material_ui, which is why environment.flutter now records the
+  # 3.47 floor; provider semantics are unchanged.
+  flutter_riverpod: ^3.5.0
 
 dev_dependencies:
   flutter_test:
@@ -78,8 +78,10 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
   mocktail: ^1.0.5
+  # Held at 1.31.1 by Flutter 3.47.7's flutter_test, which pins test_api 0.7.12;
+  # this constraint already admits newer test versions (1.33.0 needs 0.7.15).
   test: ^1.26.2
-  sentry_dart_plugin: ^3.4.0
+  sentry_dart_plugin: ^3.6.0
 
 # Upload configuration for `dart run sentry_dart_plugin`, which `ci-web.yml` and
 # the Fastlane release lanes run after a build that will be deployed. The release

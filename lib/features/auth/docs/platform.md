@@ -23,11 +23,19 @@ App Store guideline 4.8 on the iOS app without pulling in the Apple Service ID /
 `test/features/auth/presentation/login_page_test.dart` pins that platform-gate truth table (iOS
 shows; web, Android, macOS hide).
 
-`lib/features/auth/data/google_sign_in_stub.dart` is a compile-time stub that
-`lib/features/auth/presentation/login_page.dart` falls back to on
-non-web platforms so its `web_only.renderButton()` reference still compiles there; the real
-web button comes from `google_sign_in_web`. `AuthService` always imports the real
-`google_sign_in` package, on native and web alike.
+`lib/features/auth/data/google_sign_in_stub.dart` is a compile-time stub that supplies only
+`renderButton()`, so `login_page.dart`'s `web_only.renderButton()` reference compiles on
+non-web platforms; the real web button comes from `google_sign_in_web`. `AuthService` always
+imports the real `google_sign_in` package.
+
+On web, `GoogleSignIn.instance.initialize(clientId: ...)` must complete before the GIS button
+renders; `LoginPage` starts it when the page opens. `web/index.html`'s
+`google-signin-client_id` meta tag is the fallback client id, and a failed or timed-out
+initialization replaces the button with a message offering a reload or phone sign-in (a
+second initialize is not allowed). On iOS the client id stays null in Dart:
+`google_sign_in_ios` reads the bundled
+`GoogleService-Info.plist`, whose reversed client id is the URL scheme in `Info.plist`.
+Android passes the web client id as `serverClientId` so Firebase receives an idToken.
 
 Account deletion re-authenticates for real, so it cannot be exercised on a preview channel:
 validate it on the **staging** site (or live) with a throwaway account for each provider

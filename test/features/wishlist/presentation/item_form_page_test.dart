@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:wishtogether/common/widgets/button_loading_indicator.dart';
 import 'package:wishtogether/core/router.dart';
+import 'package:wishtogether/core/route_state.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/domain/auth_session.dart';
 import 'package:wishtogether/features/wishlist/application/claim_failure.dart';
@@ -1800,6 +1801,40 @@ void main() {
 
       await editName(tester, itemName);
       expect(createSaveEnabled(tester), isTrue);
+    });
+  });
+
+  group('restored route', () {
+    testWidgets(
+      'a browser-history restore without the guard shows the fallback',
+      (tester) async {
+        final router = await pumpForm(tester);
+        final info = router.routeInformationProvider.value;
+
+        await router.routeInformationProvider.didPushRouteInformation(
+          RouteInformation(
+            uri: info.uri,
+            state: Map<Object?, Object?>.from(info.state! as Map),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text(routeUnavailableMessage), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets('a signed-in refresh without the guard shows the fallback', (
+      tester,
+    ) async {
+      final router = await pumpForm(tester);
+      when(() => authSession.currentUserId).thenReturn('other-uid');
+
+      router.refresh();
+      await tester.pumpAndSettle();
+
+      expect(find.text(routeUnavailableMessage), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 }

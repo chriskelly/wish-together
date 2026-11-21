@@ -111,7 +111,7 @@ void main() {
       for (final Object? limit in <Object?>[null, '2', -1, 1.5]) {
         final item = Item.fromMap(<String, dynamic>{
           'name': 'Gift',
-          if (limit != null) 'claimLimit': limit,
+          'claimLimit': ?limit,
         }, 'item-1');
 
         expect(item.claimLimit, 1, reason: 'claimLimit $limit');

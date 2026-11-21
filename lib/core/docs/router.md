@@ -24,6 +24,18 @@ composition roots may inject one. It also takes an optional `initialLocation` (a
 as `/join?group=123`), which is how an iOS Universal Link starts the router.
 `handleRedirect`'s fallback is for direct callers and tests.
 
+## Pages and the app-type check
+
+go_router 18 picks its default page by looking for `material_ui`'s `MaterialApp` in the
+widget tree. This app mounts the Flutter SDK's `MaterialApp.router` (`lib/main.dart`), so
+go_router's fallback would turn every route into a `NoTransitionPage` and the error page
+into its bare `ErrorScreen`. Every `GoRoute` therefore goes through `_materialRoute`, which
+supplies a Flutter `MaterialPage` and runs the route builder in a `Builder` under the page,
+and `createRouter` supplies an `errorPageBuilder` that wraps `RouteErrorPage` in the same
+page type. Do not migrate the app to `material_ui` to make the automatic detection pass, and
+do not add a route with a bare `builder` and no page. The page type is pinned by
+`test/core/router_pages_test.dart`.
+
 ## Invariants
 
 - A logged-out user is redirected to `/login`, preserving the original destination in the
@@ -39,20 +51,38 @@ as `/join?group=123`), which is how an iOS Universal Link starts the router.
   not supported (`docs/deep-links.md`).
 - `redirect_to` is forwarded verbatim as a location; it is never normalized from a fragment
   or an absolute URL.
-- The edit-item route needs the item the list passes in `EditItemRouteArgs`; a deep link or a
-  reload has no such extra, so the route redirects to `/wishlist/<id>` before its builder runs.
-  The same extra carries the form's leave guard, which the route's `onExit` consults for a
-  browser back. The create route needs no item but takes `CreateItemRouteArgs` for a per-push
-  guard, so two create forms cannot detach each other's guard; a browser back while the draft
-  is unsaved asks the same question. A deep link or reload without those args redirects to the
-  list, as the edit route does.
+- The item, wishlist and group edit routes need the entity their list passes in
+  `EditItemRouteArgs`, a `Wishlist` or a `Group`; a deep link or reload has no such extra, so
+  the route redirects to its parent (`/wishlist/<id>` or `/group/<id>`) before its builder
+  runs. The item and create extras also carry the form's leave guard, which the route's
+  `onExit` consults for a browser back. The create route needs no item but takes
+  `CreateItemRouteArgs` for a per-push guard, so two create forms cannot detach each other's
+  guard; a browser back while the draft is unsaved asks the same question. A create deep link
+  or reload without its args redirects to the list, and without a wishlist id to home.
+- Navigation `extra` is advisory, never part of the URL. Browser-history restore and a router
+  refresh re-parse the encoded match list, whose codec cannot serialise a leave guard or a
+  domain object, so a restored page can be rebuilt with no extra even though the original push
+  carried one. Routes read extras only through `routeExtra` (`route_state.dart`); a restore
+  that still reaches one of those form builders renders `RouteUnavailablePage` instead of a
+  throwing build.
 
 ## How it is tested
 
 - `test/core/router_test.dart` drives `handleRedirect` across the logged-out /
   logged-in-without-name / logged-in-with-name matrix, including join-link redirects, with
   a mocked `AuthSession` and `UserRepository`; it also pins the `getIt<UserRepository>()`
-  fallback and both form routes' fallbacks when a deep link arrives without their args.
+  fallback and the create, item-edit, wishlist-edit and group-edit redirects and builders,
+  including their no-extra fallbacks.
+- `test/core/router_pages_test.dart` walks the configured route graph and pins every route to
+  a `MaterialPage`, then pins a normal route at runtime, the unknown-location error page's
+  Material chrome, and its Home action.
+- `test/core/route_state_test.dart` pins `routeExtra`'s type gate and the unavailable page;
+  `test/core/router_extra_guard_test.dart` rejects a direct extra read outside
+  `route_state.dart` and an immediately null-checked `routeExtra` result (a local can still
+  launder the read; the scan is a backstop).
+- `test/features/wishlist/presentation/item_form_page_test.dart` replays the history restore
+  and a signed-in router refresh that rebuild the pushed create page without its guard
+  (WISH-TOGETHER-F) and expects the unavailable page, not a throwing build.
 - `test/core/app_urls_test.dart` pins the Universal-Link mapping: https/host/path allowlist,
   query encoding, and the debug-vs-release host sets.
 - `test/core/deep_links_test.dart` pins the startup queue and warm-link forwarding, including

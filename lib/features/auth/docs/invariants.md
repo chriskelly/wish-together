@@ -27,10 +27,20 @@ provider revocation.
   groups' membership arrays is written. A group the user owned passes to its
   first remaining member (one atomic `ownerId` + `members` update); a group is
   deleted only when the user was its last member.
-- Deleting an account revokes the Google grant (`_googleSignIn.disconnect()`, not
+- Deleting an account revokes a linked Google grant (`_googleSignIn.disconnect()`, not
   merely `signOut()`), so the provider-side access is dropped as well as the local
-  session, and the `onCurrentUserChanged` listener cannot re-establish a session for
-  the deleted account.
+  session. The link is read before the auth user is deleted, because a phone or Apple
+  re-authentication does not prove the account has no Google link. The revocation is
+  best-effort under a bound: the account is already gone, and a hung third-party SDK
+  must not leave the deletion unfinished.
+- **Google Sign-In is initialized once.** v7's singleton allows one `initialize()`, and
+  web throws on a second. `AuthService` memoizes the future per plugin instance (tests
+  and the live dev session build the service repeatedly) and subscribes to the web
+  event stream once per instance. A pending or failed initialization owns no Google
+  session, so sign-out skips Google rather than waiting for it.
+- **Google credentials carry only an idToken.** v7 separates authentication from
+  authorization; the app requests no scopes and never builds a credential with an
+  access token.
 - **Sign in with Apple is only manually revoked.** Programmatic revocation needs the
   Apple refresh token (or authorization code) plus a client secret signed with the
   Apple private key — both server-side. The authorization code is available during

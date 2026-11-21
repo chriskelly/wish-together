@@ -12,6 +12,7 @@ import 'logging/recording_sink.dart';
 
 import 'package:wishtogether/core/logging/session_context.dart';
 import 'package:wishtogether/core/router.dart';
+import 'package:wishtogether/core/route_state.dart';
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/domain/auth_session.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
@@ -20,12 +21,30 @@ import 'package:wishtogether/features/auth/presentation/home_page.dart';
 import 'package:wishtogether/features/auth/presentation/login_page.dart';
 import 'package:wishtogether/features/auth/presentation/profile_page.dart';
 import 'package:wishtogether/features/auth/presentation/verification_page.dart';
+import 'package:wishtogether/features/group/domain/group.dart';
+import 'package:wishtogether/features/group/presentation/group_form_page.dart';
+import 'package:wishtogether/features/group/presentation/join_group_page.dart';
+import 'package:wishtogether/features/wishlist/domain/item.dart';
+import 'package:wishtogether/features/wishlist/domain/wishlist.dart';
+import 'package:wishtogether/features/wishlist/presentation/item_form_page.dart';
+import 'package:wishtogether/features/wishlist/presentation/wishlist_form_page.dart';
+
+import '../support/router_state.dart';
 
 class MockAuthSession extends Mock implements AuthSession {}
 
 class MockUserRepository extends Mock implements UserRepository {}
 
 const joinPath = '/join?group=123';
+
+/// The widget a route page builds, for tests that inspect page content without
+/// mounting it. The context is the test's, not the page's, so this cannot
+/// verify an inherited lookup such as `GoRouterState.of(context)`.
+Widget pageChild(GoRoute route, BuildContext context, GoRouterState state) {
+  final page = route.pageBuilder!(context, state) as MaterialPage<void>;
+  final child = page.child;
+  return child is Builder ? child.builder(context) : child;
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -597,6 +616,439 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('list'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('route extras', () {
+    GoRouter newRouter() {
+      final router = stateFixtureRouter();
+      addTearDown(router.dispose);
+      return router;
+    }
+
+    testWidgets('a create redirect without an id goes home', (tester) async {
+      final context = await pumpRouterContext(tester);
+      final router = newRouter();
+
+      final result = await itemFormPageCreateRoute().redirect!(
+        context,
+        stateFixture(router, location: '/wishlist/add-item'),
+      );
+
+      expect(result, HomePage.route);
+    });
+
+    testWidgets('a create redirect with a blank id goes home', (tester) async {
+      final context = await pumpRouterContext(tester);
+      final router = newRouter();
+
+      final result = await itemFormPageCreateRoute().redirect!(
+        context,
+        stateFixture(
+          router,
+          location: '/wishlist/add-item',
+          pathParameters: const <String, String>{'id': '  '},
+        ),
+      );
+
+      expect(result, HomePage.route);
+    });
+
+    testWidgets('a create redirect without args returns to the list', (
+      tester,
+    ) async {
+      final context = await pumpRouterContext(tester);
+      final router = newRouter();
+      const wishlistId = 'w1';
+
+      final result = await itemFormPageCreateRoute().redirect!(
+        context,
+        stateFixture(
+          router,
+          location: '/wishlist/$wishlistId/add-item',
+          pathParameters: const <String, String>{'id': wishlistId},
+        ),
+      );
+
+      expect(result, '/wishlist/$wishlistId');
+    });
+
+    testWidgets('a create redirect with args lets the form build', (
+      tester,
+    ) async {
+      final context = await pumpRouterContext(tester);
+      final router = newRouter();
+      const wishlistId = 'w1';
+
+      final result = await itemFormPageCreateRoute().redirect!(
+        context,
+        stateFixture(
+          router,
+          location: '/wishlist/$wishlistId/add-item',
+          pathParameters: const <String, String>{'id': wishlistId},
+          extra: CreateItemRouteArgs(),
+        ),
+      );
+
+      expect(result, isNull);
+    });
+
+    testWidgets('a create builder without args is unavailable', (tester) async {
+      final context = await pumpRouterContext(tester);
+      final router = newRouter();
+
+      final widget = pageChild(
+        itemFormPageCreateRoute(),
+        context,
+        stateFixture(
+          router,
+          location: '/wishlist/w1/add-item',
+          pathParameters: const <String, String>{'id': 'w1'},
+        ),
+      );
+
+      expect(widget, isA<RouteUnavailablePage>());
+    });
+
+    testWidgets('a create builder without an id is unavailable', (
+      tester,
+    ) async {
+      final context = await pumpRouterContext(tester);
+      final router = newRouter();
+
+      final widget = pageChild(
+        itemFormPageCreateRoute(),
+        context,
+        stateFixture(
+          router,
+          location: '/wishlist/add-item',
+          extra: CreateItemRouteArgs(),
+        ),
+      );
+
+      expect(widget, isA<RouteUnavailablePage>());
+    });
+
+    testWidgets('a create builder with an id and args builds the form', (
+      tester,
+    ) async {
+      final context = await pumpRouterContext(tester);
+      final router = newRouter();
+      const wishlistId = 'w1';
+      final args = CreateItemRouteArgs();
+
+      final widget = pageChild(
+        itemFormPageCreateRoute(),
+        context,
+        stateFixture(
+          router,
+          location: '/wishlist/$wishlistId/add-item',
+          pathParameters: const <String, String>{'id': wishlistId},
+          extra: args,
+        ),
+      ) as ItemFormPage;
+
+      expect(widget.wishlistId, wishlistId);
+      expect(widget.leaveGuard, same(args.leaveGuard));
+    });
+
+    testWidgets('an item edit without args is unavailable', (tester) async {
+      final context = await pumpRouterContext(tester);
+      final router = newRouter();
+      const wishlistId = 'w1';
+
+      final widget = pageChild(
+        itemFormPageEditRoute(),
+        context,
+        stateFixture(
+          router,
+          location: '/wishlist/$wishlistId/item/i1/edit',
+          pathParameters: const <String, String>{
+            'id': wishlistId,
+            'itemId': 'i1',
+          },
+        ),
+      );
+
+      expect(widget, isA<RouteUnavailablePage>());
+    });
+
+    testWidgets('an item edit without args returns to the list', (
+      tester,
+    ) async {
+      final context = await pumpRouterContext(tester);
+      final router = newRouter();
+      const wishlistId = 'w1';
+
+      final redirected = await itemFormPageEditRoute().redirect!(
+        context,
+        stateFixture(
+          router,
+          location: '/wishlist/$wishlistId/item/i1/edit',
+          pathParameters: const <String, String>{
+            'id': wishlistId,
+            'itemId': 'i1',
+          },
+        ),
+      );
+
+      expect(redirected, '/wishlist/$wishlistId');
+    });
+
+    testWidgets('an item edit with args is allowed', (tester) async {
+      final context = await pumpRouterContext(tester);
+      final router = newRouter();
+      const wishlistId = 'w1';
+      final args = EditItemRouteArgs(Item(name: 'Lamp'));
+
+      final allowed = await itemFormPageEditRoute().redirect!(
+        context,
+        stateFixture(
+          router,
+          location: '/wishlist/$wishlistId/item/i1/edit',
+          pathParameters: const <String, String>{
+            'id': wishlistId,
+            'itemId': 'i1',
+          },
+          extra: args,
+        ),
+      );
+
+      expect(allowed, isNull);
+    });
+
+    testWidgets('an item edit with args builds the form', (tester) async {
+      final context = await pumpRouterContext(tester);
+      final router = newRouter();
+      const wishlistId = 'w1';
+      final args = EditItemRouteArgs(Item(name: 'Lamp'));
+
+      final widget = pageChild(
+        itemFormPageEditRoute(),
+        context,
+        stateFixture(
+          router,
+          location: '/wishlist/$wishlistId/item/i1/edit',
+          pathParameters: const <String, String>{
+            'id': wishlistId,
+            'itemId': 'i1',
+          },
+          extra: args,
+        ),
+      ) as ItemFormPage;
+
+      expect(widget.item, same(args.item));
+      expect(widget.leaveGuard, same(args.leaveGuard));
+    });
+
+    testWidgets('a wishlist edit without its extra returns to the list', (
+      tester,
+    ) async {
+      final context = await pumpRouterContext(tester);
+      final router = newRouter();
+      const wishlistId = 'w1';
+
+      final redirected = await wishlistFormPageEditRoute().redirect!(
+        context,
+        stateFixture(
+          router,
+          location: '/wishlist/$wishlistId/edit',
+          pathParameters: const <String, String>{'id': wishlistId},
+        ),
+      );
+
+      expect(redirected, '/wishlist/$wishlistId');
+    });
+
+    testWidgets('a wishlist edit with its extra is allowed', (tester) async {
+      final context = await pumpRouterContext(tester);
+      final router = newRouter();
+      const wishlistId = 'w1';
+      final wishlist = Wishlist(
+        id: wishlistId,
+        name: 'Birthday',
+        ownerId: 'owner',
+      );
+
+      final allowed = await wishlistFormPageEditRoute().redirect!(
+        context,
+        stateFixture(
+          router,
+          location: '/wishlist/$wishlistId/edit',
+          pathParameters: const <String, String>{'id': wishlistId},
+          extra: wishlist,
+        ),
+      );
+
+      expect(allowed, isNull);
+    });
+
+    testWidgets('a wishlist edit without its extra is unavailable', (
+      tester,
+    ) async {
+      final context = await pumpRouterContext(tester);
+      final router = newRouter();
+      const wishlistId = 'w1';
+
+      final widget = pageChild(
+        wishlistFormPageEditRoute(),
+        context,
+        stateFixture(
+          router,
+          location: '/wishlist/$wishlistId/edit',
+          pathParameters: const <String, String>{'id': wishlistId},
+        ),
+      );
+
+      expect(widget, isA<RouteUnavailablePage>());
+    });
+
+    testWidgets('a wishlist edit with its extra builds the form', (
+      tester,
+    ) async {
+      final context = await pumpRouterContext(tester);
+      final router = newRouter();
+      const wishlistId = 'w1';
+      final wishlist = Wishlist(
+        id: wishlistId,
+        name: 'Birthday',
+        ownerId: 'owner',
+      );
+
+      final widget = pageChild(
+        wishlistFormPageEditRoute(),
+        context,
+        stateFixture(
+          router,
+          location: '/wishlist/$wishlistId/edit',
+          pathParameters: const <String, String>{'id': wishlistId},
+          extra: wishlist,
+        ),
+      );
+
+      expect(widget, isA<WishlistFormPage>());
+    });
+
+    testWidgets('a group edit without its extra returns to the group', (
+      tester,
+    ) async {
+      final context = await pumpRouterContext(tester);
+      final router = newRouter();
+      const groupId = 'g1';
+
+      final redirected = await groupFormPageEditRoute().redirect!(
+        context,
+        stateFixture(
+          router,
+          location: '/group/$groupId/edit',
+          pathParameters: const <String, String>{'id': groupId},
+        ),
+      );
+
+      expect(redirected, '/group/$groupId');
+    });
+
+    testWidgets('a group edit with its extra is allowed', (tester) async {
+      final context = await pumpRouterContext(tester);
+      final router = newRouter();
+      const groupId = 'g1';
+      final group = Group(
+        id: groupId,
+        name: 'Family',
+        ownerId: 'owner',
+        members: const <String>['owner'],
+      );
+
+      final allowed = await groupFormPageEditRoute().redirect!(
+        context,
+        stateFixture(
+          router,
+          location: '/group/$groupId/edit',
+          pathParameters: const <String, String>{'id': groupId},
+          extra: group,
+        ),
+      );
+
+      expect(allowed, isNull);
+    });
+
+    testWidgets('a group edit without its extra is unavailable', (
+      tester,
+    ) async {
+      final context = await pumpRouterContext(tester);
+      final router = newRouter();
+      const groupId = 'g1';
+
+      final widget = pageChild(
+        groupFormPageEditRoute(),
+        context,
+        stateFixture(
+          router,
+          location: '/group/$groupId/edit',
+          pathParameters: const <String, String>{'id': groupId},
+        ),
+      );
+
+      expect(widget, isA<RouteUnavailablePage>());
+    });
+
+    testWidgets('a group edit with its extra builds the form', (tester) async {
+      final context = await pumpRouterContext(tester);
+      final router = newRouter();
+      const groupId = 'g1';
+      final group = Group(
+        id: groupId,
+        name: 'Family',
+        ownerId: 'owner',
+        members: const <String>['owner'],
+      );
+
+      final widget = pageChild(
+        groupFormPageEditRoute(),
+        context,
+        stateFixture(
+          router,
+          location: '/group/$groupId/edit',
+          pathParameters: const <String, String>{'id': groupId},
+          extra: group,
+        ),
+      );
+
+      expect(widget, isA<GroupFormPage>());
+    });
+
+    testWidgets('a wrong-typed verification extra shows the invalid link', (
+      tester,
+    ) async {
+      final context = await pumpRouterContext(tester);
+      final router = newRouter();
+
+      final widget = pageChild(
+        verificationPageRoute(),
+        context,
+        stateFixture(router, location: VerificationPage.route, extra: 42),
+      );
+      await tester.pumpWidget(MaterialApp(home: widget));
+
+      expect(find.text('Invalid verification link.'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a missing invitation group shows the invalid link', (
+      tester,
+    ) async {
+      final context = await pumpRouterContext(tester);
+      final router = newRouter();
+
+      final widget = pageChild(
+        joinGroupPageRoute(),
+        context,
+        stateFixture(router, location: JoinGroupPage.route),
+      );
+      await tester.pumpWidget(MaterialApp(home: widget));
+
+      expect(find.text('Invalid invitation link.'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });

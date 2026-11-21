@@ -4,19 +4,18 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
-// Always use the real `google_sign_in` package on the platforms it supports:
-// native (iOS/Android) and web. On web the plugin shares
-// `GoogleSignInPlatform.instance` with `google_sign_in_web`'s rendered button,
-// so subscribing to `onCurrentUserChanged` here completes the Firebase
-// credential exchange on both web and native. The compile-time stub returns
-// `null` from `signIn()`, which silently no-ops the native Google button in
-// `login_page.dart`.
+// The service imports the real package on every platform: native flows call
+// `authenticate()`, and on web the plugin shares `GoogleSignIn.instance` with
+// `google_sign_in_web`'s rendered button, whose `authenticationEvents` this
+// service exchanges for Firebase credentials. The compile-time stub in
+// `google_sign_in_stub.dart` only supplies `renderButton` on non-web builds.
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:wishtogether/core/logging/app_event.dart';
 import 'package:wishtogether/core/logging/diagnostics.dart';
 import 'package:wishtogether/core/logging/redaction.dart';
 import 'package:wishtogether/features/auth/data/apple_auth_error.dart';
+import 'package:wishtogether/features/auth/data/google_auth_error.dart';
 import 'package:wishtogether/features/auth/data/phone_verification.dart';
 import 'package:wishtogether/features/auth/domain/auth_session.dart';
 
@@ -31,6 +30,27 @@ typedef AppleCredentialFetcher =
       String? nonce,
     });
 
+/// One initialization future per Google Sign-In plugin instance.
+///
+/// v7 allows `initialize()` exactly once per process, and web throws a
+/// `StateError` on a second call. `AuthService` is rebuilt by tests and the
+/// live dev session, so the future is keyed by the plugin instance:
+/// production's singleton is initialized exactly once, while a test's fresh
+/// mock gets its own.
+final Expando<Future<void>> _googleSignInInitializations =
+    Expando<Future<void>>('Google Sign-In initialization');
+
+/// One web `authenticationEvents` subscription per plugin instance.
+///
+/// The stream is broadcast, so two listeners would exchange one sign-in twice.
+/// The first service to prepare an instance owns its events; production has
+/// exactly one service.
+final Expando<StreamSubscription<GoogleSignInAuthenticationEvent>>
+_googleSignInWebEvents =
+    Expando<StreamSubscription<GoogleSignInAuthenticationEvent>>(
+      'Google Sign-In web events',
+    );
+
 /// The `FirebaseAuthException` code raised when the user dismisses a
 /// re-authentication prompt.
 ///
@@ -42,12 +62,12 @@ const String reauthCancelledCode = 'reauth-cancelled';
 /// there is no signed-in user to re-authenticate.
 const String _noCurrentUserCode = 'no-current-user';
 
-/// Codes that mean the user backed out of a prompt; they are not auth failures.
-const Set<String> _authCancellationCodes = <String>{
-  'popup-closed-by-user',
-  'cancelled-popup-request',
-  'web-context-canceled',
-};
+/// The Firebase code that means the user backed out of the web phone prompt
+/// without becoming an auth failure.
+///
+/// Google's v7 cancellations are recognised by [isGoogleSignInCancellation];
+/// the delete flow's popup codes are mapped by `delete_account_error.dart`.
+const String _webPhoneCancellationCode = 'web-context-canceled';
 
 /// The production [AuthSession]: Firebase Auth, Google Sign-In and Sign in with
 /// Apple, plus the sign-in, re-authentication and deletion flows that need them.
@@ -70,6 +90,13 @@ class AuthService implements AuthSession {
   /// successful [confirmPhoneCode] and by [discardPendingPhoneSignIn]. Web only.
   ConfirmationResult? _webConfirmation;
 
+  /// This service's memoized [prepareGoogleSignIn] future.
+  Future<void>? _googleSignInReady;
+
+  /// Whether initialization completed. A pending or failed initialize owns no
+  /// Google session, so sign-out and deletion must not wait for it.
+  bool _googleSignInInitialized = false;
+
   /// The signed-in user's id on every auth transition, and `null` on sign-out.
   @override
   Stream<String?> get uidChanges =>
@@ -85,57 +112,150 @@ class AuthService implements AuthSession {
     GoogleSignIn? googleSignIn,
   }) : _auth = auth ?? FirebaseAuth.instance,
        _isWeb = isWeb ?? kIsWeb,
-       _googleSignIn =
-           googleSignIn ??
-           GoogleSignIn(
-             // On iOS the plugin reads the iOS OAuth client (CLIENT_ID) from the
-             // bundled GoogleService-Info.plist. Passing the web client id here
-             // would not match the reversed-client-ID URL scheme configured in
-             // Info.plist.
-             clientId: (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS)
-                 ? null
-                 : clientId,
-           ),
+       _googleSignIn = googleSignIn ?? GoogleSignIn.instance,
        _fetchAppleCredential =
-           appleCredentialFetcher ?? SignInWithApple.getAppleIDCredential {
-    // Listen to Google Sign-In user changes
-    _googleSignIn.onCurrentUserChanged.listen((
-      GoogleSignInAccount? account,
-    ) async {
-      if (account != null) {
-        // User is signed in with Google, now authenticate with Firebase
-        try {
-          final GoogleSignInAuthentication googleAuth =
-              await account.authentication;
-          final AuthCredential credential = GoogleAuthProvider.credential(
-            accessToken: googleAuth.accessToken,
-            idToken: googleAuth.idToken,
+           appleCredentialFetcher ?? SignInWithApple.getAppleIDCredential;
+
+  /// Initializes the Google Sign-In singleton for this process.
+  ///
+  /// Web's rendered button stays in its "Getting ready" state until this
+  /// completes, so the login page starts it when it opens. Native flows await
+  /// it before their first SDK call. The future is memoized per service, and
+  /// the plugin call is memoized per plugin instance: v7 allows one
+  /// `initialize()`, and web throws on a second.
+  Future<void> prepareGoogleSignIn() =>
+      _googleSignInReady ??= _initializeGoogleSignIn();
+
+  Future<void> _initializeGoogleSignIn() async {
+    if (_isWeb) {
+      _googleSignInWebEvents[_googleSignIn] ??= _googleSignIn
+          .authenticationEvents
+          .listen(
+            _handleWebAuthenticationEvent,
+            onError: _handleWebAuthenticationError,
           );
-          // Only sign in with Firebase if not already signed in
-          if (_auth.currentUser == null) {
-            await _auth.signInWithCredential(credential);
-          }
-        } catch (error) {
-          _reportAuthFailure(AuthOutcome.google, error);
-          // If Firebase auth fails, sign out of Google to allow for a clean retry
-          await _googleSignIn.signOut();
-        }
+    }
+    await (_googleSignInInitializations[_googleSignIn] ??=
+        _initializeGoogleSignInOnce());
+    _googleSignInInitialized = true;
+  }
+
+  Future<void> _initializeGoogleSignInOnce() async {
+    try {
+      // Web needs its OAuth client id. iOS reads the iOS client from the
+      // bundled GoogleService-Info.plist when none is passed, and its reversed
+      // client id is the URL scheme in Info.plist. Android's v7 plugin takes no
+      // clientId and needs the web client as the server client id so Firebase
+      // receives an idToken.
+      await _googleSignIn.initialize(
+        clientId: _isWeb ? clientId : null,
+        serverClientId:
+            !_isWeb && defaultTargetPlatform == TargetPlatform.android
+            ? clientId
+            : null,
+      );
+    } catch (error, stackTrace) {
+      // One record for the process: a second service reuses this future.
+      appLogOrNull?.error(
+        error,
+        stackTrace,
+        code: 'google-sign-in-init-failed',
+      );
+      rethrow;
+    }
+  }
+
+  /// Signs in with Google on a platform where the app owns the button.
+  ///
+  /// Web is excluded: the GIS SDK requires its own rendered button, and
+  /// [prepareGoogleSignIn]'s event listener handles that flow. A call here on
+  /// web is a programming error and throws `uiUnavailable`.
+  Future<UserCredential> signInWithGoogle() async {
+    if (_isWeb) {
+      throw const GoogleSignInException(
+        code: GoogleSignInExceptionCode.uiUnavailable,
+        description: 'Web sign-in uses the rendered Google button.',
+      );
+    }
+    GoogleSignInAccount? account;
+    try {
+      await prepareGoogleSignIn();
+      account = await _googleSignIn.authenticate();
+      return await _auth.signInWithCredential(_googleCredential(account));
+    } catch (error) {
+      // A failed initialization already recorded one process error in the
+      // shared initializer; this attempt still reports its own one warning.
+      _reportAuthFailure(AuthOutcome.google, error);
+      if (account != null) {
+        await _signOutOfGoogleQuietly();
       }
-    });
+      rethrow;
+    }
+  }
+
+  void _handleWebAuthenticationEvent(GoogleSignInAuthenticationEvent event) {
+    if (event is GoogleSignInAuthenticationEventSignIn) {
+      unawaited(_signInWithWebAccount(event.user));
+    }
+  }
+
+  Future<void> _signInWithWebAccount(GoogleSignInAccount account) async {
+    if (_auth.currentUser != null) {
+      return;
+    }
+    try {
+      await _auth.signInWithCredential(_googleCredential(account));
+    } catch (error) {
+      _reportAuthFailure(AuthOutcome.google, error);
+      await _signOutOfGoogleQuietly();
+    }
+  }
+
+  void _handleWebAuthenticationError(Object error, StackTrace stackTrace) {
+    _reportAuthFailure(AuthOutcome.google, error);
+  }
+
+  /// The Firebase credential for an authenticated Google account.
+  ///
+  /// v7 separates authentication from authorization: authentication yields
+  /// only an idToken, which is all Firebase needs.
+  OAuthCredential _googleCredential(GoogleSignInAccount account) {
+    final idToken = account.authentication.idToken;
+    if (idToken == null) {
+      throw const GoogleSignInException(
+        code: GoogleSignInExceptionCode.unknownError,
+        description: 'Google returned no ID token.',
+      );
+    }
+    return GoogleAuthProvider.credential(idToken: idToken);
+  }
+
+  /// Signs out of Google without letting a failure reach the caller.
+  ///
+  /// Used to drop a session whose Firebase exchange failed (so a retry starts
+  /// clean) and by sign-out, where a Google failure must not keep the Firebase
+  /// credential alive.
+  Future<void> _signOutOfGoogleQuietly() async {
+    try {
+      await _googleSignIn.signOut();
+    } catch (error, stackTrace) {
+      appLogOrNull?.error(error, stackTrace, code: 'google-sign-out-failed');
+    }
   }
 
   // Sign out from both Firebase and Google.
   //
   // The sign-out transition is reported by the router's auth listener (it is
-  // the only app-wide subscription), so nothing is logged here.
+  // the only app-wide subscription); a Google sign-out failure is the one thing
+  // logged here. A pending or failed Google initialization owns no session, so
+  // it is skipped rather than awaited.
   @override
   Future<void> signOut() async {
-    await _googleSignIn.signOut();
+    if (_googleSignInInitialized) {
+      await _signOutOfGoogleQuietly();
+    }
     await _auth.signOut();
   }
-
-  // Expose the GoogleSignIn instance for the UI to use
-  GoogleSignIn get googleSignIn => _googleSignIn;
 
   @override
   String? get currentUserId => _auth.currentUser?.uid;
@@ -192,19 +312,6 @@ class AuthService implements AuthSession {
       reportFailure(error);
       rethrow;
     }
-  }
-
-  /// Reports a sign-in failure the caller caught itself.
-  ///
-  /// Native Google sign-in throws from `signIn()` before this service sees the
-  /// account, so the page reports it here instead of writing to the console.
-  /// Cancellation codes are filtered exactly like every other auth failure, so a
-  /// dismissed sheet stays a breadcrumb.
-  void reportSignInFailure(
-    Object error, {
-    AuthOutcome outcome = AuthOutcome.google,
-  }) {
-    _reportAuthFailure(outcome, error);
   }
 
   Future<UserCredential> signInWithPhoneCredential(
@@ -320,7 +427,8 @@ class AuthService implements AuthSession {
   /// Web uses the SDK's popup, which manages the Google OAuth flow itself. On
   /// native platforms a fresh Google credential is exchanged, because Firebase
   /// requires a recent login before sensitive operations such as deleting an
-  /// account.
+  /// account. A dismissed picker keeps the delete flow's silent
+  /// [reauthCancelledCode].
   Future<void> reauthenticateWithGoogle() async {
     final user = _requireCurrentUser();
     if (_isWeb) {
@@ -328,20 +436,20 @@ class AuthService implements AuthSession {
       return;
     }
 
-    final account = await _googleSignIn.signIn();
-    if (account == null) {
-      throw FirebaseAuthException(
-        code: reauthCancelledCode,
-        message: 'The Google account picker was dismissed.',
-      );
+    try {
+      await prepareGoogleSignIn();
+      final account = await _googleSignIn.authenticate();
+      await user.reauthenticateWithCredential(_googleCredential(account));
+    } on GoogleSignInException catch (error) {
+      if (isGoogleSignInCancellation(error)) {
+        throw FirebaseAuthException(
+          code: reauthCancelledCode,
+          message: 'The Google account picker was dismissed.',
+        );
+      }
+      _reportAuthFailure(AuthOutcome.google, error);
+      rethrow;
     }
-    final googleAuth = await account.authentication;
-    await user.reauthenticateWithCredential(
-      GoogleAuthProvider.credential(
-        idToken: googleAuth.idToken,
-        accessToken: googleAuth.accessToken,
-      ),
-    );
   }
 
   /// Re-authenticates the current user with Apple.
@@ -484,7 +592,7 @@ class AuthService implements AuthSession {
     }
   }
 
-  /// Deletes the signed-in user's account, then revokes the Google grant.
+  /// Deletes the signed-in user's account, then revokes a linked Google grant.
   ///
   /// Requires a recent login: `User.delete()` throws `requires-recent-login`
   /// otherwise, which the caller resolves by re-authenticating first. Does
@@ -493,16 +601,27 @@ class AuthService implements AuthSession {
   ///
   /// The Google grant is revoked with `disconnect()`, not merely signed out:
   /// deleting an account must also drop the app's access to the provider
-  /// account, and `disconnect()` stops the account listener from trying to
-  /// re-establish a session for the deleted account at the same time.
-  Future<void> deleteAccount() async {
+  /// account. The link is read before the delete because a phone or Apple
+  /// re-authentication does not prove the account has no Google link. v7 keeps
+  /// no restored Google session, so the attempt is bounded and best-effort: a
+  /// pending third-party SDK must never block a deletion that already
+  /// happened. [googleRevokeTimeout] bounds the prepare and disconnect pair.
+  Future<void> deleteAccount({
+    Duration googleRevokeTimeout = const Duration(seconds: 5),
+  }) async {
     final user = _auth.currentUser;
     if (user == null) {
       return;
     }
+    final googleLinked = providerIds.contains('google.com');
     await user.delete();
+    if (!googleLinked) {
+      return;
+    }
     try {
-      await _googleSignIn.disconnect();
+      await prepareGoogleSignIn()
+          .then((_) => _googleSignIn.disconnect())
+          .timeout(googleRevokeTimeout);
     } catch (error, stackTrace) {
       // The account is already gone, so a failed revocation must not be
       // reported as a failed deletion — but it must not vanish either: it is
@@ -545,16 +664,24 @@ class AuthService implements AuthSession {
   /// Reports a failed sign-in attempt with its provider and structured code.
   ///
   /// The identifier the user typed is never passed: only the code, which is
-  /// what the auth-failure alert counts.
+  /// what the auth-failure alert counts. A cancellation is a breadcrumb, not an
+  /// auth-failure event.
   void _reportAuthFailure(AuthOutcome outcome, Object error) {
-    final code = readErrorCode(error);
     appLogOrNull?.event(
-      AuthStateEvent(
-        outcome: outcome,
-        // A cancellation is a breadcrumb, not an auth-failure event.
-        code: _authCancellationCodes.contains(code) ? null : code,
-      ),
+      AuthStateEvent(outcome: outcome, code: _authFailureCode(error)),
     );
+  }
+
+  /// The reportable code for a failure, or null when the user backed out.
+  String? _authFailureCode(Object error) {
+    if (isGoogleSignInCancellation(error)) {
+      return null;
+    }
+    if (error is GoogleSignInException) {
+      return redactCode(googleSignInFailureCode(error));
+    }
+    final code = readErrorCode(error);
+    return code == _webPhoneCancellationCode ? null : code;
   }
 
   /// The signed-in user, or a [FirebaseAuthException] when there is none.

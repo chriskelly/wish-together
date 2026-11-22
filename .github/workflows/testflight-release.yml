@@ -45,7 +45,7 @@ jobs:
        github.event.workflow_run.event == 'pull_request' &&
        github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.head_repository.full_name == github.repository)
-    runs-on: macos-26
+    runs-on: xcode-27
     permissions:
       contents: read
       pull-requests: write
@@ -123,6 +123,26 @@ jobs:
           # Build exactly the commit iOS CI validated — the branch head may have
           # moved on since. Manual runs have no workflow_run, so fall back to the ref.
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || steps.pr.outputs.head_ref }}
+
+      - name: Verify the iOS SDK
+        if: steps.pr.outputs.no_deploy != 'true'
+        # xcode-27 must provide the iOS 27 SDK App Store Connect requires for
+        # uploads from April 2027; fail before the build if the image regresses.
+        run: |
+          xcodebuild -version
+          sdk_version="$(xcrun --sdk iphoneos --show-sdk-version)"
+          echo "iOS SDK: $sdk_version"
+          sdk_major="${sdk_version%%.*}"
+          case "$sdk_major" in
+            ''|*[!0-9]*)
+              echo "::error::Could not parse the iPhoneOS SDK version (${sdk_version}); refusing to continue."
+              exit 1
+              ;;
+          esac
+          if [ "$sdk_major" -lt 27 ]; then
+            echo "::error::Expected the iOS 27 SDK or newer, got ${sdk_version}."
+            exit 1
+          fi
 
       - name: Set up Flutter
         if: steps.pr.outputs.no_deploy != 'true'

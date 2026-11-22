@@ -108,7 +108,9 @@ Breadcrumb facts: the SDK keeps the last **30**, and messages are the event name
 - Pagination: follow a `Link` header with `rel="next"` only when `results="true"`; stop on
   `results="false"`.
 - Org events endpoint: `GET /organizations/chris-kelly/events/` needs explicit `field=`
-  parameters; without them it answers `No columns selected`.
+  parameters — for example `field=id`, `field=timestamp`, `field=title`, `field=event`,
+  `field=environment`, `field=release` — and `per_page=50`; without them it answers
+  `No columns selected`.
 - Event links: `https://chris-kelly.sentry.io/issues/<id>/events/<eventID>/`.
 
 **Production-only is best-effort.** `environment:production` is the filter, and each build tags

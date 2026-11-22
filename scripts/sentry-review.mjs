@@ -7,6 +7,7 @@
 import { spawnSync } from 'node:child_process';
 import {
   closeSync,
+  constants,
   existsSync,
   fsyncSync,
   mkdirSync,
@@ -286,7 +287,12 @@ export function saveState(stateDir, state, fsOps = {}) {
 
   try {
     mkdir(stateDir, { recursive: true });
-    const descriptor = open(temp, 'w', 0o600);
+    const flags =
+      constants.O_WRONLY |
+      constants.O_CREAT |
+      constants.O_EXCL |
+      (constants.O_NOFOLLOW ?? 0);
+    const descriptor = open(temp, flags, 0o600);
     try {
       write(descriptor, `${JSON.stringify(state, null, 2)}\n`);
       sync(descriptor);
@@ -892,6 +898,7 @@ export async function review(options = {}) {
     fetchImpl = fetch,
     ghList = listGitHubIssues,
     gitRunner = (args) => spawnSync('git', args, { encoding: 'utf8', timeout: 5000 }),
+    saveStateImpl = saveState,
     env = process.env,
   } = options;
 
@@ -1093,7 +1100,7 @@ export async function review(options = {}) {
   }
 
   try {
-    saveState(stateDir, next);
+    saveStateImpl(stateDir, next);
   } catch (error) {
     limitations.push(`${safeLine(error.message)}; cursor unchanged.`);
     return finish(1);

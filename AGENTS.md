@@ -32,6 +32,7 @@ staging `staging`); phone OTP, Google on web and App Check; tests with `flutter_
 | Data access, and how do I change the look? | `lib/core/docs/data-access.md` · `lib/core/docs/design-system.md` |
 | See, drive or screenshot a signed-in screen | `lib/dev/AGENTS.md` · `.agents/skills/dev-session/` |
 | Where do crash reports go, and what is never reported? | `docs/diagnostics.md` |
+| How do I triage a report or review production Sentry data? | `docs/diagnostics.md` · `.agents/skills/sentry-triage/` · `.agents/skills/sentry-review/` |
 | What do the Firestore rules allow? | `docs/authorization.md` |
 | How do CI, staging and releases work? | `docs/ci.md` · `docs/staging.md` · `docs/release.md` |
 | How do I migrate Firestore data? | `docs/migrations.md` (why, claims shape, flags, exit codes) · `docs/migration-runbook.md` (freeze, export, rehearsal, production, rollback) |
@@ -123,9 +124,10 @@ not framework wiring, trivial getters, or defaults; fakes and mocks are normal a
 
 ## Local skills
 
-`.agents/skills/` holds `sentry-triage`, `preview-auth`, `dev-session` and `appstore-screenshots`,
-plus read-only submodules of the Flutter and Firebase Agent Skills (never hand-edit one: this file
-wins on conflict; `git submodule update --init` in a fresh checkout, `--remote` then commit).
+`.agents/skills/` holds `sentry-triage` (one report), `sentry-review` (periodic production
+sweep), `preview-auth`, `dev-session` and `appstore-screenshots`, plus read-only submodules of
+the Flutter and Firebase Agent Skills (never hand-edit one: this file wins on conflict;
+`git submodule update --init` in a fresh checkout, `--remote` then commit).
 
 ## Hard guardrails
 

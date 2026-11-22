@@ -72,10 +72,9 @@ true. Check them under **Settings**, organization and project.
   not promise longer without changing the policy.
 - **IP storage**: "Prevent Storing of IP Addresses" must be **on**. `sendDefaultPii: false` only
   stops the SDK attaching `user.ip_address`; the server enriches the event from the request
-  anyway. It was off until the only event then in the project was found carrying
-  `user.ip_address` and `user.geo`; it is now **on**, verified with a fresh event that carried
-  neither. Re-check it before shipping a build that reports, or the policy's IP sentence is
-  false.
+  anyway. Before shipping a build that reports, confirm the toggle under **Settings**, then check
+  a fresh event: it must carry neither `user.ip_address` nor `user.geo`, or the policy's IP
+  sentence is false.
 - **App Privacy answers** (App Store Connect, not a file): `Diagnostics → Crash Data` **Yes**,
   `Diagnostics → Other Diagnostic Data` **Yes**, linked to the user, not tracking, not
   advertising. `Identifiers → Device ID` is **Yes** for every iOS user while auto session

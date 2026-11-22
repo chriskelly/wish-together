@@ -25,7 +25,12 @@ the dev-script tests and the Fastlane gates.
 
 ## iOS
 
-All on `macos-26` runners with the same pinned Flutter version:
+All on GitHub's `xcode-27` runners — arm64, macOS 27, Xcode 27 / iOS 27 SDK —
+with the same pinned Flutter version. The image updates in place, so the Xcode
+minor can move under us. Every iOS build prints `xcodebuild -version` and the
+iPhoneOS SDK version, and fails unless the major is 27 or newer, so a runner-image
+change cannot silently build against an SDK App Store Connect rejects: uploads
+need the iOS 27 SDK from April 2027.
 
 - `.github/workflows/ci-ios.yml` — the only PR-triggered iOS check: `flutter test` +
   `flutter build ios --simulator` (compile gate, no signing).
@@ -36,8 +41,9 @@ All on `macos-26` runners with the same pinned Flutter version:
   `TestFlight — <head branch>` (the payload sometimes omits it for a same-repo run; a
   master push gets `TestFlight — master` and skips the job), and a manual dispatch uses its
   `pr_number` input. It comments the build number and the source commit on the PR. A
-  `workflow_run` workflow runs in the default branch's context, so the workflow run's own
-  `head_sha` is **not** the code it built; the checkout uses
+  `workflow_run` workflow runs the default branch's workflow file in its context, so a
+  change to this workflow takes effect only after merge, and the run's own `head_sha` is
+  **not** the code it built; the checkout uses
   `github.event.workflow_run.head_sha` (the iOS CI run that triggered it). Trace a build by
   its run name, its PR comment or that payload, never by the run's own `head_sha`.
 - `.github/workflows/app-store-release.yml` — on a `v*` tag or manual dispatch, uploads and

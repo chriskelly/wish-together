@@ -5,6 +5,12 @@
 # actions/runner-images#14748). actionlint's built-in runner-label list ships with
 # each release and does not know `ubuntu-26.04` yet, so declare it here — the same
 # escape hatch actionlint documents for labels it cannot infer.
+#
+# `xcode-27` is a GitHub-hosted arm64 Xcode 27 image (generally available
+# 2026-10-15) that the same label list does not know yet. It is declared here only
+# to silence that stale list, not because it is self-hosted; drop it once
+# actionlint ships the label.
 self-hosted-runner:
   labels:
     - ubuntu-26.04
+    - xcode-27

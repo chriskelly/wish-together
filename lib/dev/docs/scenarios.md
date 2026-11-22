@@ -43,32 +43,11 @@ and it is read only at startup.
 | `overflow` | Long display, group and wishlist names, an unbroken item name, a long link and a long description. | `/wishlist/ovf-l1` |
 | `shared` | A group the viewer belongs to, a wishlist another member shared with it, claims by that member and by the viewer, and multi-claim rows (unlimited, partly claimed, full, viewer-claimed) plus an owner list showing each limit. | `/group/shr-g1`, `/wishlist/shr-l2` or `/wishlist/shr-l1` |
 
-The overflow scenario's group page (`/group/ovf-g1`) is worth opening too: its member row
-overflows when the name is unbroken, which is the layout gap the scenario exists to expose. It
-is not part of the automated URL suite for that reason; the member row is the code that needs
-the fix, not the fixture.
-
-The document ids follow the scenario's short prefix — `dev`, `fam`, `lg`, `emp`, `ovf`, `shr` —
-then a kind letter (`u` user, `g` group, `l` wishlist, `i` item) and a number. Hand-written item
-ids count from `1` (`dev-i1`, `shr-i6`); the generated sets in `family` and `large-wishlist`
-zero-pad to two digits (`fam-i01`). Each scenario's module builds its own ids and holds the names
-and relationships; `test/dev/scenario_library_test.dart` pins the exact set. Read either to find
-one, and use the scenario table above for start URLs.
-
-Worth opening directly:
-
-- `/wishlist/fam-l1?scenario=family` is Bea's list, shared with two of the viewer's groups. The
-  viewer is a reader, so its claims are visible.
-- `/wishlist/fam-l11?scenario=family` is the viewer's own list with claims on it, so the spoiler
-  toggle has something to hide and reveal.
-- `/wishlist/shr-l2?scenario=shared` is another member's list. `shr-i5` is full and `shr-i6`
-  is the viewer's single claim; `shr-i7` is unlimited with a count, `shr-i8` is partly claimed,
-  `shr-i9` is full and `shr-i10` is the viewer's multi claim, so every reader rendering is on
-  one screen.
-- `/wishlist/shr-l1?scenario=shared` is the viewer's own list; its items carry a single limit,
-  an unlimited item and two finite multi limits (one with no claims), so the spoiler-free limit
-  labels and the revealed counts both have something to show. Press **Show claimed status**.
-- `/wishlist/ovf-l1?scenario=overflow` holds the long-name, long-link and long-description probes.
+Document ids follow the scenario's short prefix, a kind letter (`u` user, `g` group, `l`
+wishlist, `i` item) and a number. Each scenario's module builds its own ids and holds the names
+and relationships; `fixtures/registry.dart` maps each scenario id to its fixture, and
+`test/dev/scenario_library_test.dart` pins the document-id set. Use the registry for a scenario
+id and the test for a document id; the table above gives the start URLs.
 
 A fixture cannot store spoiler mode: it is a per-view toggle on the wishlist details page, on by
 default for the owner and absent for a reader. To see an owned list's claims, press **Show claimed

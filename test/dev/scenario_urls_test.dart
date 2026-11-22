@@ -145,12 +145,9 @@ void main() {
     expect(find.text(overflowSpacedItemName), findsOneWidget);
   });
 
-  // The overflow scenario's group page (`/group/ovf-g1`) is deliberately not
-  // mounted here: its member row lays out an unbounded name beside the role
-  // label, so the unbroken display name overflows the Row and Flutter reports
-  // it as an error in a widget test. That is a real layout gap the scenario was
-  // written to expose, not a fixture problem, so it is reported rather than
-  // hidden by shortening the name.
+  // The overflow scenario's group page (`/group/ovf-g1`) is not mounted here;
+  // the member row's long-name truncation is covered by
+  // `group_details_page_test.dart`.
 
   testWidgets('shared opens the group page that links both wishlists', (
     tester,

@@ -4,11 +4,14 @@ One-off admin scripts in `scripts/` change stored data outside the app. They run
 with a service account and bypass security rules; their tests use a fake
 Firestore, so the operational checks live in `docs/migration-runbook.md`.
 
-Use a one-off script when the change is a single rewrite, it is idempotent, and
-an export taken just before is a sufficient rollback. Revisit a shared kit only
-when several migrations need the same pagination or backup machinery; the
-background and rejected alternatives are in
-[issue #143](https://github.com/chriskelly/wish-together/issues/143).
+Use a one-off, standalone script when the change is a single rewrite, it is
+idempotent, and an export taken just before is a sufficient rollback. Keep a
+shared runner, registry or custom backup format out of it: they add maintenance
+without a second migration, and `gcloud firestore export` and `import` cover the
+data side of backup and rollback; `docs/migration-runbook.md` covers the freeze
+and the rules and Hosting restore. Revisit a shared kit only when several
+migrations need the same pagination or backup machinery; extract from those real
+migrations, not a prediction.
 
 This doc covers why a migration exists, the claims document shape, the script's
 flags and exit codes, and the one sanctioned global item read.

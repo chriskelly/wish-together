@@ -175,53 +175,11 @@ wishlist shared with a group appears in that group's details page because of
 
 ## How it is tested
 
-- `test/features/wishlist/domain/` — `Item` helpers, the empty-claims default, an invalid or
-  missing limit reading as `1`, the map round-trip, and dropping an unparseable claim value; the
-  stale-claim plan's 183-day boundary, mixed ages, future dates, a later clock, and an item
-  without an id.
-- `test/features/wishlist/application/` — the use cases with `mocktail` mocks registered in
-  `getIt`: create/update carry `claimLimit`, update is field-scoped and writes a cleared
-  description or url as null, unclaim passes the uid and
-  fails signed out, reset clears the item, fails signed out and classifies a denied write, claim
-  rejects a full item as `fullyClaimed`, clear removes every planned item's keys, fails signed
-  out, stops at the first failed write with its stack trace, and returns without logging for an
-  empty plan, and `ClaimFailure.from` maps the exception before any Firestore code.
-- `test/features/wishlist/data/` — `WishlistRepository` (sub-collection wiring, the
-  field-scoped item update preserving a stored claim, the no-id `ArgumentError`,
-  `deleteWithItems`) and `ItemRepository` against `FakeFirebaseFirestore`: claims `Timestamp`
-  round-trip, a repeat claim keeping one key, the cap rejecting without a write, unlimited
-  items, unclaim removing only the caller's key by delegating to `removeClaims`, `removeClaims`
-  deleting only the named keys, `resetClaims` clearing every key, and `updateContent` preserving
-  `claims`. The fake transaction has no isolation or rollback, so the true concurrency behaviour
-  is proven by the rules tests and the staging smoke test, not here.
-- `test/features/wishlist/presentation/` — `claimFailureMessage` and
-  `clearStaleClaimsFailureMessage` copy; `item_form_page_test` pins the stepper's create, edit,
-  unlimited and save behaviour, the reset action always showing on an edit, its confirmation, its
-  pending state, and its failure copies, both forms' check-mark enablement and autofocus
-  behaviour, the create leave guard, its locked fields while the write is in flight, the leave
-  dialog from both `PopScope` and the browser's route replacement (keep editing, discard and
-  save on both paths; an invalid save from the back dialog), a failure banner that survives a
-  focus change but clears on a text edit, the failed/offline/unconfirmed save banner and its
-  retry, a rapid edit sequence, edits kept when typed during an in-flight save, a create that
-  cannot be submitted twice, and a reset that stays on the form and refreshes the stepper
-  minimum;
-  `wishlist_details_page_test` pins the reader's own and other claims, the unclaimed case, the
-  multi/unlimited counts, `Unavailable`, the owner's spoiler-free limit labels and revealed
-  status, the row fitting a 320 px phone at 1.3 text scale, the signed-out unclaim copy, the
-  owner's card never being restyled in either spoiler mode, and the banner's owner-only presence,
-  copy, confirmation, success/partial snackbars, retry, busy state, error suppression, and
-  snackbar surviving the banner's unmount.
-- `test/features/wishlist/presentation/providers/` — `ProviderContainer` transitions with no
-  widgets: the spoiler toggle flips, claim succeeds and fails (rethrow plus busy cleared),
-  unclaim runs its use case, and the bulk clear reports its marker, runs the clear use case, and
-  serialises with claim and delete in both directions.
-- `test/features/wishlist/presentation/wishlist_details_state_test.dart` — the subscription
-  regression (no re-listen after a toggle, a page rebuild, a text-scale change, an item emission
-  or a wishlist emission; a cancel on leave; one new listen on re-entry), the double-tap claim
-  guard (one call and one snackbar), the empty list, the delete flow, and the wishlist/item error
-  branches.
-- `rules_tests/` — own-key-only adds and removes, the cap, unlimited items, the owner's
-  field-scoped edit and limit invariant, an owner removing any subset of claims, additions and
-  rewrites refused, an absent map allowing a no-op removal, a malformed map repaired by clearing
-  it, a reset combined with a content edit refused, create validation, a legacy document being
-  write-denied, and an item created without a claims map still being claimable.
+Tests mirror the four layers under `test/features/wishlist/<layer>/`, and the claim rules are
+exercised in `rules_tests/`. List the current files with
+`find test/features/wishlist -name '*_test.dart' | sort`; each file is named for the unit under
+test, and each test for the behaviour it pins.
+
+`FakeFirebaseFirestore` has no transaction isolation or rollback, so repository tests cannot
+show what happens when two clients claim the last slot at once. The rules tests apply the cap
+sequentially and the staging smoke test is single-actor, so that race remains uncovered.

@@ -42,4 +42,4 @@ the product.
 ## Reference
 
 - Models, repositories, claim states, the rules that gate a claim → `docs/claiming.md`
-- The provider pattern, retry policy and test shapes → `../core/docs/state.md`
+- The provider pattern, retry policy and test shapes → `../../core/docs/state.md`

@@ -320,14 +320,16 @@ test('a failed state write keeps the old cursor and leaves no temp file', async 
   );
 });
 
-test('state is fsynced before it is renamed', (t) => {
+test('state is fsynced before it is renamed, with exclusive no-follow creation', (t) => {
   const stateDir = tempDir(t);
   const order = [];
+  let openFlags = 0;
 
   saveState(stateDir, stateWithProposal(), {
-    openSync: (...args) => {
+    openSync: (path, flags, mode) => {
       order.push('open');
-      return fs.openSync(...args);
+      openFlags = flags;
+      return fs.openSync(path, flags, mode);
     },
     writeFileSync: (...args) => {
       order.push('write');
@@ -348,6 +350,35 @@ test('state is fsynced before it is renamed', (t) => {
   });
 
   assert.deepEqual(order, ['open', 'write', 'fsync', 'close', 'rename']);
+  assert.ok(openFlags & fs.constants.O_EXCL);
+  assert.ok(openFlags & fs.constants.O_NOFOLLOW);
+});
+
+test('a review-level state write failure keeps the cursor and reports the limitation', async (t) => {
+  const stateDir = tempDir(t);
+  const state = stateWithProposal();
+  state.proposals = {};
+  saveState(stateDir, state);
+  const before = readFileSync(join(stateDir, 'state.json'), 'utf8');
+  const sentry = fakeSentry({
+    pages: { 'is:unresolved': [[makeIssue()]] },
+    events: { '7855897843': [makeEvent()] },
+  });
+
+  const { result } = await runReview(t, {
+    stateDir,
+    sentry,
+    review: {
+      saveStateImpl: () => {
+        throw new Error('disk full');
+      },
+    },
+  });
+
+  assert.equal(result.exitCode, 1);
+  assert.match(result.report, /disk full/);
+  assert.match(result.report, /cursor unchanged/);
+  assert.equal(readFileSync(join(stateDir, 'state.json'), 'utf8'), before);
 });
 
 test('an unreadable state file names the read error, not invalid JSON', (t) => {
@@ -971,7 +1002,36 @@ test('every Sentry call is a GET to the allowlisted API base', async (t) => {
   for (const call of sentry.calls) {
     assert.equal(call.options.method, 'GET');
     assert.match(call.url, /^https:\/\/sentry\.io\/api\/0\//);
+    assert.equal(call.options.headers.Authorization, `Bearer ${TOKEN}`);
   }
+});
+
+test('the token is never written to the report or state', async (t) => {
+  const { result, stateDir } = await runReview(t);
+  const state = readFileSync(join(stateDir, 'state.json'), 'utf8');
+
+  assert.ok(!result.report.includes(TOKEN));
+  assert.ok(!state.includes(TOKEN));
+});
+
+test('the report carries the Sentry issue and event links', async (t) => {
+  const sentry = fakeSentry({
+    pages: { 'is:unresolved': [[makeIssue()]] },
+    events: { '7855897843': [makeEvent()] },
+  });
+
+  const { result } = await runReview(t, { sentry });
+
+  assert.match(
+    result.report,
+    /Sentry: https:\/\/chris-kelly\.sentry\.io\/issues\/7855897843\//,
+  );
+  assert.match(
+    result.report,
+    new RegExp(
+      `- https://chris-kelly\\.sentry\\.io/issues/7855897843/events/${EVENT_ID}/`,
+    ),
+  );
 });
 
 test('an unknown flag, including --token, exits 2', () => {
@@ -1184,7 +1244,18 @@ test('the GitHub command uses constant argv', () => {
   });
 
   assert.equal(captured.command, 'gh');
-  assert.ok(captured.args.includes('chriskelly/wish-together'));
+  assert.deepEqual(captured.args, [
+    'issue',
+    'list',
+    '--repo',
+    'chriskelly/wish-together',
+    '--state',
+    'all',
+    '--limit',
+    '1000',
+    '--json',
+    'number,title,state,closedAt,url',
+  ]);
   assert.ok(!captured.args.join(' ').includes('PII'));
 });
 

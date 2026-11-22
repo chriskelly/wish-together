@@ -15,6 +15,7 @@ import 'package:go_router/go_router.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:wishtogether/core/deep_links.dart';
+import 'package:wishtogether/core/keyboard_dismissal.dart';
 import 'package:wishtogether/core/logging/app_event.dart';
 import 'package:wishtogether/core/logging/diagnostics.dart';
 import 'package:wishtogether/core/logging/sentry_sink.dart';
@@ -277,10 +278,8 @@ class WishTogetherApp extends StatelessWidget {
           ),
         );
         final frame = pageFrame;
-        if (frame == null) {
-          return pages;
-        }
-        return frame(pages);
+        final content = frame == null ? pages : frame(pages);
+        return KeyboardDismissal(child: content);
       },
     );
     return ProviderScope(retry: disableAutomaticRetry, child: app);

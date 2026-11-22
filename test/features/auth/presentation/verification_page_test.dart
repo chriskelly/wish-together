@@ -11,8 +11,10 @@ import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
 import 'package:wishtogether/features/auth/data/phone_auth_error.dart';
 import 'package:wishtogether/features/auth/presentation/verification_page.dart';
+import 'package:wishtogether/main.dart';
 
 import '../../../core/logging/recording_sink.dart';
+import '../../../support/focus_node.dart';
 
 class MockAuthService extends Mock implements AuthService {}
 
@@ -263,6 +265,39 @@ void main() {
       // a code page that has already been used.
       expect(find.text('destination'), findsOneWidget);
       expect(router.canPop(), isFalse);
+    });
+  });
+
+  group('VerificationPage keyboard dismissal', () {
+    testWidgets('a downward swipe drops focus and hides the keyboard', (
+      tester,
+    ) async {
+      // Arrange: the code field has the keyboard up.
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      addTearDown(tester.view.resetViewInsets);
+      final router = GoRouter(
+        initialLocation: '/start',
+        routes: <RouteBase>[
+          GoRoute(
+            path: '/start',
+            builder: (_, _) => const Scaffold(body: Text('start')),
+          ),
+          verificationPageRoute(),
+        ],
+      );
+      await tester.pumpWidget(WishTogetherApp(router: router));
+      router.push(VerificationPage.route, extra: verificationId);
+      await tester.pumpAndSettle();
+      await tester.showKeyboard(find.byType(TextField));
+      await tester.pump();
+
+      // Act
+      await tester.drag(find.text('Verify Code'), const Offset(0, 120));
+      await tester.pump();
+
+      // Assert
+      expect(focusNodeOf(tester, find.byType(TextField)).hasFocus, isFalse);
+      expect(tester.testTextInput.isVisible, isFalse);
     });
   });
 }

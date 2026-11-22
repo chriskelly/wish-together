@@ -31,6 +31,7 @@ Paths are relative to `lib/core/`, then to the repository root.
 | `PackageInfoLoader` | `platform_info.dart` | The injectable `PackageInfo.fromPlatform` seam shared by the update gate and the build-identity read. |
 | `BrandPalette` / `BrandGeometry` / `buildTextTheme` | `design_tokens.dart` | Brand values, geometry and the type scale. |
 | `fabReserve(BuildContext, {gap})` | `fab_layout.dart` | Bottom reserve that keeps a scrollable page's last row clear of a floating action button. |
+| `KeyboardDismissal` | `keyboard_dismissal.dart` | App-wide downward-swipe gesture that unfocuses the keyboard. `WishTogetherApp` installs it in `MaterialApp.builder`, so it covers every route and dialog. |
 | `lightTheme`, `darkTheme` | `theme.dart` | Material 3 themes built from `BrandPalette`; the only theme entry points. |
 
 ## Data flow
@@ -47,7 +48,8 @@ any), seeds the session route and emits `sessionStart`, mounts
 `createRouter(getIt<AuthSession>(), initialLocation: …)` via `MaterialApp.router`, and attaches
 the router for warm links; if not, the blocking `UpdateRequiredApp` is mounted and the router is
 never created. `SentryFlutter.init` wraps that same startup only when `WT_SENTRY_DSN` is set.
-`WishTogetherApp` wraps `MaterialApp.router` in the one root `ProviderScope`. Migrated pages read
+`WishTogetherApp` wraps `MaterialApp.router` in the one root `ProviderScope` and wraps its pages in
+`KeyboardDismissal`, so a downward swipe hides the on-screen keyboard. Migrated pages read
 collaborators through the bridge providers in `providers.dart` and keep screen state in their
 feature's `presentation/providers/`; the auth, group-form, wishlist-form and item-form pages
 still resolve `getIt` directly. Repositories are never constructed inline. The bridge still

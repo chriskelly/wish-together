@@ -12,6 +12,7 @@ import 'package:wishtogether/core/logging/app_log.dart';
 import 'package:wishtogether/core/router.dart';
 
 import '../../../core/logging/recording_sink.dart';
+import '../../../support/focus_node.dart';
 
 import 'package:wishtogether/core/service_locator.dart';
 import 'package:wishtogether/features/auth/data/auth_service.dart';
@@ -20,6 +21,7 @@ import 'package:wishtogether/features/auth/data/phone_verification.dart';
 import 'package:wishtogether/features/auth/data/user_repository.dart';
 import 'package:wishtogether/features/auth/presentation/login_page.dart';
 import 'package:wishtogether/features/auth/presentation/verification_page.dart';
+import 'package:wishtogether/main.dart';
 
 class MockAuthService extends Mock implements AuthService {}
 
@@ -45,6 +47,10 @@ const double viewportWidth = 320;
 
 /// The top inset a notched phone reports.
 const double statusBarInset = 47;
+
+/// Whether the phone field currently owns the focus.
+bool phoneFieldHasFocus(WidgetTester tester) =>
+    focusNodeOf(tester, find.byType(TextField)).hasFocus;
 
 void main() {
   group('shouldShowAppleSignInButton', () {
@@ -615,6 +621,67 @@ void main() {
       // Leaving through the router must discard the pending sign-in, not only
       // dispose of the page: a browser-back is a different path from a rebuild.
       verify(() => authService.discardPendingPhoneSignIn()).called(1);
+    });
+  });
+
+  group('LoginPage keyboard dismissal', () {
+    late MockAuthService authService;
+
+    setUp(() async {
+      await getIt.reset();
+      authService = mockAuthService();
+      getIt.registerSingleton<AuthService>(authService);
+      getIt.registerSingleton<AppLog>(
+        AppLog(session: testSession, sinks: const []),
+      );
+    });
+
+    tearDown(getIt.reset);
+
+    Future<void> pumpLogin(WidgetTester tester) async {
+      final router = GoRouter(
+        initialLocation: LoginPage.route,
+        routes: [loginPageRoute()],
+      );
+      await tester.pumpWidget(WishTogetherApp(router: router));
+      await tester.pump();
+    }
+
+    testWidgets('a downward swipe drops focus and hides the keyboard', (
+      tester,
+    ) async {
+      // Arrange: the on-screen keyboard is up.
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      addTearDown(tester.view.resetViewInsets);
+      await pumpLogin(tester);
+      await tester.showKeyboard(find.byType(TextField));
+      await tester.pump();
+      expect(phoneFieldHasFocus(tester), isTrue);
+
+      // Act
+      await tester.drag(find.text('OR'), const Offset(0, 120));
+      await tester.pump();
+
+      // Assert
+      expect(phoneFieldHasFocus(tester), isFalse);
+      expect(tester.testTextInput.isVisible, isFalse);
+    });
+
+    testWidgets('a tap leaves focus and the keyboard alone', (tester) async {
+      // Arrange
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      addTearDown(tester.view.resetViewInsets);
+      await pumpLogin(tester);
+      await tester.showKeyboard(find.byType(TextField));
+      await tester.pump();
+
+      // Act
+      await tester.tap(find.text('OR'));
+      await tester.pump();
+
+      // Assert
+      expect(phoneFieldHasFocus(tester), isTrue);
+      expect(tester.testTextInput.isVisible, isTrue);
     });
   });
 }

@@ -72,11 +72,12 @@ SDK.
 directly (empty DSN) or calls `SentryFlutter.init` with `appRunner` bound to the same startup.
 The startup creates one `SessionContext.create(...)` per launch and an `AppLog` with
 `ConsoleSink` and, when a DSN exists, `SentrySink`, and registers it in the locator. `startApp`
-seeds the session route from the pending deep link and emits `sessionStart`;
-`RouteChangeRecorder` reports later location changes, and the auth listener reports the
-transition. `LogRecord.toMap()` is what a sink serialises, `SentrySink` maps it to a breadcrumb
-(and an event for errors/warnings), and Sentry's `beforeSend`/`beforeBreadcrumb` re-check the
-allowlist.
+seeds the session route from the resolved start location — a queued Universal Link, else the
+platform's initial route (the browser path and query on web), else `/` — and emits
+`sessionStart`; `RouteChangeRecorder` reports later location changes, and the auth listener
+reports the transition. `LogRecord.toMap()` is what a sink serialises, `SentrySink` maps it to a
+breadcrumb (and an event for errors/warnings), and Sentry's `beforeSend`/`beforeBreadcrumb`
+re-check the allowlist.
 
 ## How it is tested
 

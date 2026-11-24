@@ -43,8 +43,9 @@ build identity: with a DSN the Sentry wrapper reads it before `SentryFlutter.ini
 overlaps init) and awaits it afterwards. It builds the launch diagnostics (`SessionContext`,
 `AppLog`, `ConsoleSink`, and `SentrySink` when a DSN is configured), registers the log in the
 locator, activates App Check, and asks `AppUpdateService`
-whether the running build is still supported. If it is, `_startApp` takes the queued link (if
-any), seeds the session route and emits `sessionStart`, mounts
+whether the running build is still supported. If it is, `_startApp` resolves the start location
+— a queued link, else the platform's initial route (the browser path and query on web), else
+`/` — seeds the session route, emits `sessionStart`, mounts
 `createRouter(getIt<AuthSession>(), initialLocation: …)` via `MaterialApp.router`, and attaches
 the router for warm links; if not, the blocking `UpdateRequiredApp` is mounted and the router is
 never created. `SentryFlutter.init` wraps that same startup only when `WT_SENTRY_DSN` is set.

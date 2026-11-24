@@ -41,6 +41,10 @@ void main() async {
   // Installed before any plugin runs, so a Universal Link queued during startup
   // is kept and web routes are real paths before Sentry sees them.
   usePathUrlStrategy();
+  // Captured once, before the update gate can mount its own MaterialApp: the
+  // browser route is the cold-start location, and a retry after a blocked gate
+  // must still open it.
+  _launchLocation = WidgetsBinding.instance.platformDispatcher.defaultRouteName;
   _deepLinks = DeepLinkService();
 
   await startWithDiagnostics(
@@ -146,32 +150,46 @@ Future<UpdateDecision> _checkForUpdate() =>
     checkForUpdate(() => getIt<AppUpdateService>().check());
 
 bool _appStarted = false;
+late final String _launchLocation;
 late final DeepLinkService _deepLinks;
 
 void _startApp() {
   if (_appStarted) {
     return;
   }
-  startApp(links: _deepLinks, session: getIt<AuthSession>(), mount: runApp);
+  startApp(
+    links: _deepLinks,
+    session: getIt<AuthSession>(),
+    mount: runApp,
+    platformDefault: _launchLocation,
+  );
   _appStarted = true;
 }
 
-/// Composition step shared with the startup test: apply a queued link to the
-/// router, mount the app, then forward warm links.
+/// Composition step shared with the startup test: apply the start location to
+/// the router, mount the app, then forward warm links.
+///
+/// [platformDefault] is the route the platform opened on: on web the browser
+/// path and query. Production captures it once at launch; tests pass it
+/// directly.
 @visibleForTesting
 void startApp({
   required DeepLinkService links,
   required AuthSession session,
   required void Function(WishTogetherApp app) mount,
+  required String platformDefault,
 }) {
-  final initialLocation = links.takePendingLocation();
+  final initialLocation = initialLocationFor(
+    pendingLocation: links.takePendingLocation(),
+    platformDefault: platformDefault,
+  );
   final log = appLogOrNull;
   if (log != null) {
     // Seed the session route before anything else is reported, so an event on a
     // deep-link cold start carries the page the user actually opened.
     // routeChanged redacts the location; the event then reports the pattern
     // the session actually holds.
-    log.routeChanged(initialLocation ?? '/');
+    log.routeChanged(initialLocation);
     log.event(
       SessionStartEvent(
         build: log.session.build,

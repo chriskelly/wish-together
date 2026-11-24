@@ -6,6 +6,25 @@ import 'package:flutter/foundation.dart'
 import 'package:wishtogether/core/app_urls.dart';
 import 'package:wishtogether/core/logging/diagnostics.dart';
 
+/// The location a cold start opens: a queued Universal Link wins, then the
+/// platform's initial route.
+///
+/// On web the platform default is the URL strategy's current route: a
+/// configured `<base href>` prefix and the fragment are stripped, while the
+/// query is kept (`/join?group=abc` stays as-is; a legacy `/#/login` link
+/// lands on `/`). A blank default means home, matching the router's own
+/// fallback.
+String initialLocationFor({
+  required String? pendingLocation,
+  required String platformDefault,
+}) {
+  if (pendingLocation != null) {
+    return pendingLocation;
+  }
+  final fallback = platformDefault.trim();
+  return fallback.isEmpty ? '/' : fallback;
+}
+
 /// Delivers Universal Links to the router.
 ///
 /// Listening starts in the constructor so a link received while Firebase or the

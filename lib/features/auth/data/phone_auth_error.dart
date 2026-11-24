@@ -17,7 +17,10 @@ String phoneAuthErrorMessage(FirebaseAuthException exception) {
       return "That code isn't right. Check the SMS code and try again.";
     case 'missing-verification-code':
       return 'Enter the 6-digit code from the SMS and try again.';
+    // Web reports code-expired; the native SDKs report the same expiry as
+    // session-expired.
     case 'code-expired':
+    case 'session-expired':
       return 'That code has expired. Request a new one and try again.';
     case 'invalid-app-credential':
     case 'captcha-check-failed':

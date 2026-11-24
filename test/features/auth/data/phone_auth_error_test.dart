@@ -7,19 +7,20 @@ void main() {
       FirebaseAuthException(code: code, message: 'raw-server-message');
 
   group('phoneAuthErrorMessage', () {
-    // Codes the phone flow must handle explicitly (ticket #8).
+    // Codes the phone flow must handle explicitly.
     const knownCodes = <String>[
       'invalid-phone-number',
       'too-many-requests',
       'invalid-verification-code',
       'missing-verification-code',
       'code-expired',
+      'session-expired',
       'invalid-app-credential',
       'unauthorized-domain',
       'quota-exceeded',
     ];
 
-    test('gives every known code its own non-empty message', () {
+    test('gives every known code a non-generic message', () {
       // Arrange
       final genericFallback = phoneAuthErrorMessage(
         exceptionFor('brand-new-code'),
@@ -51,6 +52,22 @@ void main() {
         expect(message.toLowerCase(), contains('domain'));
       },
     );
+
+    test('explains an expired code for the web and native expiry codes', () {
+      // Arrange
+      const expiredMessage =
+          'That code has expired. Request a new one and try again.';
+
+      // Act
+      final webMessage = phoneAuthErrorMessage(exceptionFor('code-expired'));
+      final nativeMessage = phoneAuthErrorMessage(
+        exceptionFor('session-expired'),
+      );
+
+      // Assert
+      expect(webMessage, expiredMessage);
+      expect(nativeMessage, expiredMessage);
+    });
 
     test('asks for the six-digit SMS code when none was supplied', () {
       // Act

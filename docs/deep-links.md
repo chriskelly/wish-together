@@ -21,6 +21,10 @@ twice).
   queued location to `createRouter(initialLocation:)` and later links to `go_router`.
   `lib/core/app_urls.dart` is the pure allowlist: https only, our hosts only, the three AASA
   paths only.
+- On web, `DeepLinkService` is inert, so a cold start that no Universal Link claims begins at
+  the platform's default route: the browser path and query (`/wishlist/<id>`, `/join?group=<id>`).
+  `initialLocationFor` prefers a queued link, then that route, then `/`; the same value seeds the
+  session route and the router, so the first `routeChanged` record names the page opened.
 - **Entitlements:** `Runner.entitlements` (Release/Profile/TestFlight) carries
   `applinks:wishtogether.gift`; `Runner-Debug.entitlements` carries
   `applinks:wish-together-staging.web.app` only. A release build must never authorize the

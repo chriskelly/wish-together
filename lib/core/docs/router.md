@@ -21,7 +21,8 @@ URI), so a signed-out `/wishlist/abc` records `/wishlist/:id` before the router 
 `createRouter` takes an optional `userRepository`, defaulting to
 `getIt<UserRepository>()`; `lib/main.dart` relies on that default, while tests and alternative
 composition roots may inject one. It also takes an optional `initialLocation` (a path such
-as `/join?group=123`), which is how an iOS Universal Link starts the router.
+as `/join?group=123`): `main.dart` passes a queued Universal Link or, on web, the browser path
+and query, so the session route and the router start from the same value.
 `handleRedirect`'s fallback is for direct callers and tests.
 
 ## Pages and the app-type check

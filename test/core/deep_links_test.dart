@@ -103,6 +103,35 @@ void main() {
     expect(service.takePendingLocation(), '/join?group=one');
   });
 
+  group('initialLocationFor', () {
+    test('a queued link wins over the platform default', () {
+      final location = initialLocationFor(
+        pendingLocation: '/join?group=one',
+        platformDefault: '/wishlist/two',
+      );
+
+      expect(location, '/join?group=one');
+    });
+
+    test('uses the platform default when no link is queued', () {
+      final location = initialLocationFor(
+        pendingLocation: null,
+        platformDefault: '/wishlist/abc123?tab=1',
+      );
+
+      expect(location, '/wishlist/abc123?tab=1');
+    });
+
+    test('a blank platform default starts at home', () {
+      final location = initialLocationFor(
+        pendingLocation: null,
+        platformDefault: '   ',
+      );
+
+      expect(location, '/');
+    });
+  });
+
   test('reports a link stream failure through the log', () async {
     final sink = RecordingSink();
     getIt.registerSingleton<AppLog>(

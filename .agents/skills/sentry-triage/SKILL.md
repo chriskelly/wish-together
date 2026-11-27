@@ -10,7 +10,7 @@ events, use `sentry-review` instead.
 
 ## Before you start
 
-- Read `docs/diagnostics.md` → Sentry access and safety. `SENTRY_ACCESS_TOKEN` must be in the
+- Read `docs/sentry-operations.md` → Sentry access and safety. `SENTRY_ACCESS_TOKEN` must be in the
   environment: a **read-only** user token (`org:read`, `project:read`, `event:read`). Never
   echo it, pass it as a command-line argument, or write it to a file. Never substitute
   `SENTRY_AUTH_TOKEN`.
@@ -41,17 +41,18 @@ The search returns **issues that contain** a matching event, not the event itsel
 
 ## 2. Read the event
 
-Follow `docs/diagnostics.md` → Debugging a report → Reading a report. Read `tags` first, then
+Follow `docs/sentry-operations.md` → Debugging a report → Reading a report. Read `tags` first, then
 the exception **type**, then the frames, then the breadcrumbs oldest first.
 
 When there is no issue yet, or you want every event in a window, use the org events search in
-`docs/diagnostics.md` → Searching issues and events. It needs explicit `field=` parameters.
-Interpret the tags with `docs/diagnostics.md` → Event families and tags.
+`docs/sentry-operations.md` → Searching issues and events. It needs explicit `field=` parameters.
+Interpret the tags with `docs/sentry-operations.md` → Event families and tags.
 
 ## 3. Before concluding "nothing happened"
 
-An empty result is never proof. Run the checklist in `docs/diagnostics.md` → Before concluding
-"nothing happened"; the documented exceptions are in Known blind spots.
+An empty result is never proof. Run the checklist in `docs/sentry-operations.md` → Before
+concluding "nothing happened"; the documented exceptions are in `docs/diagnostics.md` → Known
+blind spots.
 
 ## 4. Report
 

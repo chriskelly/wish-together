@@ -38,14 +38,11 @@ is uploaded by the release lane (`skip_metadata: false`; only this file exists i
 directory, so nothing else in the live listing is touched). The directory locale must match the
 app record's primary language — English (U.S.), so `en-US`.
 
-- **Every pull request with a customer-facing change adds one short line to that file.** Write
-  it for the person who installed the app, not for the team: what changed, in plain words, no
-  emoji (App Store metadata has choked on them before), no issue numbers, no jargon. Keep the
-  whole file under Apple's 4,000-character limit; a release is usually two to five bullets.
-- **Every release writes its own notes.** The release lane calls `validate_release_notes!`
-  before it builds, and fails on a missing, empty or oversized file — so a release cannot be
-  submitted with stale or absent notes, and the failure costs seconds instead of a signed
-  archive.
+- **The writing rule lives in `AGENTS.md` → Release notes.** Keep the whole file under Apple's
+  4,000-character limit; a release is usually two to five bullets.
+- **The release lane calls `validate_release_notes!` before it builds**, and fails on a missing,
+  empty or oversized file — so a release cannot be submitted with stale or absent notes, and the
+  failure costs seconds instead of a signed archive.
 - **The file is cleared after a successful release.**
   `.github/workflows/clear-release-notes.yml` runs on `workflow_run` success for *App Store
   Release*, truncates the file on `master` and pushes with `[skip ci]`. Pull before you branch

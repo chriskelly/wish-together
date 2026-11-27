@@ -60,7 +60,8 @@ private certificate repo `chriskelly/ios-match-certs`; uploads use an App Store 
 key. Secrets: `MATCH_GIT_URL`, `MATCH_PASSWORD`, `MATCH_GIT_PRIVATE_KEY`,
 `APP_STORE_CONNECT_API_KEY_KEY_ID`, `APP_STORE_CONNECT_API_KEY_ISSUER_ID`,
 `APP_STORE_CONNECT_API_KEY_CONTENT` (base64 of the `.p8`), and `SENTRY_AUTH_TOKEN` for the dSYM
-upload, which also reads the `SENTRY_DSN` variable (see `docs/diagnostics.md`).
+upload, which also reads the `SENTRY_DSN` variable (see `docs/diagnostics.md` → Builds,
+environments and source maps).
 `fastlane/` holds the `Appfile`, `Matchfile`, and the `Fastfile` lanes (`testflight_release`,
 `app_store_release`); the same workflows pin Ruby `3.3`. The release lanes run
 `flutter build ipa` and switch the project to manual signing with the match profile.

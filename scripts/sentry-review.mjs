@@ -601,7 +601,7 @@ function formatReport(result) {
 
   if (proposals.length === 0) {
     lines.push(
-      'No new production issues in this window. This is not proof the app is healthy; run the checklist in docs/diagnostics.md → Before concluding "nothing happened".',
+      'No new production issues in this window. This is not proof the app is healthy; run the checklist in docs/sentry-operations.md → Before concluding "nothing happened".',
       '',
     );
   }

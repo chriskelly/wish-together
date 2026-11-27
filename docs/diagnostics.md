@@ -6,7 +6,7 @@ step, or the privacy policy. Reading or reviewing a report: `docs/sentry-operati
 
 Crashes, failures and a short trail of steps are reported to **Sentry** (Functional Software,
 Inc., United States), once a DSN is configured. `web/privacy.html` is the user-facing
-disclosure; this file is the operator view. The policy names **categories** of data, not
+disclosure; this file is the durable reference. The policy names **categories** of data, not
 features or event names — keep it that way, so shipping a screen does not require a policy
 edit.
 
@@ -42,8 +42,9 @@ true. Check them under **Settings**, organization and project.
 - **App Privacy answers** (App Store Connect, not a file): `Diagnostics → Crash Data` **Yes**,
   `Diagnostics → Other Diagnostic Data` **Yes**, linked to the user, not tracking, not
   advertising. `Identifiers → Device ID` is **Yes** for every iOS user while auto session
-  tracking stays on, because the session record always carries the installation id (blind spot
-  3). The answers are submitted; keep them in step if an upload ever adds a data category.
+  tracking stays on, because the session record always carries the installation id (see Known
+  blind spots → The native session record bypasses `beforeSend` (iOS)). The answers are
+  submitted; keep them in step if an upload ever adds a data category.
 
 ## Builds, environments and source maps
 

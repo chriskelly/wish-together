@@ -79,8 +79,8 @@ read lifecycles of the home and profile pages. Read before touching
   `homeReadsEnabledProvider` before awaiting `AuthSession.signOut()`. Riverpod cancels each
   stream subscription synchronously when the gate closes, so the detach is issued before the
   credential is cleared — a listener that outlived the credential made Firestore re-issue its
-  reads unauthenticated, the #81 sign-out bug. A successful sign-out leaves the gate closed; the
-  router takes the page away. A failed sign-out with a live session opens the gate again, which
+  reads unauthenticated. A successful sign-out leaves the gate closed; the router takes the page
+  away. A failed sign-out with a live session opens the gate again, which
   starts exactly one new subscription per read and clears the old errors; one that cleared the
   session first leaves the gate closed and the page on its loading state. One sign-out runs at a
   time — a tap while one is in flight is ignored — and the failure is reported as an `error`
